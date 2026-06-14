@@ -168,29 +168,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {nav.map((section) => (
-            <div key={section.title} className="mb-1">
+            <div key={section.title} className="mb-2">
               {!collapsed && (
-                <button onClick={() => toggle(section.title)} className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+                <div className="px-3 py-1.5 text-[11px] font-bold text-muted-foreground/70 uppercase tracking-wider select-none">
                   {section.title}
-                  <ChevronDown size={12} className={cn("transition-transform", isOpen(section.title) && "rotate-180")} />
-                </button>
-              )}
-              {(isOpen(section.title) || collapsed) && (
-                <div className="space-y-0.5">
-                  {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = pathname === item.href || pathname.startsWith(item.href + "/");
-                    return (
-                      <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
-                        className={cn("sidebar-link", active && "active")}
-                        title={collapsed ? item.title : undefined}>
-                        <Icon size={18} className="shrink-0" />
-                        {!collapsed && <span className="truncate">{item.title}</span>}
-                      </Link>
-                    );
-                  })}
                 </div>
               )}
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                  return (
+                    <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
+                      className={cn("sidebar-link", active && "active")}
+                      title={collapsed ? item.title : undefined}>
+                      <Icon size={18} className="shrink-0" />
+                      {!collapsed && <span className="truncate">{item.title}</span>}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </nav>
