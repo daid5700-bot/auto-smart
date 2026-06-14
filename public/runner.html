@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>AUTO-SMART API Test Runner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --border: #1f2937;
+      --primary: #3b82f6;
+      --success: #10b981;
+      --error: #ef4444;
+      --warning: #f59e0b;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Outfit', sans-serif;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 2rem;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #60a5fa, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .status-summary {
+      display: flex;
+      gap: 1.5rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      border-radius: 1rem;
+    }
+    .stat-box {
+      text-align: center;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .stat-value.passed { color: var(--success); }
+    .stat-value.failed { color: var(--error); }
+    
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    .btn:disabled {
+      background: #374151;
+      color: var(--text-muted);
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      margin-bottom: 2rem;
+      overflow: hidden;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+
+    .test-suite {
+      margin-bottom: 2rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      overflow: hidden;
+    }
+    .suite-header {
+      background: rgba(255, 255, 255, 0.02);
+      padding: 1rem 1.5rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .suite-title {
+      font-size: 1.1rem;
+      color: #60a5fa;
+    }
+    .suite-badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 2rem;
+      font-weight: 500;
+    }
+    .suite-badge.pending { background: #374151; color: var(--text-muted); }
+    .suite-badge.running { background: #1e3a8a; color: #93c5fd; }
+    .suite-badge.success { background: #064e3b; color: #6ee7b7; }
+    .suite-badge.failed { background: #7f1d1d; color: #fca5a5; }
+
+    .test-cases {
+      list-style: none;
+    }
+    .test-case {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      transition: background 0.2s;
+    }
+    .test-case:last-child {
+      border-bottom: none;
+    }
+    .test-case:hover {
+      background: rgba(255, 255, 255, 0.01);
+    }
+    .test-main-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    .test-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .test-name {
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .test-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .test-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .status-dot.pending { background: #6b7280; }
+    .status-dot.running { background: var(--primary); animation: pulse 1s infinite alternate; }
+    .status-dot.passed { background: var(--success); }
+    .status-dot.failed { background: var(--error); }
+
+    .error-msg {
+      padding: 0.75rem;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 0.5rem;
+      color: #fca5a5;
+      font-size: 0.8rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+      width: 100%;
+      display: none;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(0.8); opacity: 0.5; }
+      to { transform: scale(1.2); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>AUTO-SMART API Test Suite</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">Verify system functionalities and branches isolation</p>
+      </div>
+      <div style="display: flex; gap: 1rem; align-items: center;">
+        <div class="status-summary">
+          <div class="stat-box">
+            <div class="stat-value" id="stat-total">0</div>
+            <div class="stat-label">Tổng</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value passed" id="stat-passed">0</div>
+            <div class="stat-label">Pass</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value failed" id="stat-failed">0</div>
+            <div class="stat-label">Fail</div>
+          </div>
+        </div>
+        <button class="btn" id="run-btn" onclick="runAllTests()">Chạy Tests</button>
+      </div>
+    </header>
+
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progress"></div>
+    </div>
+
+    <div id="suites-container"></div>
+  </div>
+
+  <script>
+    const SUITES = [
+      {
+        id: "auth",
+        title: "Xác thực & Phân quyền (Auth)",
+        tests: [
+          { id: "login-ok", name: "Đăng nhập chính xác", desc: "Đăng nhập đúng email & password trả về 200 và user info" },
+          { id: "login-fail-pwd", name: "Đăng nhập sai password", desc: "Trả về status 401 Unauthorized" },
+          { id: "login-fail-email", name: "Đăng nhập email không tồn tại", desc: "Trả về status 401 Unauthorized" }
+        ]
+      },
+      {
+        id: "config",
+        title: "Cấu hình Hệ thống (SystemConfig)",
+        tests: [
+          { id: "config-get", name: "Lấy cấu hình hệ thống", desc: "Trả về các cài đặt mặc định hoặc từ database" },
+          { id: "config-post", name: "Lưu cấu hình hệ thống (Admin)", desc: "Admin lưu được các giá trị thiết lập vào DB" },
+          { id: "config-persist", name: "Kiểm tra tính kiên định (Persist)", desc: "Load lại giá trị vừa lưu để xác nhận đã lưu DB thực sự" },
+          { id: "config-rbac", name: "Chặn User thường chỉnh sửa cấu hình", desc: "Role không phải ADMIN gửi request lưu sẽ trả về 403" }
+        ]
+      },
+      {
+        id: "inventory",
+        title: "Quản lý Kho & Phân trang (Inventory)",
+        tests: [
+          { id: "inv-list", name: "Lấy danh sách phụ tùng", desc: "Trả về danh sách cùng thông tin phân trang" },
+          { id: "inv-paginated", name: "Phân trang hoạt động chính xác", desc: "Gửi limit=5 trả về tối đa 5 sản phẩm kèm số trang đúng" },
+          { id: "inv-crud", name: "Quy trình CRUD sản phẩm phụ tùng", desc: "Tạo mới, Cập nhật và Xóa phụ tùng trơn tru" }
+        ]
+      },
+      {
+        id: "workshop",
+        title: "Dịch vụ Sửa chữa & Hóa đơn (Workshop)",
+        tests: [
+          { id: "ro-list", name: "Lấy danh sách lệnh sửa chữa", desc: "Trả về danh sách RO và Kỹ thuật viên" },
+          { id: "ro-detail", name: "Chi tiết hóa đơn đầy đủ thông tin", desc: "Lấy RO kèm theo đầy đủ quan hệ khách hàng, phụ tùng, chi nhánh" }
+        ]
+      },
+      {
+        id: "crm",
+        title: "Quản lý Khách hàng & Leads (CRM)",
+        tests: [
+          { id: "crm-list", name: "Danh sách CRM", desc: "Trả về dữ liệu customers và leads riêng biệt" },
+          { id: "crm-crud", name: "Quy trình CRUD Khách hàng & Leads", desc: "Thêm mới khách, thêm mới lead, cập nhật trạng thái, xóa" }
+        ]
+      },
+      {
+        id: "isolation",
+        title: "Bảo mật Phân tách Cơ sở (Branch Isolation)",
+        tests: [
+          { id: "iso-inv", name: "Phân tách phụ tùng", desc: "User chi nhánh 1 chỉ được lấy phụ tùng thuộc chi nhánh 1" },
+          { id: "iso-ro", name: "Phân tách lệnh sửa chữa", desc: "User chi nhánh 1 chỉ được lấy lệnh thuộc chi nhánh 1" },
+          { id: "iso-crm", name: "Phân tách khách hàng", desc: "User chi nhánh 1 chỉ được lấy khách thuộc chi nhánh 1" }
+        ]
+      }
+    ];
+
+    let passedCount = 0;
+    let failedCount = 0;
+    let completedTests = 0;
+    const totalTests = SUITES.reduce((sum, s) => sum + s.tests.length, 0);
+
+    function initUI() {
+      const container = document.getElementById("suites-container");
+      container.innerHTML = "";
+      
+      SUITES.forEach(suite => {
+        const suiteEl = document.createElement("div");
+        suiteEl.className = "test-suite";
+        suiteEl.id = `suite-${suite.id}`;
+        
+        let testsHTML = "";
+        suite.tests.forEach(test => {
+          testsHTML += `
+            <li class="test-case" id="test-${test.id}">
+              <div class="test-main-row">
+                <div class="test-info">
+                  <span class="test-name">${test.name}</span>
+                  <span class="test-desc">${test.desc}</span>
+                </div>
+                <div class="test-status">
+                  <span class="status-dot pending" id="dot-${test.id}"></span>
+                  <span class="status-label" id="lbl-${test.id}" style="color: var(--text-muted)">Chờ chạy</span>
+                </div>
+              </div>
+              <div class="error-msg" id="err-${test.id}"></div>
+            </li>
+          `;
+        });
+
+        suiteEl.innerHTML = `
+          <div class="suite-header">
+            <span class="suite-title">${suite.title}</span>
+            <span class="suite-badge pending" id="badge-${suite.id}">Chờ</span>
+          </div>
+          <ul class="test-cases">
+            ${testsHTML}
+          </ul>
+        `;
+        container.appendChild(suiteEl);
+      });
+
+      document.getElementById("stat-total").innerText = totalTests;
+      document.getElementById("stat-passed").innerText = "0";
+      document.getElementById("stat-failed").innerText = "0";
+      document.getElementById("progress").style.width = "0%";
+    }
+
+    function setCookie(role, branchId) {
+      document.cookie = `user_role=${role}; path=/`;
+      document.cookie = `active_branch_id=${branchId}; path=/`;
+    }
+
+    function clearCookies() {
+      document.cookie = "user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      document.cookie = "active_branch_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    }
+
+    async function req(path, method = "GET", body = null) {
+      const opts = {
+        method,
+        headers: { "Content-Type": "application/json" }
+      };
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(path, opts);
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (e) {}
+      return { status: res.status, data };
+    }
+
+    function updateTestStatus(id, status, errorMsg = "") {
+      const dot = document.getElementById(`dot-${id}`);
+      const lbl = document.getElementById(`lbl-${id}`);
+      const errBox = document.getElementById(`err-${id}`);
+
+      dot.className = `status-dot ${status}`;
+      
+      if (status === "running") {
+        lbl.innerText = "Đang chạy";
+        lbl.style.color = "var(--primary)";
+      } else if (status === "passed") {
+        lbl.innerText = "ĐẠT";
+        lbl.style.color = "var(--success)";
+        passedCount++;
+        completedTests++;
+      } else if (status === "failed") {
+        lbl.innerText = "LỖI";
+        lbl.style.color = "var(--error)";
+        errBox.innerText = errorMsg;
+        errBox.style.display = "block";
+        failedCount++;
+        completedTests++;
+      }
+
+      document.getElementById("stat-passed").innerText = passedCount;
+      document.getElementById("stat-failed").innerText = failedCount;
+      document.getElementById("progress").style.width = `${(completedTests / totalTests) * 100}%`;
+    }
+
+    function updateSuiteBadge(suiteId, status) {
+      const badge = document.getElementById(`badge-${suiteId}`);
+      badge.className = `suite-badge ${status}`;
+      if (status === "running") badge.innerText = "Đang chạy";
+      else if (status === "success") badge.innerText = "Hoàn thành";
+      else if (status === "failed") badge.innerText = "Lỗi";
+    }
+
+    async function runAllTests() {
+      document.getElementById("run-btn").disabled = true;
+      passedCount = 0;
+      failedCount = 0;
+      completedTests = 0;
+      initUI();
+
+      // IDs tạm thời được tạo trong quá trình test
+      let branchId = null;
+      let userId = null;
+      let productId = null;
+      let customerId = null;
+      let leadId = null;
+
+      // ─── AUTH SUITE ───────────────────────────────────────
+      updateSuiteBadge("auth", "running");
+      
+      // Test login ok
+      updateTestStatus("login-ok", "running");
+      try {
+        const { status, data } = await req("/api/auth/login", "POST", { email: "admin@autosmart.vn", password: "admin123" });
+        if (status === 200 && data?.user?.role === "ADMIN") {
+          updateTestStatus("login-ok", "passed");
+        } else {
+          throw new Error(`Kỳ vọng 200 & role ADMIN, nhận: status=${status}, data=${JSON.stringify(data)}`);
+        }
+      } catch (e) {
+        updateTestStatus("login-ok", "failed", e.message);
+      }
+
+      // Test login fail pwd
+      updateTestStatus("login-fail-pwd", "running");
+      try {
+        const { status } = await req("/api/auth/login", "POST", { email: "admin@autosmart.vn", password: "wrong" });
+        if (status === 401) {
+          updateTestStatus("login-fail-pwd", "passed");
+        } else {
+          throw new Error(`Kỳ vọng status 401, nhận: ${status}`);
+        }
+      } catch (e) {
+        updateTestStatus("login-fail-pwd", "failed", e.message);
+      }
+
+      // Test login fail email
+      updateTestStatus("login-fail-email", "running");
+      try {
+        const { status } = await req("/api/auth/login", "POST", { email: "wrong@autosmart.vn", password: "admin" });
+        if (status === 401) {
+          updateTestStatus("login-fail-email", "passed");
+        } else {
+          throw new Error(`Kỳ vọng status 401, nhận: ${status}`);
+        }
+      } catch (e) {
+        updateTestStatus("login-fail-email", "failed", e.message);
+      }
+      updateSuiteBadge("auth", document.querySelectorAll("#suite-auth .failed").length > 0 ? "failed" : "success");
+
+      // Set cookie mặc định là Admin chi nhánh 1
+      setCookie("ADMIN", "1");
+
+      // ─── CONFIG SUITE ─────────────────────────────────────
+      updateSuiteBadge("config", "running");
+
+      // Test config get
+      updateTestStatus("config-get", "running");
+      try {
+        const { status, data } = await req("/api/config");
+        if (status === 200 && data?.config?.zns_template && data?.config?.lease_rate) {
+          updateTestStatus("config-get", "passed");
+        } else {
+          throw new Error(`Cấu hình rỗng hoặc thiếu keys: ${JSON.stringify(data)}`);
+        }
+      } catch (e) {
+        updateTestStatus("config-get", "failed", e.message);
+      }
+
+      // Test config post
+      updateTestStatus("config-post", "running");
+      try {
+        const { status, data } = await req("/api/config", "POST", { lease_rate: "8.8", points_rate: "3" });
+        if (status === 200 && data?.success === true) {
+          updateTestStatus("config-post", "passed");
+        } else {
+          throw new Error(`Gửi config lỗi: status=${status}, data=${JSON.stringify(data)}`);
+        }
+      } catch (e) {
+        updateTestStatus("config-post", "failed", e.message);
+      }
+
+      // Test config persist
+      updateTestStatus("config-persist", "running");
+      try {
+        const { status, data } = await req("/api/config");
+        if (status === 200 && data?.config?.lease_rate === "8.8" && data?.config?.points_rate === "3") {
+          updateTestStatus("config-persist", "passed");
+        } else {
+          throw new Error(`Cấu hình lưu vào DB không kiên định: ${JSON.stringify(data)}`);
+        }
+      } catch (e) {
+        updateTestStatus("config-persist", "failed", e.message);
+      }
+
+      // Test config rbac
+      updateTestStatus("config-rbac", "running");
+      try {
+        // Set role CRM
+        setCookie("CRM", "1");
+        const { status } = await req("/api/config", "POST", { lease_rate: "9.9" });
+        // Trả lại Admin
+        setCookie("ADMIN", "1");
+        if (status === 403) {
+          updateTestStatus("config-rbac", "passed");
+        } else {
+          throw new Error(`Kỳ vọng 403 Forbidden cho CRM, nhận: ${status}`);
+        }
+      } catch (e) {
+        setCookie("ADMIN", "1");
+        updateTestStatus("config-rbac", "failed", e.message);
+      }
+      updateSuiteBadge("config", document.querySelectorAll("#suite-config .failed").length > 0 ? "failed" : "success");
+
+      // Khôi phục lease_rate cũ
+      await req("/api/config", "POST", { lease_rate: "7.9", points_rate: "1" });
+
+      // ─── INVENTORY SUITE ──────────────────────────────────
+      updateSuiteBadge("inventory", "running");
+
+      // Test inv list
+      updateTestStatus("inv-list", "running");
+      try {
+        const { status, data } = await req("/api/inventory");
+        if (status === 200 && Array.isArray(data?.products) && typeof data?.totalPages === "number") {
+          updateTestStatus("inv-list", "passed");
+        } else {
+          throw new Error(`Dữ liệu không đúng cấu trúc: ${JSON.stringify(data)}`);
+        }
+      } catch (e) {
+        updateTestStatus("inv-list", "failed", e.message);
+      }
+
+      // Test inv paginated
+      updateTestStatus("inv-paginated", "running");
+      try {
+        const { status, data } = await req("/api/inventory?page=1&limit=5");
+        if (status === 200 && data?.products?.length <= 5 && data?.currentPage === 1 && data?.limit === 5) {
+          updateTestStatus("inv-paginated", "passed");
+        } else {
+          throw new Error(`Phân trang lỗi hoặc không giới hạn 5 items: ${JSON.stringify(data)}`);
+        }
+      } catch (e) {
+        updateTestStatus("inv-paginated", "failed", e.message);
+      }
+
+      // Test inv crud
+      updateTestStatus("inv-crud", "running");
+      try {
+        const sku = `T-${Date.now()}`;
+        // Create
+        const cRes = await req("/api/inventory", "POST", {
+          sku, name: "Phụ tùng Test CRUD", category: "Lọc", unit: "Cái",
+          stockCount: 15, stockMin: 3, stockMax: 100,
+          prices: [{ type: "RETAIL", amount: 150000 }]
+        });
+        if (cRes.status !== 201) throw new Error(`Tạo thất bại: status=${cRes.status}`);
+        productId = cRes.data?.id;
+
+        // Update
+        const uRes = await req(`/api/inventory/${productId}`, "PATCH", { stockMin: 5 });
+        if (uRes.status !== 200 || uRes.data?.stockMin !== 5) throw new Error(`Cập nhật thất bại: status=${uRes.status}, data=${JSON.stringify(uRes.data)}`);
+
+        // Delete
+        const dRes = await req(`/api/inventory/${productId}`, "DELETE");
+        if (dRes.status !== 200) throw new Error(`Xóa thất bại: status=${dRes.status}`);
+        
+        updateTestStatus("inv-crud", "passed");
+      } catch (e) {
+        updateTestStatus("inv-crud", "failed", e.message);
+      }
+      updateSuiteBadge("inventory", document.querySelectorAll("#suite-inventory .failed").length > 0 ? "failed" : "success");
+
+      // ─── WORKSHOP SUITE ───────────────────────────────────
+      updateSuiteBadge("workshop", "running");
+
+      // Test ro list
+      updateTestStatus("ro-list", "running");
+      try {
+        const { status, data } = await req("/api/workshop");
+        if (status === 200 && Array.isArray(data?.repairOrders)) {
+          updateTestStatus("ro-list", "passed");
+        } else {
+          throw new Error(`Lỗi cấu trúc danh sách RO: ${JSON.stringify(data)}`);
+        }
+      } catch (e) {
+        updateTestStatus("ro-list", "failed", e.message);
+      }
+
+      // Test ro detail (invoice)
+      updateTestStatus("ro-detail", "running");
+      try {
+        const { data: list } = await req("/api/workshop");
+        const ro = list?.repairOrders?.[0];
+        if (!ro) {
+          throw new Error("Không có Repair Order nào tồn tại để test chi tiết hóa đơn.");
+        }
+        const { status, data: detail } = await req(`/api/workshop/${ro.id}`);
+        if (status === 200 && detail?.customer && detail?.branch && Array.isArray(detail?.items)) {
+          updateTestStatus("ro-detail", "passed");
+        } else {
+          throw new Error(`RO chi tiết thiếu quan hệ: ${JSON.stringify(detail)}`);
+        }
+      } catch (e) {
+        updateTestStatus("ro-detail", "failed", e.message);
+      }
+      updateSuiteBadge("workshop", document.querySelectorAll("#suite-workshop .failed").length > 0 ? "failed" : "success");
+
+      // ─── CRM SUITE ────────────────────────────────────────
+      updateSuiteBadge("crm", "running");
+
+      // Test crm list
+      updateTestStatus("crm-list", "running");
+      try {
+        const { status, data } = await req("/api/crm");
+        if (status === 200 && Array.isArray(data?.customers) && Array.isArray(data?.leads)) {
+          updateTestStatus("crm-list", "passed");
+        } else {
+          throw new Error(`Thiếu mảng customers hoặc leads: ${JSON.stringify(data)}`);
+        }
+      } catch (e) {
+        updateTestStatus("crm-list", "failed", e.message);
+      }
+
+      // Test crm crud
+      updateTestStatus("crm-crud", "running");
+      try {
+        const phone = `098${Date.now().toString().slice(-7)}`;
+        // Create Lead
+        const cLead = await req("/api/crm", "POST", { type: "lead", name: "Lead CRUD Test", phone, source: "WEBSITE" });
+        if (cLead.status !== 201) throw new Error(`Tạo Lead lỗi: status=${cLead.status}`);
+        leadId = cLead.data?.id;
+
+        // Update Lead
+        const uLead = await req(`/api/crm/${leadId}`, "PATCH", { type: "lead", status: "POTENTIAL" });
+        if (uLead.status !== 200) throw new Error(`Cập nhật Lead lỗi: status=${uLead.status}`);
+
+        // Delete Lead
+        const dLead = await req(`/api/crm/${leadId}`, "DELETE", { type: "lead" });
+        if (dLead.status !== 200) throw new Error(`Xóa Lead lỗi: status=${dLead.status}`);
+
+        // Create Customer
+        const cCust = await req("/api/crm", "POST", { type: "customer", name: "Customer CRUD Test", phone, source: "WALKIN" });
+        if (cCust.status !== 201) throw new Error(`Tạo Customer lỗi: status=${cCust.status}`);
+        customerId = cCust.data?.id;
+
+        // Delete Customer
+        const dCust = await req(`/api/crm/${customerId}`, "DELETE", { type: "customer" });
+        if (dCust.status !== 200) throw new Error(`Xóa Customer lỗi: status=${dCust.status}`);
+
+        updateTestStatus("crm-crud", "passed");
+      } catch (e) {
+        updateTestStatus("crm-crud", "failed", e.message);
+      }
+      updateSuiteBadge("crm", document.querySelectorAll("#suite-crm .failed").length > 0 ? "failed" : "success");
+
+      // ─── ISOLATION SUITE ──────────────────────────────────
+      updateSuiteBadge("isolation", "running");
+
+      // Test iso inv
+      updateTestStatus("iso-inv", "running");
+      try {
+        setCookie("WAREHOUSE", "1");
+        const { status, data } = await req("/api/inventory");
+        setCookie("ADMIN", "1");
+        const wrongBranch = data?.products?.filter(p => p.branchId && p.branchId !== 1) || [];
+        if (status === 200 && wrongBranch.length === 0) {
+          updateTestStatus("iso-inv", "passed");
+        } else {
+          throw new Error(`Phát hiện ${wrongBranch.length} sản phẩm của chi nhánh khác rò rỉ vào chi nhánh 1!`);
+        }
+      } catch (e) {
+        setCookie("ADMIN", "1");
+        updateTestStatus("iso-inv", "failed", e.message);
+      }
+
+      // Test iso ro
+      updateTestStatus("iso-ro", "running");
+      try {
+        setCookie("WORKSHOP", "1");
+        const { status, data } = await req("/api/workshop");
+        setCookie("ADMIN", "1");
+        const wrongBranch = data?.repairOrders?.filter(ro => ro.branchId && ro.branchId !== 1) || [];
+        if (status === 200 && wrongBranch.length === 0) {
+          updateTestStatus("iso-ro", "passed");
+        } else {
+          throw new Error(`Phát hiện ${wrongBranch.length} lệnh sửa chữa chi nhánh khác rò rỉ vào chi nhánh 1!`);
+        }
+      } catch (e) {
+        setCookie("ADMIN", "1");
+        updateTestStatus("iso-ro", "failed", e.message);
+      }
+
+      // Test iso crm
+      updateTestStatus("iso-crm", "running");
+      try {
+        setCookie("CRM", "1");
+        const { status, data } = await req("/api/crm");
+        setCookie("ADMIN", "1");
+        const wrongBranch = data?.customers?.filter(c => c.branchId && c.branchId !== 1) || [];
+        if (status === 200 && wrongBranch.length === 0) {
+          updateTestStatus("iso-crm", "passed");
+        } else {
+          throw new Error(`Phát hiện ${wrongBranch.length} khách hàng chi nhánh khác rò rỉ vào chi nhánh 1!`);
+        }
+      } catch (e) {
+        setCookie("ADMIN", "1");
+        updateTestStatus("iso-crm", "failed", e.message);
+      }
+      updateSuiteBadge("isolation", document.querySelectorAll("#suite-isolation .failed").length > 0 ? "failed" : "success");
+
+      // Dọn dẹp cookie
+      clearCookies();
+      document.getElementById("run-btn").disabled = false;
+    }
+  </script>
+</body>
+</html>

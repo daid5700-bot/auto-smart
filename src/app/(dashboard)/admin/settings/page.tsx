@@ -1,0 +1,155 @@
+"use client";
+import { useEffect, useState } from "react";
+import { Settings, Save, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+
+export default function SettingsPage() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  const [znsTemplate, setZnsTemplate] = useState("");
+  const [leaseRate, setLeaseRate] = useState("7.9");
+  const [pointsRate, setPointsRate] = useState("1");
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.config) {
+          setZnsTemplate(data.config.zns_template || "");
+          setLeaseRate(data.config.lease_rate || "7.9");
+          setPointsRate(data.config.points_rate || "1");
+        }
+      })
+      .catch(() => setError("Không thể tải cấu hình"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          zns_template: znsTemplate,
+          lease_rate: leaseRate,
+          points_rate: pointsRate,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lỗi lưu cấu hình");
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 stagger">
+      <div>
+        <h2 className="text-2xl font-bold">Cấu hình Hệ thống</h2>
+        <p className="text-muted-foreground text-sm mt-1">
+          Thiết lập các thông số vận hành cho toàn bộ ERP &amp; CRM — lưu vào cơ sở dữ liệu, không mất khi reload
+        </p>
+      </div>
+
+      <form onSubmit={handleSave} className="max-w-2xl glass-card rounded-xl p-6 space-y-6">
+        {/* Section 1: ZNS */}
+        <div className="space-y-4">
+          <h3 className="font-bold border-b border-border/40 pb-2">1. Cấu hình Zalo ZNS</h3>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+              Mẫu tin nhắn nhắc thay dầu (Template)
+            </label>
+            <textarea
+              value={znsTemplate}
+              onChange={(e) => setZnsTemplate(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Dùng biến: <code>[NAME]</code> = Tên khách, <code>[PLATE]</code> = Biển số xe
+            </p>
+          </div>
+        </div>
+
+        {/* Section 2: Vehicle Sales */}
+        <div className="space-y-4">
+          <h3 className="font-bold border-b border-border/40 pb-2">2. Cấu hình Kinh doanh xe</h3>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+              Lãi suất trả góp ngân hàng cơ bản (% / năm)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="30"
+              value={leaseRate}
+              onChange={(e) => setLeaseRate(e.target.value)}
+              className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+        </div>
+
+        {/* Section 3: Loyalty */}
+        <div className="space-y-4">
+          <h3 className="font-bold border-b border-border/40 pb-2">3. Chương trình khách hàng thân thiết</h3>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+              Tỷ lệ tích điểm (% trên tổng thanh toán)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="10"
+              value={pointsRate}
+              onChange={(e) => setPointsRate(e.target.value)}
+              className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Ví dụ: Tỷ lệ 1% → thanh toán 10.000.000đ sẽ tích được 100.000đ điểm quy đổi.
+            </p>
+          </div>
+        </div>
+
+        {/* Messages */}
+        {error && (
+          <div className="flex items-center gap-2 text-xs font-bold text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-xl">
+            <AlertCircle size={16} /> {error}
+          </div>
+        )}
+        {success && (
+          <div className="flex items-center gap-2 text-xs font-bold text-success bg-success/10 border border-success/20 p-3 rounded-xl">
+            <CheckCircle2 size={16} /> Lưu cấu hình hệ thống thành công!
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-5 py-2.5 gradient-primary text-white font-semibold text-sm rounded-xl hover:opacity-90 flex items-center gap-2 disabled:opacity-60"
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {saving ? "Đang lưu..." : "Lưu cấu hình"}
+        </button>
+      </form>
+    </div>
+  );
+}

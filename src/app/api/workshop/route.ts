@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getActiveBranchId } from "@/lib/branch";
+
+// GET /api/workshop — list repair orders + technicians
+export async function GET(req: NextRequest) {
+  const branchId = getActiveBranchId();
+
+  const repairOrders = await prisma.repairOrder.findMany({
+    where: branchId ? { branchId } : {},
+    orderBy: { createdAt: "desc" },
+    include: { customer: true, technician: true, items: { include: { product: true } } },
+  });
+
+  const technicians = await prisma.technician.findMany({
+    where: branchId ? { branchId } : {},
+    orderBy: { code: "asc" },
+    include: {
+      repairOrders: {
+        where: branchId ? { branchId } : {},
+      },
+      performances: {
+        where: branchId ? { repairOrderId: { in: repairOrders.map((ro) => ro.id) } } : {},
+        select: { commissionAmount: true },
+      },
+    },
+  });
+
+  // Enrich technicians with totals
+  const enrichedTechs = technicians.map((t: any) => ({
+    ...t,
+    completedOrders: (t.repairOrders || []).length,
+    totalCommission: (t.performances || []).reduce((s: number, p: any) => s + Number(p.commissionAmount), 0),
+  }));
+
+  return NextResponse.json({ repairOrders, technicians: enrichedTechs });
+}
+
+// POST /api/workshop — create repair order
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const branchId = getActiveBranchId();
+    const ro = await prisma.repairOrder.create({
+      data: {
+        customerId: body.customerId,
+        plateNumber: body.plateNumber,
+        vehicleModel: body.vehicleModel,
+        kmIn: body.kmIn || 0,
+        symptoms: body.symptoms,
+        photos: body.photos || [],
+        status: "PENDING",
+        technicianId: body.technicianId,
+        createdById: body.createdById,
+        laborCost: body.laborCost || 0,
+        partsCost: body.partsCost || 0,
+        totalAmount: (body.laborCost || 0) + (body.partsCost || 0),
+        branchId,
+      },
+      include: { customer: true, technician: true },
+    });
+
+    // Update technician status
+    if (body.technicianId) {
+      await prisma.technician.update({ where: { id: body.technicianId }, data: { status: "WORKING" } });
+    }
+
+    return NextResponse.json(ro, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+}
+
+// PATCH /api/workshop — update RO status
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const data: any = { status: body.status };
+    if (body.status === "DONE") data.completedAt = new Date();
+
+    const ro = await prisma.repairOrder.update({
+      where: { id: body.id },
+      data,
+      include: { customer: true, technician: true },
+    });
+
+    // If DONE: free up technician + record commission
+    if (body.status === "DONE" && ro.technicianId) {
+      await prisma.technician.update({ where: { id: ro.technicianId }, data: { status: "IDLE" } });
+      const tech = await prisma.technician.findUnique({ where: { id: ro.technicianId } });
+      if (tech) {
+        const commission = Number(ro.totalAmount) * tech.commissionRate / 100;
+        await prisma.techPerformance.create({
+          data: { technicianId: tech.id, repairOrderId: ro.id, commissionAmount: commission },
+        });
+      }
+      // Auto-send ZNS thank you
+      await prisma.znsLog.create({
+        data: { customerId: ro.customerId, phone: ro.customer.phone, messageType: "THANK_YOU", content: `Cảm ơn ${ro.customer.name} đã sử dụng dịch vụ tại AutoSmart!`, status: "SENT", branchId: ro.branchId },
+      });
+    }
+
+    return NextResponse.json(ro);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+}
