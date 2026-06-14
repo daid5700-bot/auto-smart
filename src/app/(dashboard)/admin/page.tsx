@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/lib/store";
 import {
-  Wrench, Users, ShoppingCart, AlertTriangle, TrendingUp, Plus,
+  Wrench, Users, ShoppingCart, AlertTriangle, TrendingUp, TrendingDown, Plus,
   Calendar, DollarSign, Car, MessageSquare, ShieldCheck, Loader2
 } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -69,9 +71,9 @@ export default function AdminDashboard() {
   // Top KTV name for welcome area
   const topKtvName = data.topKtv?.[0]?.name || "Chưa có";
 
-  // Calculate coordinates for SVG area chart (max value based on revenue or default to 600)
+  // Calculate coordinates for SVG area chart (max value based on real revenue, min 10 to avoid div-by-zero)
   const monthlyRevenue = data.monthlyRevenue || [];
-  const maxVal = Math.max(...monthlyRevenue.map((r: any) => r.value), 600);
+  const maxVal = Math.max(...monthlyRevenue.map((r: any) => r.value), 10);
   const chartHeight = 160;
   const chartWidth = 520;
   const paddingX = 40;
@@ -88,6 +90,12 @@ export default function AdminDashboard() {
     ? `${linePath} L ${points[points.length - 1].x} ${chartHeight + paddingY} L ${points[0].x} ${chartHeight + paddingY} Z` 
     : "";
 
+  // Dynamic user name greeting
+  const greetingName = user?.name || "An";
+
+  // Dynamic trend rendering
+  const trend = data.trendPercentage ?? 0;
+
   return (
     <div className="space-y-6 stagger">
       {/* Header section */}
@@ -97,7 +105,7 @@ export default function AdminDashboard() {
             BẢNG ĐIỀU KHIỂN · GIÁM ĐỐC
           </p>
           <h2 className="text-3xl font-extrabold tracking-tight mt-1">
-            Xin chào, An.
+            Xin chào, {greetingName}.
           </h2>
           <p className="text-sm text-muted-foreground mt-1.5">
             Hôm nay có <span className="font-semibold text-primary">{data.activeRepairOrders} lệnh đang chạy</span>,{" "}
@@ -182,9 +190,15 @@ export default function AdminDashboard() {
                 12 tháng gần nhất · triệu đồng
               </h3>
             </div>
-            <span className="text-xs font-semibold text-emerald-500 flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-              <TrendingUp size={12} /> +12.4% so với kỳ trước
-            </span>
+            {trend >= 0 ? (
+              <span className="text-xs font-semibold text-emerald-500 flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                <TrendingUp size={12} /> +{trend}% so với kỳ trước
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-rose-500 flex items-center gap-1 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
+                <TrendingDown size={12} /> {trend}% so với kỳ trước
+              </span>
+            )}
           </div>
 
           {/* SVG Area Chart */}
@@ -205,10 +219,10 @@ export default function AdminDashboard() {
               <line x1="40" y1="180" x2="560" y2="180" stroke="var(--border-color, #e4e4e7)" strokeWidth="1" />
 
               {/* Y Axis Labels */}
-              <text x="30" y="24" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">600</text>
-              <text x="30" y="69" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">450</text>
-              <text x="30" y="114" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">300</text>
-              <text x="30" y="159" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">150</text>
+              <text x="30" y="24" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{Math.round(maxVal)}</text>
+              <text x="30" y="69" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{Math.round(maxVal * 0.75)}</text>
+              <text x="30" y="114" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{Math.round(maxVal * 0.5)}</text>
+              <text x="30" y="159" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{Math.round(maxVal * 0.25)}</text>
               <text x="30" y="184" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">0</text>
 
               {/* Chart Line and Area */}

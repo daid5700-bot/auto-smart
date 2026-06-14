@@ -50,19 +50,43 @@ export async function GET() {
       console.error(e);
     }
 
-    // 3. 30 Days Revenue & Closed ROs
+    // 3. 30 Days Revenue, Previous 30 Days Revenue, Trend & Closed ROs
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const closedROs = await prisma.repairOrder.findMany({
-      where: {
-        status: { in: ["DONE", "DELIVERED"] },
-        completedAt: { gte: thirtyDaysAgo },
-        ...(branchId ? { branchId } : {}),
-      },
-      select: { totalAmount: true },
-    });
-    const revenue30Days = closedROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
-    const closedROsCount = closedROs.length;
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+    const [current30DaysROs, previous30DaysROs] = await Promise.all([
+      prisma.repairOrder.findMany({
+        where: {
+          status: { in: ["DONE", "DELIVERED"] },
+          completedAt: { gte: thirtyDaysAgo },
+          ...(branchId ? { branchId } : {}),
+        },
+        select: { totalAmount: true },
+      }),
+      prisma.repairOrder.findMany({
+        where: {
+          status: { in: ["DONE", "DELIVERED"] },
+          completedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+          ...(branchId ? { branchId } : {}),
+        },
+        select: { totalAmount: true },
+      })
+    ]);
+
+    const revenue30Days = current30DaysROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+    const closedROsCount = current30DaysROs.length;
+
+    const previous30DaysRevenue = previous30DaysROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+    
+    // Calculate trend percentage
+    let trendPercentage = 0;
+    if (previous30DaysRevenue > 0) {
+      trendPercentage = Number(((revenue30Days - previous30DaysRevenue) / previous30DaysRevenue * 100).toFixed(1));
+    } else if (revenue30Days > 0) {
+      trendPercentage = 100;
+    }
 
     // 4. Top 5 Technicians by completed RO total amount
     const techs = await prisma.technician.findMany({
@@ -138,15 +162,6 @@ export async function GET() {
       monthlyRevenue.push({ label: monthLabel, value: Number(total.toFixed(1)) });
     }
 
-    const hasAnyData = monthlyRevenue.some((m) => m.value > 0);
-    if (!hasAnyData) {
-      // Mock values for visual design fallback
-      const mockValues = [450, 480, 520, 500, 420, 400, 320, 360, 370, 410, 440, 510];
-      monthlyRevenue.forEach((m, idx) => {
-        m.value = mockValues[idx];
-      });
-    }
-
     return NextResponse.json({
       totalProducts,
       lowStockCount: lowStockProducts,
@@ -162,6 +177,7 @@ export async function GET() {
       totalTechnicians,
       revenue30Days,
       closedROsCount,
+      trendPercentage,
       topKtv,
       activeROList,
       careSchedules,
