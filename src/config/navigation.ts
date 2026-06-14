@@ -23,7 +23,6 @@ const NAV: NavSection[] = [
     { title: "Lệnh sửa chữa", href: "/workshop", icon: Wrench, perm: "workshop.view" },
     { title: "Kỹ thuật viên", href: "/workshop/technicians", icon: UserCog, perm: "workshop.manage" },
     { title: "Lịch sử xe", href: "/workshop/history", icon: History, perm: "workshop.view" },
-    { title: "Hoa hồng KTV", href: "/workshop/commission", icon: TrendingUp, perm: "workshop.commission" },
   ]},
   { title: "Kinh doanh xe", items: [
     { title: "Kho xe", href: "/sales", icon: Car, perm: "sales.view" },

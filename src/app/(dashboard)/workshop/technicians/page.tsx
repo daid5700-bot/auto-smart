@@ -14,7 +14,7 @@ export default function TechniciansPage() {
     code: "",
     name: "",
     phone: "",
-    commissionRate: 10,
+    commissionRate: 0,
     status: "IDLE",
   });
 
@@ -51,7 +51,7 @@ export default function TechniciansPage() {
 
   const handleOpenAdd = () => {
     setEditingId(null);
-    setFormData({ code: "", name: "", phone: "", commissionRate: 10, status: "IDLE" });
+    setFormData({ code: "", name: "", phone: "", commissionRate: 0, status: "IDLE" });
     setModalOpen(true);
   };
 
@@ -61,7 +61,7 @@ export default function TechniciansPage() {
       code: t.code,
       name: t.name,
       phone: t.phone || "",
-      commissionRate: t.commissionRate,
+      commissionRate: 0,
       status: t.status,
     });
     setModalOpen(true);
@@ -98,7 +98,7 @@ export default function TechniciansPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Quản lý Kỹ thuật viên (KTV)</h2>
-          <p className="text-muted-foreground text-sm mt-1">Quản lý hồ sơ nhân sự xưởng, phân công công việc và tỷ lệ hoa hồng sửa chữa</p>
+          <p className="text-muted-foreground text-sm mt-1">Quản lý hồ sơ nhân sự xưởng và phân công công việc</p>
         </div>
         <button onClick={handleOpenAdd} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
           <Plus size={16} /> Thêm KTV mới
@@ -113,9 +113,7 @@ export default function TechniciansPage() {
               <th>Họ và tên</th>
               <th>Số điện thoại</th>
               <th>Trạng thái</th>
-              <th>Tỷ lệ hoa hồng (%)</th>
               <th>Số lệnh đã sửa</th>
-              <th>Tích lũy hoa hồng</th>
               <th>Thao tác</th>
             </tr>
           </thead>
@@ -130,9 +128,7 @@ export default function TechniciansPage() {
                     {t.status === "IDLE" ? "Đang rảnh" : "Đang làm việc"}
                   </span>
                 </td>
-                <td className="font-medium text-center">{t.commissionRate}%</td>
                 <td>{t.completedOrders}</td>
-                <td className="font-bold text-primary">{formatCurrency(t.totalCommission)}</td>
                 <td>
                   <div className="flex gap-2">
                     <button onClick={() => handleOpenEdit(t)} className="p-1 hover:bg-secondary rounded text-primary"><Edit size={14} /></button>
@@ -166,15 +162,9 @@ export default function TechniciansPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại</label>
-                  <input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: 0901234567" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tỷ lệ hoa hồng (%)</label>
-                  <input type="number" required min={0} max={100} value={formData.commissionRate} onChange={(e) => setFormData({ ...formData, commissionRate: parseInt(e.target.value) || 10 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại</label>
+                <input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: 0901234567" />
               </div>
 
               <div>
