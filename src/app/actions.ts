@@ -109,16 +109,6 @@ export async function updateROStatus(data: {
   if (isFinalizing && updatedRo.technicianId) {
     const tech = updatedRo.technician;
     if (tech) {
-      // Calculate and save technician commission
-      const commission = Number(updatedRo.totalAmount) * tech.commissionRate / 100;
-      await prisma.techPerformance.create({
-        data: {
-          technicianId: tech.id,
-          repairOrderId: updatedRo.id,
-          commissionAmount: commission,
-        },
-      });
-
       // Update tech status back to idle
       await prisma.technician.update({
         where: { id: tech.id },

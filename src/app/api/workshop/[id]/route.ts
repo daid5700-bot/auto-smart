@@ -60,16 +60,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       include: { customer: true, technician: true },
     });
 
-    // Handle KTV performance commission if completed
+    // Handle KTV status if completed
     if (body.status === "DONE" && ro.technicianId && currentRo.status !== "DONE") {
       await prisma.technician.update({ where: { id: ro.technicianId }, data: { status: "IDLE" } });
-      const tech = await prisma.technician.findUnique({ where: { id: ro.technicianId } });
-      if (tech) {
-        const commission = Number(ro.totalAmount) * tech.commissionRate / 100;
-        await prisma.techPerformance.create({
-          data: { technicianId: tech.id, repairOrderId: ro.id, commissionAmount: commission },
-        });
-      }
       // Send loyalty points & ZNS
       const points = Math.floor(Number(ro.totalAmount) / 1000); // 1 point per 1k VND
       await prisma.customer.update({

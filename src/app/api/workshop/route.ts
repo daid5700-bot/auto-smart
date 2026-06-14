@@ -84,16 +84,9 @@ export async function PATCH(req: NextRequest) {
       include: { customer: true, technician: true },
     });
 
-    // If DONE: free up technician + record commission
+    // If DONE: free up technician
     if (body.status === "DONE" && ro.technicianId) {
       await prisma.technician.update({ where: { id: ro.technicianId }, data: { status: "IDLE" } });
-      const tech = await prisma.technician.findUnique({ where: { id: ro.technicianId } });
-      if (tech) {
-        const commission = Number(ro.totalAmount) * tech.commissionRate / 100;
-        await prisma.techPerformance.create({
-          data: { technicianId: tech.id, repairOrderId: ro.id, commissionAmount: commission },
-        });
-      }
       // Auto-send ZNS thank you
       await prisma.znsLog.create({
         data: { customerId: ro.customerId, phone: ro.customer.phone, messageType: "THANK_YOU", content: `Cảm ơn ${ro.customer.name} đã sử dụng dịch vụ tại AutoSmart!`, status: "SENT", branchId: ro.branchId },
