@@ -14,12 +14,15 @@ const NAV: NavSection[] = [
     { title: "Dashboard", href: "/admin", icon: LayoutDashboard, perm: "admin.dashboard" },
   ]},
   { title: "Kho phụ tùng", items: [
+    { title: "Thống kê kho", href: "/inventory/stats", icon: TrendingUp, perm: "inventory.view" },
     { title: "Danh mục phụ tùng", href: "/inventory", icon: Package, perm: "inventory.view" },
     { title: "Nhập kho", href: "/inventory/import", icon: Warehouse, perm: "inventory.manage" },
     { title: "Xuất kho", href: "/inventory/export", icon: ClipboardList, perm: "inventory.manage" },
     { title: "Bảng giá", href: "/inventory/pricing", icon: DollarSign, perm: "inventory.pricing" },
+    { title: "Duyệt yêu cầu xuất", href: "/inventory/requisitions", icon: ClipboardList, perm: "inventory.manage" },
   ]},
   { title: "Xưởng dịch vụ", items: [
+    { title: "Thống kê dịch vụ", href: "/workshop/stats", icon: TrendingUp, perm: "workshop.view" },
     { title: "Lệnh sửa chữa", href: "/workshop", icon: Wrench, perm: "workshop.view" },
     { title: "Tạo lệnh mới", href: "/workshop/new", icon: Plus, perm: "workshop.manage" },
     { title: "Kỹ thuật viên", href: "/workshop/technicians", icon: UserCog, perm: "workshop.manage" },

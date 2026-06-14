@@ -34,8 +34,11 @@ const config: Config = {
       },
       borderRadius: {
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        md: "calc(var(--radius) - 1px)",
+        sm: "calc(var(--radius) - 2px)",
+        xl: "calc(var(--radius) + 1px)",
+        "2xl": "calc(var(--radius) + 2px)",
+        "3xl": "calc(var(--radius) + 4px)",
       },
       keyframes: {
         "slide-in-bottom": { from: { opacity: "0", transform: "translateY(16px)" }, to: { opacity: "1", transform: "translateY(0)" } },

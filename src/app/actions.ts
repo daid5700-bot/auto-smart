@@ -52,6 +52,74 @@ export async function importStock(data: {
   return { success: true, actualQty, avgCost, updatedProduct };
 }
 
+export async function createManualImport(data: {
+  items: {
+    productId: number;
+    quantity: number;
+    unitCost: number;
+    conversionFactor?: number;
+  }[];
+  createdBy: string;
+}) {
+  const branchId = getActiveBranchId();
+
+  if (!data.items || data.items.length === 0) {
+    throw new Error("Danh sách nhập kho không được trống");
+  }
+
+  const results = await prisma.$transaction(async (tx) => {
+    const movementsCreated = [];
+
+    for (const item of data.items) {
+      if (item.conversionFactor !== undefined && item.conversionFactor <= 0) {
+        throw new Error("Hệ số quy đổi phải lớn hơn 0");
+      }
+
+      const factor = item.conversionFactor || 1;
+      const actualQty = item.quantity * factor;
+      const avgCost = item.unitCost / factor;
+
+      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
+      if (branchId && product.branchId !== branchId) {
+        throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
+      }
+
+      const newStock = product.stockCount + actualQty;
+
+      await tx.product.update({
+        where: { id: item.productId },
+        data: {
+          stockCount: newStock,
+          lastImportDate: new Date(),
+        },
+      });
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          productId: item.productId,
+          type: "IMPORT",
+          quantity: actualQty,
+          unitCost: avgCost,
+          totalCost: item.unitCost * item.quantity,
+          createdBy: data.createdBy,
+        },
+      });
+      movementsCreated.push(movement);
+    }
+
+    return { movements: movementsCreated };
+  });
+
+  const serializedMovements = results.movements.map((m) => ({
+    ...m,
+    unitCost: Number(m.unitCost),
+    totalCost: Number(m.totalCost),
+  }));
+
+  return { success: true, movements: serializedMovements };
+}
+
 /**
  * Deduct stock on retail sale
  */
@@ -602,4 +670,29 @@ export async function createPartsRequisition(data: {
     },
   };
 }
+
+export async function sendCustomZnsAction(data: {
+  customerId: number;
+  phone: string;
+  messageType: string;
+  templateId?: string;
+  content: string;
+}) {
+  const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
+  if (!customer) throw new Error("Khách hàng không tồn tại");
+
+  await prisma.znsLog.create({
+    data: {
+      customerId: data.customerId,
+      phone: data.phone,
+      messageType: data.messageType,
+      templateId: data.templateId || null,
+      content: data.content,
+      status: "SENT",
+      branchId: customer.branchId,
+    },
+  });
+  return { success: true };
+}
+
 

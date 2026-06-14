@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
       vehicleModel,
       kmIn,
       symptoms,
+      carCondition,
       technicianId,
       createdById,
       laborCost,
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 3. If there are parts, create PartsRequisition, PartsRequisitionItems, OrderItems, and StockMovements
+      // 3. If there are parts, create PartsRequisition and PartsRequisitionItems (but do NOT deduct stock yet)
       if (items.length > 0) {
         const requisition = await tx.partsRequisition.create({
           data: {
@@ -75,17 +76,11 @@ export async function POST(req: NextRequest) {
             branchId,
             reason: "Yêu cầu phụ tùng khi tạo lệnh sửa chữa mới",
             createdBy: "Hệ thống",
-            status: "APPROVED", // APPROVED so they are directly deducted and processed
+            status: "PENDING", // PENDING status, needs manual approval by warehouse
           },
         });
 
         for (const item of items) {
-          // Decrement stock count for product
-          await tx.product.update({
-            where: { id: Number(item.productId) },
-            data: { stockCount: { decrement: Number(item.quantity) } },
-          });
-
           // Create PartsRequisitionItem
           await tx.partsRequisitionItem.create({
             data: {
@@ -95,7 +90,7 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          // Create OrderItem
+          // Create OrderItem (as placeholder for invoice estimation, but not final stock movement)
           await tx.orderItem.create({
             data: {
               repairOrderId: ro.id,
@@ -103,20 +98,6 @@ export async function POST(req: NextRequest) {
               quantity: Number(item.quantity),
               unitPrice: Number(item.unitPrice),
               totalPrice: Number(item.unitPrice) * Number(item.quantity),
-            },
-          });
-
-          // Create StockMovement (EXPORT)
-          await tx.stockMovement.create({
-            data: {
-              productId: Number(item.productId),
-              type: "EXPORT",
-              quantity: Number(item.quantity),
-              unitCost: Number(item.unitPrice),
-              totalCost: Number(item.unitPrice) * Number(item.quantity),
-              reason: `Xuất kho xin phụ tùng cho RO #${ro.id}`,
-              relatedRoId: ro.id,
-              createdBy: "Hệ thống",
             },
           });
         }

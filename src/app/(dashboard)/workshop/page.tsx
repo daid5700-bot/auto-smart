@@ -7,10 +7,8 @@ import { createPartsRequisition } from "@/app/actions";
 import { useAuth } from "@/lib/store";
 
 const RO_COLS = [
-  { status: "PENDING", label: "Chờ sửa", border: "border-t-blue-500/50" },
-  { status: "DIAGNOSING", label: "Chẩn đoán", border: "border-t-amber-500/50" },
-  { status: "REPAIRING", label: "Đang sửa", border: "border-t-purple-500/50" },
   { status: "WAITING_PARTS", label: "Chờ phụ tùng", border: "border-t-rose-500/50" },
+  { status: "DOING", label: "Đang sửa", border: "border-t-purple-500/50" },
   { status: "DONE", label: "Hoàn thành", border: "border-t-emerald-500/50" },
 ];
 
@@ -263,11 +261,7 @@ export default function WorkshopPage() {
     }
   };
 
-  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
-    e.preventDefault();
-    const roId = e.dataTransfer.getData("text/plain");
-    if (!roId) return;
-
+  const handleUpdateStatus = async (roId: number, targetStatus: string) => {
     try {
       setLoading(true);
       const res = await fetch(`/api/workshop/${roId}`, {
@@ -288,6 +282,13 @@ export default function WorkshopPage() {
     }
   };
 
+  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    const roId = e.dataTransfer.getData("text/plain");
+    if (!roId) return;
+    await handleUpdateStatus(parseInt(roId), targetStatus);
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   const repairOrders = data?.repairOrders || [];
@@ -302,7 +303,7 @@ export default function WorkshopPage() {
           <button onClick={() => { fetchBranchProducts(); setReqFormData({ repairOrderId: "", reason: "", items: [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }] }); setReqModalOpen(true); }} className="bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
             <ClipboardList size={16} /> Xin phụ tùng
           </button>
-          <button onClick={handleOpenAdd} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit"><Plus size={16} />Tạo lệnh sửa chữa (RO)</button>
+          <button onClick={() => router.push("/workshop/new")} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit"><Plus size={16} />Tạo lệnh sửa chữa (RO)</button>
         </div>
       </div>
 
@@ -329,7 +330,7 @@ export default function WorkshopPage() {
       </div>
 
       {view === "kanban" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
           {RO_COLS.map((col) => {
             const items = repairOrders.filter((ro: any) => ro.status === col.status);
             return (
@@ -390,7 +391,28 @@ export default function WorkshopPage() {
                 <td>{ro.customer?.name}</td><td>{ro.technician?.name || "Chưa giao"}</td>
                 <td className="text-xs text-muted-foreground max-w-xs truncate">{ro.symptoms}</td>
                 <td className="font-semibold">{formatCurrency(Number(ro.totalAmount))}</td>
-                <td><span className={`badge ${statusBadge(ro.status)}`}>{statusText(ro.status)}</span></td>
+                <td>
+                  <select
+                    value={ro.status}
+                    onChange={(e) => handleUpdateStatus(ro.id, e.target.value)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-extrabold border outline-none cursor-pointer transition-all text-white ${
+                      ro.status === "PENDING" ? "bg-amber-600 border-amber-700" :
+                      ro.status === "DIAGNOSING" ? "bg-blue-600 border-blue-700" :
+                      ro.status === "DOING" ? "bg-purple-600 border-purple-700" :
+                      ro.status === "WAITING_PARTS" ? "bg-red-600 border-red-700" :
+                      ro.status === "DONE" ? "bg-emerald-600 border-emerald-700" :
+                      ro.status === "DELIVERED" ? "bg-teal-600 border-teal-700" :
+                      "bg-secondary text-secondary-foreground border-border"
+                    }`}
+                  >
+                    <option value="PENDING" className="bg-card text-foreground">Chờ tiếp nhận</option>
+                    <option value="DIAGNOSING" className="bg-card text-foreground">Chẩn đoán</option>
+                    <option value="WAITING_PARTS" className="bg-card text-foreground">Chờ phụ tùng</option>
+                    <option value="DOING" className="bg-card text-foreground">Đang sửa</option>
+                    <option value="DONE" className="bg-card text-foreground">Hoàn thành</option>
+                    <option value="DELIVERED" className="bg-card text-foreground">Đã giao xe</option>
+                  </select>
+                </td>
                 <td>
                   <div className="flex items-center gap-2">
                     <button onClick={() => router.push(`/workshop/invoice/${ro.id}`)} className="p-1 hover:bg-secondary rounded text-primary" title="In hóa đơn"><Printer size={14} /></button>
@@ -507,7 +529,7 @@ export default function WorkshopPage() {
                   <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
                     <option value="PENDING">Chờ sửa (Pending)</option>
                     <option value="DIAGNOSING">Chẩn đoán (Diagnosing)</option>
-                    <option value="REPAIRING">Đang sửa (Repairing)</option>
+                    <option value="DOING">Đang sửa (Doing)</option>
                     <option value="WAITING_PARTS">Chờ phụ tùng (Waiting Parts)</option>
                     <option value="DONE">Hoàn thành (Done)</option>
                   </select>

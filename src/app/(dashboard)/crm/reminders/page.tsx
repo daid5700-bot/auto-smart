@@ -1,21 +1,91 @@
 "use client";
+
 import { useEffect, useState } from "react";
-import { formatDate } from "@/lib/utils";
-import { Bell, Loader2, Send, CheckCircle2 } from "lucide-react";
-import { sendOilChangeReminderAction } from "@/app/actions";
+import { formatDate, formatCurrency } from "@/lib/utils";
+import { 
+  Bell, 
+  Loader2, 
+  Send, 
+  CheckCircle2, 
+  Search, 
+  AlertTriangle, 
+  Clock, 
+  Calendar,
+  X,
+  Sparkles,
+  MessageSquare
+} from "lucide-react";
+import { sendCustomZnsAction } from "@/app/actions";
+
+const DEFAULT_TEMPLATES = [
+  {
+    id: "CRM_THANK_YOU_001",
+    name: "Cảm ơn sau sửa chữa",
+    content: "Cảm ơn anh/chị {{customerName}} đã tin tưởng dịch vụ. Xe {{vehiclePlate}} đã được bàn giao. Tổng chi phí: {{finalTotal}}. Điểm tích lũy: +{{points}}",
+    status: "ACTIVE",
+    category: "THANK_YOU"
+  },
+  {
+    id: "CRM_OIL_REMIND_002",
+    name: "Nhắc thay dầu",
+    content: "Anh/chị {{customerName}} ơi, xe {{vehiclePlate}} sắp đến hạn thay dầu ({{nextService}}). Hẹn gặp anh/chị tại garage!",
+    status: "ACTIVE",
+    category: "MAINTENANCE"
+  },
+  {
+    id: "CRM_BIRTHDAY_003",
+    name: "Chúc mừng sinh nhật",
+    content: "Chúc mừng sinh nhật {{customerName}}! Garage tặng bạn voucher giảm 200k cho lần sửa chữa tiếp theo. HSD: 30 ngày.",
+    status: "ACTIVE",
+    category: "BIRTHDAY"
+  },
+  {
+    id: "CRM_INSPECT_004",
+    name: "Nhắc kiểm tra định kỳ",
+    content: "Anh/chị {{customerName}} ơi, đã 6 tháng từ lần kiểm tra gần nhất. Hẹn anh/chị ghé garage để kiểm tra miễn phí!",
+    status: "INACTIVE",
+    category: "MAINTENANCE"
+  }
+];
+
+interface ReminderItem {
+  id: string; // customerId + '-' + type
+  customer: any;
+  plate: string;
+  serviceType: "OIL_CHANGE" | "GENERAL_INSPECT" | "BRAKE_CHANGE";
+  serviceLabel: string;
+  dueDate: Date;
+  daysRemaining: number;
+  isOverdue: boolean;
+  isUpcoming: boolean; // <= 14 days
+  isFarther: boolean; // > 14 days
+  isReminded: boolean;
+}
 
 export default function RemindersPage() {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [reminders, setReminders] = useState<ReminderItem[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sentMap, setSentMap] = useState<Record<number, boolean>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // ZNS Send Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedReminder, setSelectedReminder] = useState<ReminderItem | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [compiledContent, setCompiledContent] = useState("");
+  const [sendingZns, setSendingZns] = useState(false);
 
   const fetchData = async () => {
     try {
-      const res = await fetch("/api/crm?tab=customers");
+      const res = await fetch("/api/crm?tab=reminders");
       const data = await res.json();
-      setCustomers(data.customers || []);
+      const parsedReminders = (data.reminders || []).map((r: any) => ({
+        ...r,
+        dueDate: new Date(r.dueDate)
+      }));
+      setReminders(parsedReminders);
     } catch (e) {
-      console.error(e);
+      console.error("Error fetching reminders:", e);
     } finally {
       setLoading(false);
     }
@@ -23,91 +93,400 @@ export default function RemindersPage() {
 
   useEffect(() => {
     fetchData();
+    // Load ZNS templates
+    const saved = localStorage.getItem("zns_templates");
+    if (saved) {
+      setTemplates(JSON.parse(saved));
+    } else {
+      localStorage.setItem("zns_templates", JSON.stringify(DEFAULT_TEMPLATES));
+      setTemplates(DEFAULT_TEMPLATES);
+    }
   }, []);
 
-  const handleSendReminder = async (c: any, nextDate: Date) => {
-    try {
-      setLoading(true);
-      const plate = c.vehiclePlates[0] || "xe của quý khách";
-      const res = await sendOilChangeReminderAction({
-        customerId: c.id,
-        phone: c.phone,
-        plateNumber: plate,
-      });
-      if (res.success) {
-        setSentMap((prev) => ({ ...prev, [c.id]: true }));
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+  // Filter based on search query
+  const filteredReminders = reminders.filter(item => 
+    item.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.customer.phone.includes(searchQuery) ||
+    item.plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.serviceLabel.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Statistics
+  const overdueCount = filteredReminders.filter(item => item.isOverdue && !item.isReminded).length;
+  const upcomingCount = filteredReminders.filter(item => item.isUpcoming && !item.isReminded).length;
+  const fartherCount = filteredReminders.filter(item => item.isFarther && !item.isReminded).length;
+  const remindedCount = filteredReminders.filter(item => item.isReminded).length;
+
+  // Groups
+  const overdueItems = filteredReminders.filter(item => item.isOverdue && !item.isReminded);
+  const upcomingItems = filteredReminders.filter(item => item.isUpcoming && !item.isReminded);
+  const fartherItems = filteredReminders.filter(item => item.isFarther && !item.isReminded);
+  const remindedItems = filteredReminders.filter(item => item.isReminded);
+
+  // ZNS variables compilation helper
+  const handleOpenZnsModal = (reminder: ReminderItem) => {
+    setSelectedReminder(reminder);
+    
+    // Choose initial active template or default
+    const activeTemplates = templates.filter(t => t.status === "ACTIVE");
+    let initialTemplate = activeTemplates.find(t => t.category === "MAINTENANCE") || activeTemplates[0] || templates[0];
+    
+    if (initialTemplate) {
+      setSelectedTemplateId(initialTemplate.id);
+      compileContent(initialTemplate.content, reminder);
+    } else {
+      setSelectedTemplateId("");
+      setCompiledContent("");
+    }
+    setModalOpen(true);
+  };
+
+  const compileContent = (templateText: string, reminder: ReminderItem) => {
+    const pointsStr = String(reminder.customer.loyaltyPoints || 0);
+    const finalTotalStr = formatCurrency(Number(reminder.customer.totalSpent || 0));
+    
+    const nextServiceText = `${reminder.serviceLabel} (${formatDate(reminder.dueDate.toISOString())})`;
+
+    const result = templateText
+      .replace(/\{\{customerName\}\}/g, reminder.customer.name)
+      .replace(/\{\{vehiclePlate\}\}/g, reminder.plate)
+      .replace(/\{\{nextService\}\}/g, nextServiceText)
+      .replace(/\{\{finalTotal\}\}/g, finalTotalStr)
+      .replace(/\{\{points\}\}/g, pointsStr);
+
+    setCompiledContent(result);
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find(t => t.id === templateId);
+    if (template && selectedReminder) {
+      compileContent(template.content, selectedReminder);
     }
   };
 
-  if (loading && customers.length === 0) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  const handleSendZns = async () => {
+    if (!selectedReminder) return;
+    try {
+      setSendingZns(true);
+      const res = await sendCustomZnsAction({
+        customerId: selectedReminder.customer.id,
+        phone: selectedReminder.customer.phone,
+        messageType: selectedReminder.serviceType,
+        templateId: selectedTemplateId,
+        content: compiledContent
+      });
+
+      if (res.success) {
+        alert("Gửi tin nhắn ZNS thành công!");
+        setModalOpen(false);
+        fetchData();
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Lỗi khi gửi tin ZNS: " + e.message);
+    } finally {
+      setSendingZns(false);
+    }
+  };
+
+  if (loading && reminders.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
+
+  const renderServiceBadge = (label: string) => {
+    switch (label) {
+      case "THAY DẦU":
+        return <span className="px-2.5 py-1 bg-amber-600 text-white font-bold rounded-lg text-[10px] tracking-wide">THAY DẦU</span>;
+      case "KIỂM TRA TỔNG QUÁT":
+        return <span className="px-2.5 py-1 bg-indigo-700 text-white font-bold rounded-lg text-[10px] tracking-wide">KIỂM TRA TỔNG QUÁT</span>;
+      case "THAY MÁ PHANH":
+        return <span className="px-2.5 py-1 bg-red-800 text-white font-bold rounded-lg text-[10px] tracking-wide">THAY MÁ PHANH</span>;
+      default:
+        return <span className="px-2.5 py-1 bg-secondary text-foreground font-bold rounded-lg text-[10px] tracking-wide">{label}</span>;
+    }
+  };
+
+  const renderTable = (items: ReminderItem[], noDataText: string) => {
+    return (
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th className="w-[25%]">Khách hàng</th>
+            <th className="w-[15%]">Xe</th>
+            <th className="w-[20%]">Loại dịch vụ</th>
+            <th className="w-[20%]">Ngày dự kiến</th>
+            <th className="w-[10%]">Trạng thái</th>
+            <th className="w-[10%] text-center">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="hover:bg-secondary/15 transition-colors">
+              <td>
+                <div className="flex flex-col">
+                  <span className="font-semibold text-foreground">{item.customer.name}</span>
+                  <span className="text-[11px] text-muted-foreground">{item.customer.phone}</span>
+                </div>
+              </td>
+              <td>
+                <span className="font-semibold text-xs bg-secondary/80 text-foreground px-2 py-0.5 rounded border border-border">
+                  {item.plate}
+                </span>
+              </td>
+              <td>{renderServiceBadge(item.serviceLabel)}</td>
+              <td>
+                <div className="flex flex-col">
+                  <span className="font-semibold text-xs">{formatDate(item.dueDate.toISOString())}</span>
+                  {item.isOverdue ? (
+                    <span className="text-red-500 text-[10px] font-bold">Trễ {Math.abs(item.daysRemaining)} ngày</span>
+                  ) : (
+                    <span className="text-muted-foreground text-[10px] font-semibold">Còn {item.daysRemaining} ngày</span>
+                  )}
+                </div>
+              </td>
+              <td>
+                {item.isReminded ? (
+                  <span className="px-2.5 py-0.5 bg-success text-white font-bold rounded text-[10px]">ĐÃ NHẮC</span>
+                ) : (
+                  <span className="px-2.5 py-0.5 bg-neutral-600 text-white font-bold rounded text-[10px]">CHƯA NHẮC</span>
+                )}
+              </td>
+              <td className="text-center">
+                <button
+                  onClick={() => handleOpenZnsModal(item)}
+                  className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 mx-auto transition-all shadow-md shadow-primary/15"
+                >
+                  <Send size={11} /> Gửi ZNS
+                </button>
+              </td>
+            </tr>
+          ))}
+          {items.length === 0 && (
+            <tr>
+              <td colSpan={6} className="text-center py-6 text-xs text-muted-foreground font-semibold">
+                {noDataText}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    );
+  };
 
   return (
     <div className="space-y-6 stagger">
+      {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold">Nhắc lịch bảo dưỡng & Thay dầu</h2>
-        <p className="text-muted-foreground text-sm mt-1">Danh sách khách hàng sắp đến hoặc đã quá hạn thay dầu nhớt (định kỳ 6 tháng từ lần ghé thăm gần nhất)</p>
+        <h2 className="text-2xl font-bold">Lịch chăm sóc khách hàng</h2>
+        <p className="text-muted-foreground text-sm mt-1">
+          Tự động sinh từ lịch sử sửa chữa. Hệ thống nhắc trước 7 ngày qua ZNS. Có thể gửi thủ công ngay bây giờ.
+        </p>
       </div>
 
-      <div className="glass-card rounded-xl overflow-hidden">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Khách hàng</th>
-              <th>Số điện thoại</th>
-              <th>Biển số xe</th>
-              <th>Lần ghé gần nhất</th>
-              <th>Ngày đến hạn thay dầu</th>
-              <th>Tình trạng</th>
-              <th>Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {customers.map((c: any) => {
-              const baseDate = c.lastVisit ? new Date(c.lastVisit) : new Date(c.createdAt);
-              const nextOilChange = new Date(baseDate);
-              nextOilChange.setMonth(nextOilChange.getMonth() + 6);
-              
-              const isOverdue = nextOilChange < new Date();
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Overdue */}
+        <div className="p-4 bg-card border-l-4 border-red-500 rounded-xl shadow-md flex justify-between items-center">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Quá hạn</span>
+            <p className="text-3xl font-extrabold text-red-500">{overdueCount}</p>
+          </div>
+          <AlertTriangle className="text-red-500/80" size={24} />
+        </div>
 
-              return (
-                <tr key={c.id}>
-                  <td className="font-semibold">{c.name}</td>
-                  <td>{c.phone}</td>
-                  <td>
-                    {c.vehiclePlates.map((p: string, idx: number) => (
-                      <span key={idx} className="badge badge-primary text-[10px] mr-1">{p}</span>
-                    ))}
-                    {c.vehiclePlates.length === 0 && <span className="text-muted-foreground text-xs">—</span>}
-                  </td>
-                  <td>{c.lastVisit ? formatDate(c.lastVisit) : "Chưa có lượt sửa"}</td>
-                  <td className="font-semibold">{formatDate(nextOilChange.toISOString())}</td>
-                  <td>
-                    <span className={`badge ${isOverdue ? "badge-danger" : "badge-success"}`}>
-                      {isOverdue ? "Quá hạn thay dầu" : "Sắp đến hạn"}
-                    </span>
-                  </td>
-                  <td>
-                    {sentMap[c.id] ? (
-                      <span className="text-xs text-success font-semibold flex items-center gap-1"><CheckCircle2 size={12} /> Đã gửi nhắc lịch</span>
-                    ) : (
-                      <button onClick={() => handleSendReminder(c, nextOilChange)} className="px-3 py-1.5 gradient-primary text-white rounded-lg text-xs font-semibold flex items-center gap-1 hover:opacity-90">
-                        <Send size={12} /> Gửi tin ZNS
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {/* Upcoming */}
+        <div className="p-4 bg-card border-l-4 border-amber-500 rounded-xl shadow-md flex justify-between items-center">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Sắp đến (≤14 ngày)</span>
+            <p className="text-3xl font-extrabold text-amber-500">{upcomingCount}</p>
+          </div>
+          <Clock className="text-amber-500/80" size={24} />
+        </div>
+
+        {/* Farther */}
+        <div className="p-4 bg-card border-l-4 border-slate-500 rounded-xl shadow-md flex justify-between items-center">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Xa hơn</span>
+            <p className="text-3xl font-extrabold text-slate-700 dark:text-slate-300">{fartherCount}</p>
+          </div>
+          <Calendar className="text-slate-500/80" size={24} />
+        </div>
+
+        {/* Reminded */}
+        <div className="p-4 bg-card border-l-4 border-emerald-500 rounded-xl shadow-md flex justify-between items-center">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Đã nhắc</span>
+            <p className="text-3xl font-extrabold text-emerald-500">{remindedCount}</p>
+          </div>
+          <CheckCircle2 className="text-emerald-500/80" size={24} />
+        </div>
       </div>
+
+      {/* Search Filter Bar */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Tìm kiếm khách hàng, biển số xe, số điện thoại..."
+          className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+        />
+      </div>
+
+      {/* Sections */}
+      <div className="space-y-6">
+        {/* Overdue Section */}
+        <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
+          <div className="px-5 py-3 bg-red-950/95 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={15} className="text-red-300" />
+              <h3 className="text-xs font-bold uppercase tracking-wider">Quá hạn • {overdueItems.length}</h3>
+            </div>
+          </div>
+          {renderTable(overdueItems, "Không có lịch quá hạn")}
+        </div>
+
+        {/* Upcoming Section */}
+        <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
+          <div className="px-5 py-3 bg-orange-700 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock size={15} className="text-orange-200" />
+              <h3 className="text-xs font-bold uppercase tracking-wider">Sắp đến hạn (≤14 ngày) • {upcomingItems.length}</h3>
+            </div>
+          </div>
+          {renderTable(upcomingItems, "Không có lịch sắp đến hạn")}
+        </div>
+
+        {/* Farther Section */}
+        <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
+          <div className="px-5 py-3 bg-slate-800 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar size={15} className="text-slate-300" />
+              <h3 className="text-xs font-bold uppercase tracking-wider">Xa hơn • {fartherItems.length}</h3>
+            </div>
+          </div>
+          {renderTable(fartherItems, "Không có lịch cần chăm sóc xa hơn")}
+        </div>
+
+        {/* Reminded Section */}
+        <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
+          <div className="px-5 py-3 bg-emerald-850 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={15} className="text-emerald-300" />
+              <h3 className="text-xs font-bold uppercase tracking-wider">Đã nhắc gần đây • {remindedItems.length}</h3>
+            </div>
+          </div>
+          {renderTable(remindedItems, "Không có khách hàng nào đã được nhắc trong 30 ngày qua")}
+        </div>
+      </div>
+
+      {/* ZNS Send Modal with Template Selection */}
+      {modalOpen && selectedReminder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-slide-in-bottom">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-border bg-secondary/15 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-primary">
+                <MessageSquare size={18} />
+                <h3 className="font-bold text-sm uppercase">Gửi tin nhắn Zalo ZNS</h3>
+              </div>
+              <button 
+                onClick={() => setModalOpen(false)} 
+                className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4">
+              {/* Customer Info */}
+              <div className="grid grid-cols-2 gap-3 bg-secondary/25 p-3 rounded-xl text-xs">
+                <div>
+                  <span className="text-muted-foreground block mb-0.5">Khách hàng:</span>
+                  <strong className="text-foreground">{selectedReminder.customer.name}</strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block mb-0.5">Số điện thoại:</span>
+                  <strong className="text-foreground">{selectedReminder.customer.phone}</strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block mb-0.5">Biển số xe:</span>
+                  <strong className="text-foreground bg-card border px-1.5 py-0.5 rounded text-[10px] font-semibold inline-block">
+                    {selectedReminder.plate}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block mb-0.5">Dịch vụ nhắc:</span>
+                  <strong className="text-primary">{selectedReminder.serviceLabel}</strong>
+                </div>
+              </div>
+
+              {/* Template Select */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">
+                  Chọn mẫu tin nhắn ZNS
+                </label>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => handleTemplateChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary/40 border border-border rounded-xl text-xs focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-foreground"
+                >
+                  {templates.filter(t => t.status === "ACTIVE").map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.id} - {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Message Content Preview/Edit */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-[10px] font-bold uppercase text-muted-foreground">
+                    Nội dung tin nhắn gửi đi
+                  </label>
+                  <span className="text-[9px] text-primary font-semibold flex items-center gap-0.5">
+                    <Sparkles size={8} /> Tự động cá nhân hóa
+                  </span>
+                </div>
+                <textarea
+                  value={compiledContent}
+                  onChange={(e) => setCompiledContent(e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-xs focus:ring-2 focus:ring-primary/20 outline-none font-medium leading-relaxed"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-4 bg-secondary/10 border-t border-border flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="px-4 py-2 border border-border text-xs rounded-xl hover:bg-secondary/40 font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={sendingZns}
+                onClick={handleSendZns}
+                className="px-5 py-2 gradient-primary text-white text-xs font-bold rounded-xl hover:opacity-90 flex items-center gap-1.5 disabled:opacity-50 transition-all shadow-md shadow-primary/10"
+              >
+                {sendingZns ? <Loader2 size={13} className="animate-spin" /> : <Send size={11} />}
+                Gửi ZNS ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

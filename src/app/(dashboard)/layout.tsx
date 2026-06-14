@@ -29,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     repairOrders: any[];
   }>({ customers: [], vehicles: [], repairOrders: [] });
   const [searching, setSearching] = useState(false);
+  const [pendingReqCount, setPendingReqCount] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -129,6 +130,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
+  useEffect(() => {
+    if (!isAuth) return;
+    const fetchPendingCount = () => {
+      fetch("/api/workshop/requisitions")
+        .then((r) => r.json())
+        .then((data) => {
+          const pending = (data.requisitions || []).filter((r: any) => r.status === "PENDING");
+          setPendingReqCount(pending.length);
+        })
+        .catch((e) => console.error("Error fetching requisitions count:", e));
+    };
+
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 15000);
+    return () => clearInterval(interval);
+  }, [isAuth, activeBranch]);
+
   if (!hydrated || !user) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
@@ -138,11 +156,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const nav = getNavForRole(user.role);
-  const activeSection = nav.find((s) => s.items.some((i) => pathname === i.href || pathname.startsWith(i.href + "/")));
+  const allNavItemsSorted = nav.flatMap((s) => s.items).sort((a, b) => b.href.length - a.href.length);
+  const currentItem = allNavItemsSorted.find((i) => pathname === i.href || pathname.startsWith(i.href + "/"));
+  const activeSection = nav.find((s) => s.items.some((i) => currentItem?.href === i.href));
   const toggle = (t: string) => setOpenSections((p) => p.includes(t) ? p.filter((x) => x !== t) : [...p, t]);
   const isOpen = (t: string) => openSections.includes(t) || activeSection?.title === t;
   const doLogout = () => { logout(); router.push("/login"); };
-  const currentItem = nav.flatMap((s) => s.items).find((i) => pathname === i.href || pathname.startsWith(i.href + "/"));
 
   const handleResultClick = (href: string) => {
     setSearchOpen(false);
@@ -177,13 +196,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="space-y-0.5">
                 {section.items.map((item) => {
                   const Icon = item.icon;
-                  const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                  const active = currentItem?.href === item.href;
+                  const isRequisition = item.title === "Duyệt yêu cầu xuất";
                   return (
                     <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
                       className={cn("sidebar-link", active && "active")}
                       title={collapsed ? item.title : undefined}>
                       <Icon size={18} className="shrink-0" />
-                      {!collapsed && <span className="truncate">{item.title}</span>}
+                      {!collapsed && (
+                        <div className="flex items-center justify-between w-full min-w-0">
+                          <span className="truncate">{item.title}</span>
+                          {isRequisition && pendingReqCount > 0 && (
+                            <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-white rounded-md shrink-0">
+                              {pendingReqCount}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </Link>
                   );
                 })}
