@@ -75,9 +75,6 @@
   .sidebar-link.active {
     @apply bg-primary/[0.08] text-primary font-semibold;
   }
-  .sidebar-link.active::before {
-    content: ''; @apply absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/5 bg-primary rounded-r;
-  }
 
   /* ===== BADGE ===== */
   .badge { @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold; }
