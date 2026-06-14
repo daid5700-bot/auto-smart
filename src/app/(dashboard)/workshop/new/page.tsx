@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/store";
@@ -34,6 +34,10 @@ export default function NewRepairOrderPage() {
 
   // Requisition items state
   const [items, setItems] = useState<RequisitionItemInput[]>([]);
+
+  // Combobox search states
+  const [openDropdownIdx, setOpenDropdownIdx] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Feedback states
   const [submitting, setSubmitting] = useState(false);
@@ -94,6 +98,9 @@ export default function NewRepairOrderPage() {
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+    if (openDropdownIdx === index) {
+      setOpenDropdownIdx(null);
+    }
   };
 
   const handleItemProductChange = (index: number, pId: string) => {
@@ -176,6 +183,12 @@ export default function NewRepairOrderPage() {
       setSubmitting(false);
     }
   };
+
+  // Filter products based on query
+  const filteredProducts = products.filter((p) => {
+    const term = searchQuery.toLowerCase();
+    return p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term);
+  });
 
   if (loading) {
     return (
@@ -377,11 +390,11 @@ export default function NewRepairOrderPage() {
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto min-h-[350px]">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-border text-muted-foreground font-semibold bg-secondary/15">
-                      <th className="p-3">Sản phẩm phụ tùng</th>
+                      <th className="p-3">Sản phẩm phụ tùng (Nhấp để tìm kiếm)</th>
                       <th className="p-3 w-24">Số lượng</th>
                       <th className="p-3 w-36">Đơn giá (VND)</th>
                       <th className="p-3 w-36 text-right">Thành tiền</th>
@@ -389,53 +402,110 @@ export default function NewRepairOrderPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {items.map((item, index) => (
-                      <tr key={index} className="hover:bg-secondary/5 transition-colors">
-                        <td className="p-2">
-                          <select
-                            value={item.productId}
-                            onChange={(e) => handleItemProductChange(index, e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-secondary/20 border border-border/70 rounded-lg text-xs outline-none"
-                          >
-                            {products.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                [{p.sku}] {p.name} (Tồn: {p.stockCount})
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => handleItemQuantityChange(index, parseInt(e.target.value) || 1)}
-                            className="w-full px-2.5 py-1.5 bg-secondary/20 border border-border/70 rounded-lg text-xs font-semibold text-center outline-none"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.unitPrice}
-                            onChange={(e) => handleItemPriceChange(index, parseInt(e.target.value) || 0)}
-                            className="w-full px-2.5 py-1.5 bg-secondary/20 border border-border/70 rounded-lg text-xs font-semibold text-primary outline-none"
-                          />
-                        </td>
-                        <td className="p-2 text-right font-bold text-foreground">
-                          {formatCurrency(item.quantity * item.unitPrice)}
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(index)}
-                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {items.map((item, index) => {
+                      const selectedProduct = products.find((p) => p.id.toString() === item.productId);
+
+                      return (
+                        <tr key={index} className="hover:bg-secondary/5 transition-colors">
+                          {/* Searchable Combobox for Product */}
+                          <td className="p-2 relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenDropdownIdx(openDropdownIdx === index ? null : index);
+                                setSearchQuery("");
+                              }}
+                              className="w-full px-3 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs text-left outline-none flex justify-between items-center hover:bg-secondary/30 transition-colors"
+                            >
+                              <span className="truncate font-medium">
+                                {selectedProduct
+                                  ? `[${selectedProduct.sku}] ${selectedProduct.name} (Tồn: ${selectedProduct.stockCount})`
+                                  : "Chọn phụ tùng..."}
+                              </span>
+                              <ChevronDown size={14} className="text-muted-foreground shrink-0 ml-1.5" />
+                            </button>
+
+                            {/* Dropdown menu */}
+                            {openDropdownIdx === index && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-40 cursor-default"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenDropdownIdx(null);
+                                    setSearchQuery("");
+                                  }}
+                                />
+                                <div className="absolute left-2 right-2 top-full mt-1.5 z-50 bg-card border border-border rounded-xl shadow-2xl p-2.5 max-h-72 overflow-hidden flex flex-col animate-slide-in-bottom">
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs outline-none mb-2"
+                                    placeholder="Nhập tên hoặc mã phụ tùng cần tìm..."
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <div className="overflow-y-auto flex-1 max-h-48 space-y-0.5">
+                                    {filteredProducts.map((p) => (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => {
+                                          handleItemProductChange(index, p.id.toString());
+                                          setOpenDropdownIdx(null);
+                                          setSearchQuery("");
+                                        }}
+                                        className={`w-full text-left px-2.5 py-2 hover:bg-secondary/80 rounded-lg text-xs transition-colors truncate block ${
+                                          p.id.toString() === item.productId ? "bg-primary/10 text-primary font-semibold" : ""
+                                        }`}
+                                      >
+                                        [{p.sku}] {p.name} (Tồn: {p.stockCount})
+                                      </button>
+                                    ))}
+                                    {filteredProducts.length === 0 && (
+                                      <p className="text-center text-[11px] text-muted-foreground py-4">
+                                        Không tìm thấy phụ tùng phù hợp
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </td>
+                          <td className="p-2">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleItemQuantityChange(index, parseInt(e.target.value) || 1)}
+                              className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-center outline-none"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.unitPrice}
+                              onChange={(e) => handleItemPriceChange(index, parseInt(e.target.value) || 0)}
+                              className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-primary outline-none"
+                            />
+                          </td>
+                          <td className="p-2 text-right font-bold text-foreground">
+                            {formatCurrency(item.quantity * item.unitPrice)}
+                          </td>
+                          <td className="p-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(index)}
+                              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
