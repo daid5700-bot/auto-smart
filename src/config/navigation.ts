@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Package, Warehouse, ClipboardList, DollarSign,
   Wrench, UserCog, History, TrendingUp, Car, FileText,
-  Users, MessageSquare, Gift, Bell, BarChart3, ShieldCheck, Settings, Building2,
+  Users, MessageSquare, Gift, Bell, BarChart3, ShieldCheck, Settings, Building2, Plus,
   type LucideIcon,
 } from "lucide-react";
 import { type UserRole, type Permission, hasPermission } from "./rbac";
@@ -21,6 +21,7 @@ const NAV: NavSection[] = [
   ]},
   { title: "Xưởng dịch vụ", items: [
     { title: "Lệnh sửa chữa", href: "/workshop", icon: Wrench, perm: "workshop.view" },
+    { title: "Tạo lệnh mới", href: "/workshop/new", icon: Plus, perm: "workshop.manage" },
     { title: "Kỹ thuật viên", href: "/workshop/technicians", icon: UserCog, perm: "workshop.manage" },
     { title: "Lịch sử xe", href: "/workshop/history", icon: History, perm: "workshop.view" },
   ]},

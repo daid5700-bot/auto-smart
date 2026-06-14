@@ -1,0 +1,513 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/lib/store";
+
+interface RequisitionItemInput {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export default function NewRepairOrderPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+
+  // Data sources
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [technicians, setTechnicians] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form states
+  const [customerId, setCustomerId] = useState("");
+  const [plateNumber, setPlateNumber] = useState("");
+  const [vehicleModel, setVehicleModel] = useState("");
+  const [kmIn, setKmIn] = useState(0);
+  const [technicianId, setTechnicianId] = useState("");
+  const [laborCost, setLaborCost] = useState(0);
+  const [symptoms, setSymptoms] = useState("");
+  const [carCondition, setCarCondition] = useState("");
+
+  // Requisition items state
+  const [items, setItems] = useState<RequisitionItemInput[]>([]);
+
+  // Feedback states
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/crm?tab=customers").then((r) => r.json()),
+      fetch("/api/technicians").then((r) => r.json()),
+      fetch("/api/inventory?limit=100").then((r) => r.json()),
+    ])
+      .then(([customerData, techData, invData]) => {
+        const custs = customerData.customers || [];
+        setCustomers(custs);
+        setTechnicians(techData.technicians || []);
+        setProducts(invData.products || []);
+
+        if (custs.length > 0) {
+          setCustomerId(custs[0].id.toString());
+          const defaultPlates = custs[0].vehiclePlates || [];
+          if (defaultPlates.length > 0) {
+            setPlateNumber(defaultPlates[0]);
+          }
+        }
+      })
+      .catch((e) => console.error("Error loading form dependencies:", e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Update plateNumber when customer changes
+  const handleCustomerChange = (cId: string) => {
+    setCustomerId(cId);
+    const selectedCust = customers.find((c) => c.id.toString() === cId);
+    if (selectedCust) {
+      const plates = selectedCust.vehiclePlates || [];
+      if (plates.length > 0) {
+        setPlateNumber(plates[0]);
+      } else {
+        setPlateNumber("");
+      }
+    }
+  };
+
+  // Requisition items actions
+  const handleAddItem = () => {
+    if (products.length === 0) return;
+    const firstProduct = products[0];
+    const retailPrice = Number(firstProduct.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
+    setItems([
+      ...items,
+      {
+        productId: firstProduct.id.toString(),
+        quantity: 1,
+        unitPrice: retailPrice,
+      },
+    ]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleItemProductChange = (index: number, pId: string) => {
+    const selectedProd = products.find((p) => p.id.toString() === pId);
+    if (!selectedProd) return;
+    const retailPrice = Number(selectedProd.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
+
+    const updated = [...items];
+    updated[index].productId = pId;
+    updated[index].unitPrice = retailPrice;
+    setItems(updated);
+  };
+
+  const handleItemQuantityChange = (index: number, val: number) => {
+    const updated = [...items];
+    updated[index].quantity = Math.max(1, val);
+    setItems(updated);
+  };
+
+  const handleItemPriceChange = (index: number, val: number) => {
+    const updated = [...items];
+    updated[index].unitPrice = Math.max(0, val);
+    setItems(updated);
+  };
+
+  // Calculations
+  const partsCostTotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const totalAmount = laborCost + partsCostTotal;
+  const vatEstimate = totalAmount * 0.1;
+
+  const totalPartsQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerId) {
+      setErrorMsg("Vui lòng chọn khách hàng.");
+      return;
+    }
+    if (!plateNumber.trim()) {
+      setErrorMsg("Vui lòng nhập biển số xe.");
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMsg("");
+
+    try {
+      const payload = {
+        customerId,
+        plateNumber,
+        vehicleModel,
+        kmIn,
+        symptoms,
+        carCondition,
+        technicianId: technicianId || undefined,
+        createdById: user?.id,
+        laborCost,
+        items: items.map((i) => ({
+          productId: parseInt(i.productId),
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+        })),
+      };
+
+      const res = await fetch("/api/workshop/create-with-requisition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || "Gặp lỗi khi lưu lệnh sửa chữa.");
+      }
+
+      router.push("/workshop");
+    } catch (e: any) {
+      setErrorMsg(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 stagger max-w-7xl mx-auto pb-12">
+      {/* Top action header */}
+      <div className="flex items-center gap-3">
+        <Link href="/workshop" className="w-8 h-8 rounded-xl bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+          <ArrowLeft size={16} />
+        </Link>
+        <div>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">LỆNH SỬA CHỮA</p>
+          <h2 className="text-2xl font-bold tracking-tight">Tạo lệnh sửa chữa mới</h2>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground bg-secondary/20 p-3 rounded-xl border border-border/40 max-w-3xl">
+        Sau khi lưu, lệnh sẽ ở trạng thái <span className="font-bold text-primary">CHỜ PHỤ TÙNG</span> (nếu có yêu cầu phụ tùng) hoặc <span className="font-bold text-success">CHỜ SỬA (PENDING)</span> (nếu không có). Kho sẽ trực tiếp xuất phụ tùng và ghi nhận lịch sử trừ kho tương ứng.
+      </p>
+
+      {errorMsg && (
+        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs max-w-3xl animate-fade-in">
+          <AlertCircle size={15} />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main fields (Left side) */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="glass-card rounded-2xl p-5 space-y-4">
+            <h3 className="text-sm font-bold uppercase text-muted-foreground tracking-wider border-b border-border/40 pb-2">
+              Thông tin tiếp nhận
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* KHÁCH HÀNG */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Khách hàng</label>
+                <select
+                  required
+                  value={customerId}
+                  onChange={(e) => handleCustomerChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                >
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.phone})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* BIẾN SỐ XE */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Biển số xe</label>
+                <div className="relative">
+                  <input
+                    required
+                    value={plateNumber}
+                    onChange={(e) => setPlateNumber(e.target.value)}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    placeholder="VD: 30A-123.45"
+                  />
+                  {/* Quick-select if customer has multiple plates */}
+                  {customerId && customers.find((c) => c.id.toString() === customerId)?.vehiclePlates?.length > 1 && (
+                    <div className="absolute right-2 top-1.5 flex gap-1.5">
+                      {customers.find((c) => c.id.toString() === customerId)?.vehiclePlates.map((p: string) => (
+                        <button
+                          type="button"
+                          key={p}
+                          onClick={() => setPlateNumber(p)}
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${
+                            plateNumber === p ? "bg-primary text-white border-primary" : "bg-card text-muted-foreground border-border"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* MODEL XE */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Dòng xe (Model)</label>
+                <input
+                  required
+                  value={vehicleModel}
+                  onChange={(e) => setVehicleModel(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="VD: Toyota Camry 2026"
+                />
+              </div>
+
+              {/* SỐ KM */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số KM khi vào</label>
+                <input
+                  type="number"
+                  required
+                  value={kmIn}
+                  onChange={(e) => setKmIn(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="VD: 45000"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* KỸ THUẬT VIÊN */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Kỹ thuật viên đảm nhận</label>
+                <select
+                  value={technicianId}
+                  onChange={(e) => setTechnicianId(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                >
+                  <option value="">-- Chưa giao việc --</option>
+                  {technicians.map((ktv) => (
+                    <option key={ktv.id} value={ktv.id}>
+                      {ktv.name} ({ktv.status === "WORKING" ? "Đang sửa" : "Đang rảnh"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* TIỀN CÔNG THỢ */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền công thợ dự kiến</label>
+                <input
+                  type="number"
+                  required
+                  value={laborCost}
+                  onChange={(e) => setLaborCost(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="VD: 150000"
+                />
+              </div>
+            </div>
+
+            {/* YÊU CẦU KHÁCH / TRIỆU CHỨNG */}
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Yêu cầu của khách / Triệu chứng</label>
+              <textarea
+                required
+                value={symptoms}
+                onChange={(e) => setSymptoms(e.target.value)}
+                className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[70px]"
+                placeholder="VD: Máy kêu to, bảo dưỡng 40,000 km..."
+              />
+            </div>
+
+            {/* TÌNH TRẠNG XE */}
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tình trạng xe khi vào</label>
+              <textarea
+                value={carCondition}
+                onChange={(e) => setCarCondition(e.target.value)}
+                className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[70px]"
+                placeholder="VD: Trầy xước nhẹ mâm xe bên phải, kính xe sạch..."
+              />
+            </div>
+          </div>
+
+          {/* Requisition items list */}
+          <div className="glass-card rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-border/40 pb-2">
+              <h3 className="text-sm font-bold uppercase text-muted-foreground tracking-wider">
+                Yêu cầu phụ tùng cần xuất
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Plus size={13} /> Thêm phụ tùng
+              </button>
+            </div>
+
+            {items.length === 0 ? (
+              <div className="text-center py-10 space-y-2 border-2 border-dashed border-border/50 rounded-2xl bg-secondary/5">
+                <p className="text-xs text-muted-foreground">Chưa có phụ tùng nào được thêm vào lệnh.</p>
+                <button
+                  type="button"
+                  onClick={handleAddItem}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Bấm để thêm hàng mục phụ tùng đầu tiên
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground font-semibold bg-secondary/15">
+                      <th className="p-3">Sản phẩm phụ tùng</th>
+                      <th className="p-3 w-24">Số lượng</th>
+                      <th className="p-3 w-36">Đơn giá (VND)</th>
+                      <th className="p-3 w-36 text-right">Thành tiền</th>
+                      <th className="p-3 w-12 text-center">Xóa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {items.map((item, index) => (
+                      <tr key={index} className="hover:bg-secondary/5 transition-colors">
+                        <td className="p-2">
+                          <select
+                            value={item.productId}
+                            onChange={(e) => handleItemProductChange(index, e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-secondary/20 border border-border/70 rounded-lg text-xs outline-none"
+                          >
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                [{p.sku}] {p.name} (Tồn: {p.stockCount})
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => handleItemQuantityChange(index, parseInt(e.target.value) || 1)}
+                            className="w-full px-2.5 py-1.5 bg-secondary/20 border border-border/70 rounded-lg text-xs font-semibold text-center outline-none"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.unitPrice}
+                            onChange={(e) => handleItemPriceChange(index, parseInt(e.target.value) || 0)}
+                            className="w-full px-2.5 py-1.5 bg-secondary/20 border border-border/70 rounded-lg text-xs font-semibold text-primary outline-none"
+                          />
+                        </td>
+                        <td className="p-2 text-right font-bold text-foreground">
+                          {formatCurrency(item.quantity * item.unitPrice)}
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(index)}
+                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Summary sidebar (Right side) */}
+        <div className="space-y-6">
+          <div className="glass-card rounded-2xl p-5 space-y-6 border-l-4 border-l-primary flex flex-col justify-between min-h-[300px]">
+            <div className="space-y-4">
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">TÓM TẮT BÁO GIÁ</p>
+                <h3 className="text-base font-bold tracking-tight mt-0.5">Báo giá sơ bộ (ước tính)</h3>
+              </div>
+
+              <div className="space-y-3.5 pt-4 border-t border-border/40">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Tiền công thợ:</span>
+                  <span className="text-sm font-semibold">{formatCurrency(laborCost)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Tiền phụ tùng:</span>
+                  <span className="text-sm font-semibold">{formatCurrency(partsCostTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/40">
+                  <span className="text-xs text-muted-foreground font-bold">Tổng thanh toán:</span>
+                  <span className="text-lg font-black text-primary tracking-tight">{formatCurrency(totalAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground/80">
+                  <span>+ VAT (10% dự kiến):</span>
+                  <span>{formatCurrency(vatEstimate)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 border-t border-border/40 pt-4 mt-4 text-[11px] text-muted-foreground/80">
+              <div className="flex justify-between">
+                <span>Số dòng phụ tùng:</span>
+                <span className="font-bold text-foreground">{items.length} dòng</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tổng đơn vị phụ tùng:</span>
+                <span className="font-bold text-foreground">{totalPartsQuantity} đơn vị</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-6 border-t border-border/40">
+              <button
+                type="button"
+                onClick={() => router.push("/workshop")}
+                className="flex-1 px-4 py-2.5 border border-border hover:bg-secondary/40 rounded-xl text-xs font-semibold transition-colors text-center"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex-1 gradient-primary text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:opacity-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-1.5 transition-all"
+              >
+                {submitting ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles size={13} /> Lưu lệnh
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
