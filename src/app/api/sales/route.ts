@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
   if (status) where.status = status;
 
   // Run heavy queries in parallel
-  const [vehicles, total, countAvailable, countReserved, countIncoming, countSold] = await Promise.all([
+  const [vehicles, total, countAvailable, countReserved, countIncoming, countSold, remainingStats] = await Promise.all([
     prisma.vehicle.findMany({ 
       where, 
       orderBy: { createdAt: "desc" }, 
@@ -73,6 +73,16 @@ export async function GET(req: NextRequest) {
     prisma.vehicle.count({ where: { status: "RESERVED", ...(branchId ? { branchId } : {}) } }),
     prisma.vehicle.count({ where: { status: "INCOMING", ...(branchId ? { branchId } : {}) } }),
     prisma.vehicle.count({ where: { status: "SOLD", ...(branchId ? { branchId } : {}) } }),
+    prisma.vehicle.aggregate({
+      where: {
+        status: { in: ["AVAILABLE", "RESERVED", "INCOMING"] },
+        ...(branchId ? { branchId } : {})
+      },
+      _sum: {
+        listPrice: true,
+        floorPrice: true
+      }
+    })
   ]);
 
   const counts = {
@@ -80,6 +90,9 @@ export async function GET(req: NextRequest) {
     RESERVED: countReserved,
     INCOMING: countIncoming,
     SOLD: countSold,
+    remainingCount: countAvailable + countReserved + countIncoming,
+    remainingListValue: Number(remainingStats._sum.listPrice || 0),
+    remainingFloorValue: Number(remainingStats._sum.floorPrice || 0),
   };
 
   return NextResponse.json({ 

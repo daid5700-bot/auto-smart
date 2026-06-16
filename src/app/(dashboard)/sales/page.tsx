@@ -154,13 +154,73 @@ export default function SalesPage() {
         <button onClick={handleOpenAdd} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit"><Plus size={16} />Thêm xe mới</button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {(["AVAILABLE", "RESERVED", "INCOMING", "SOLD"] as const).map((s) => (
-          <div key={s} className="glass-card rounded-xl p-4 hover:-translate-y-0.5 transition-transform cursor-pointer" onClick={() => setStatusF(statusF === s ? "" : s)}>
-            <p className="text-xs text-muted-foreground">{statusText(s)}</p>
-            <p className="text-2xl font-bold mt-1">{counts[s] || 0}</p>
+      {/* Inventory KPI Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="glass-card rounded-2xl p-5 bg-gradient-to-br from-primary/5 via-transparent to-transparent border border-primary/10 relative overflow-hidden">
+          <div className="absolute right-4 top-4 text-primary opacity-20">
+            <Car size={36} />
           </div>
-        ))}
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tổng xe còn tồn</p>
+          <p className="text-2xl font-bold mt-2 text-foreground">
+            {counts.remainingCount || 0} <span className="text-xs font-medium text-muted-foreground">xe</span>
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-2">
+            Gồm Sẵn sàng ({counts.AVAILABLE || 0}), Đặt cọc ({counts.RESERVED || 0}), Đang về ({counts.INCOMING || 0})
+          </p>
+        </div>
+
+        <div className="glass-card rounded-2xl p-5 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent border border-emerald-500/10 relative overflow-hidden">
+          <div className="absolute right-4 top-4 text-emerald-500 opacity-20">
+            <span className="text-xl font-bold font-mono">VNĐ</span>
+          </div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Giá trị tồn (Niêm yết)</p>
+          <p className="text-2xl font-bold mt-2 text-emerald-600 dark:text-emerald-400">
+            {formatCurrency(counts.remainingListValue || 0)}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-2">
+            Tính theo giá bán niêm yết hiện hành
+          </p>
+        </div>
+
+        <div className="glass-card rounded-2xl p-5 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent border border-blue-500/10 relative overflow-hidden">
+          <div className="absolute right-4 top-4 text-blue-500 opacity-20">
+            <span className="text-xl font-bold font-mono">VNĐ</span>
+          </div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Giá trị tồn (Giá sàn)</p>
+          <p className="text-2xl font-bold mt-2 text-blue-600 dark:text-blue-400">
+            {formatCurrency(counts.remainingFloorValue || 0)}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-2">
+            Mức giá xuất xưởng tối thiểu cho phép
+          </p>
+        </div>
+      </div>
+
+      {/* Quick Status Filter Buttons */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {(["AVAILABLE", "RESERVED", "INCOMING", "SOLD"] as const).map((s) => (
+            <div 
+              key={s} 
+              className={`glass-card rounded-xl p-4 transition-all duration-200 cursor-pointer border hover:-translate-y-0.5 ${
+                statusF === s 
+                  ? "border-primary bg-primary/5 shadow-md shadow-primary/5" 
+                  : "border-border/60 hover:border-border"
+              }`}
+              onClick={() => setStatusF(statusF === s ? "" : s)}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground font-semibold">{statusText(s)}</p>
+                <div className={`w-1.5 h-1.5 rounded-full ${
+                  s === "AVAILABLE" ? "bg-emerald-500" :
+                  s === "RESERVED" ? "bg-amber-500" :
+                  s === "INCOMING" ? "bg-blue-500" : "bg-gray-400"
+                }`} />
+              </div>
+              <p className="text-xl font-bold mt-2 text-foreground">{counts[s] || 0} xe</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">

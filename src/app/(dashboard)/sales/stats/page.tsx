@@ -152,7 +152,7 @@ export default function SalesStatsPage() {
             </p>
             <CheckCircle size={18} className="text-emerald-500" />
           </div>
-          <p className="text-4xl font-extrabold mt-3 tracking-tight text-emerald-600 dark:text-emerald-400">
+          <p className="text-4xl font-bold mt-3 tracking-tight text-emerald-600 dark:text-emerald-400">
             {data.soldVehicles}
           </p>
           <p className="text-xs text-muted-foreground mt-1.5">
@@ -168,7 +168,7 @@ export default function SalesStatsPage() {
             </p>
             <DollarSign size={18} className="text-primary" />
           </div>
-          <p className="text-3xl font-extrabold mt-3 tracking-tight text-primary">
+          <p className="text-3xl font-bold mt-3 tracking-tight text-primary">
             {formatCurrency(data.soldValue)}
           </p>
           <p className="text-xs text-muted-foreground mt-1.5">
@@ -184,7 +184,7 @@ export default function SalesStatsPage() {
             </p>
             <TrendingUp size={18} className="text-purple-500" />
           </div>
-          <p className="text-3xl font-extrabold mt-3 tracking-tight text-purple-600 dark:text-purple-400">
+          <p className="text-3xl font-bold mt-3 tracking-tight text-purple-600 dark:text-purple-400">
             {formatCurrency(data.avgPrice)}
           </p>
           <p className="text-xs text-muted-foreground mt-1.5">
