@@ -38,6 +38,10 @@ export default function NewDocumentPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [isNewCustomer, setIsNewCustomer] = useState(false);
 
+  // Warehouse vehicle selection
+  const [warehouseVehicles, setWarehouseVehicles] = useState<any[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
+
   // Metadata: Plate cost & Accessories
   const [plateCost, setPlateCost] = useState("");
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
@@ -68,9 +72,23 @@ export default function NewDocumentPage() {
     }
   };
 
+  const fetchWarehouseVehicles = async () => {
+    try {
+      const res = await fetch("/api/sales?limit=1000");
+      const data = await res.json();
+      const filtered = (data.vehicles || []).filter(
+        (v: any) => v.status === "AVAILABLE" || v.status === "INCOMING"
+      );
+      setWarehouseVehicles(filtered);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchCustomers();
+    fetchWarehouseVehicles();
   }, []);
 
   const handleAddAccessory = (p: any) => {
@@ -100,8 +118,12 @@ export default function NewDocumentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vin || !model || !customerName || !customerPhone) {
-      alert("Vui lòng nhập đầy đủ Số khung, Dòng xe, Tên khách hàng và Số điện thoại!");
+    if (!selectedVehicleId) {
+      alert("Vui lòng chọn một xe từ kho hệ thống!");
+      return;
+    }
+    if (!customerName || !customerPhone) {
+      alert("Vui lòng nhập đầy đủ Tên khách hàng và Số điện thoại!");
       return;
     }
 
@@ -125,8 +147,8 @@ export default function NewDocumentPage() {
         customerBirthday: customerBirthday || undefined
       };
 
-      const res = await fetch("/api/sales", {
-        method: "POST",
+      const res = await fetch(`/api/sales/${selectedVehicleId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
@@ -136,7 +158,7 @@ export default function NewDocumentPage() {
         router.refresh();
       } else {
         const errorData = await res.json();
-        alert(errorData.error || "Gặp lỗi khi tạo mới hồ sơ");
+        alert(errorData.error || "Gặp lỗi khi lưu hồ sơ");
       }
     } catch (e) {
       console.error(e);
@@ -180,70 +202,62 @@ export default function NewDocumentPage() {
             <Car size={16} className="text-primary" />
             <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Thông tin Xe & Tiến độ</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground">Số khung (VIN) *</label>
-              <input
-                type="text"
-                required
-                placeholder="Nhập số khung VIN..."
-                value={vin}
-                onChange={(e) => setVin(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground">Tên xe / Model *</label>
-              <input
-                type="text"
-                required
-                placeholder="Hyundai Accent, Toyota Vios..."
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground">Phiên bản (Variant)</label>
-              <input
-                type="text"
-                placeholder="1.5 AT, 2.0 Premium..."
-                value={variant}
-                onChange={(e) => setVariant(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-semibold"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground">Màu sắc</label>
-              <input
-                type="text"
-                placeholder="Trắng, Đen, Đỏ..."
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground">Năm sản xuất</label>
-              <input
-                type="number"
-                placeholder="2026"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-semibold"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground">Giá bán xe (VNĐ)</label>
-              <input
-                type="number"
-                placeholder="719000000"
-                value={listPrice}
-                onChange={(e) => setListPrice(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-primary"
-              />
-            </div>
+
+          {/* Dropdown to select existing vehicle */}
+          <div className="space-y-1.5 max-w-md">
+            <label className="text-xs font-bold text-muted-foreground">Chọn xe từ Kho hệ thống *</label>
+            <select
+              required
+              value={selectedVehicleId}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedVehicleId(val);
+                if (val) {
+                  const v = warehouseVehicles.find(item => item.id.toString() === val);
+                  if (v) {
+                    setVin(v.vin || "");
+                    setModel(v.model || "");
+                    setVariant(v.variant || "");
+                    setColor(v.color || "");
+                    setYear((v.year || 2026).toString());
+                    setListPrice(v.listPrice ? Number(v.listPrice).toString() : "");
+                  }
+                } else {
+                  setVin("");
+                  setModel("");
+                  setVariant("");
+                  setColor("");
+                  setYear("2026");
+                  setListPrice("");
+                }
+              }}
+              className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              <option value="">-- Chọn xe từ kho hệ thống * --</option>
+              {warehouseVehicles.map((v) => (
+                <option key={v.id} value={v.id.toString()}>
+                  {v.model} {v.variant ? `(${v.variant})` : ""} - {v.color || "Không màu"} - VIN: {v.vin}
+                </option>
+              ))}
+            </select>
           </div>
+
+          {/* Selected Vehicle Preview Banner */}
+          {selectedVehicleId && (
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
+              <div>
+                <p className="text-xs text-muted-foreground font-semibold">Dòng xe đã chọn:</p>
+                <h3 className="text-base font-bold text-primary mt-0.5">
+                  {model} {variant ? `(${variant})` : ""} - {color || "N/A"}
+                </h3>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] text-muted-foreground">
+                  <span><strong>Số khung (VIN):</strong> {vin}</span>
+                  <span><strong>Năm sản xuất:</strong> {year}</span>
+                  <span><strong>Giá niêm yết:</strong> {listPrice ? Number(listPrice).toLocaleString("vi-VN") : "0"} VNĐ</span>
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
