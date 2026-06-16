@@ -20,6 +20,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/uploads") ||
+    pathname.startsWith("/zalo_verifier") ||
+    pathname.startsWith("/VT-E6ON10") ||
     pathname === "/"
   ) {
     return NextResponse.next();
