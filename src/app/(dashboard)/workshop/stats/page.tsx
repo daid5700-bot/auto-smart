@@ -5,19 +5,25 @@ import { formatCurrency } from "@/lib/utils";
 import {
   Wrench, DollarSign, UserCog, TrendingUp,
   Settings, Loader2, RefreshCw, BarChart3,
-  Calendar, Layers, Clock, ShieldCheck
+  Calendar, Layers, Clock, ShieldCheck, X
 } from "lucide-react";
 
 export default function WorkshopStatsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   const fetchStats = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/stats/workshop");
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+
+      const res = await fetch(`/api/stats/workshop?${params}`);
       if (!res.ok) throw new Error("Failed to load workshop statistics");
       const d = await res.json();
       setData(d);
@@ -31,7 +37,7 @@ export default function WorkshopStatsPage() {
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [startDate, endDate]);
 
   if (loading) {
     return (
@@ -79,7 +85,7 @@ export default function WorkshopStatsPage() {
   return (
     <div className="space-y-6 stagger">
       {/* Header Section */}
-      <div className="flex items-center justify-between pb-5 border-b border-border">
+      <div className="flex items-center justify-between pb-5 border-b border-border flex-wrap gap-4">
         <div>
           <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Báo cáo thống kê
@@ -91,13 +97,46 @@ export default function WorkshopStatsPage() {
             Phân tích số liệu sửa chữa, tiền công thợ, tiền phụ tùng, và hiệu suất công việc của từng Kỹ thuật viên.
           </p>
         </div>
-        <button
-          onClick={fetchStats}
-          className="p-2.5 hover:bg-secondary rounded-xl text-primary border border-border bg-card transition-colors"
-          title="Tải lại dữ liệu"
-        >
-          <RefreshCw size={16} />
-        </button>
+        
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {/* Time Filter Group */}
+          <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl px-3 py-1.5 shadow-sm text-xs font-semibold">
+            <span className="text-muted-foreground">Từ ngày:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
+            />
+            <span className="text-muted-foreground border-l border-border pl-2">Đến:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
+            />
+            {(startDate || endDate) && (
+              <button
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="text-muted-foreground hover:text-destructive transition-colors ml-1"
+                title="Xóa bộ lọc"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={fetchStats}
+            className="p-2.5 hover:bg-secondary rounded-xl text-primary border border-border bg-card transition-colors"
+            title="Tải lại dữ liệu"
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards Grid */}

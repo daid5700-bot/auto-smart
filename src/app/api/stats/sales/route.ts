@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch all SOLD vehicles to calculate real monthly sales trend
     const soldVehiclesData = await prisma.vehicle.findMany({
-      where: { status: "SOLD" },
+      where: whereSold,
       select: { updatedAt: true },
     });
 

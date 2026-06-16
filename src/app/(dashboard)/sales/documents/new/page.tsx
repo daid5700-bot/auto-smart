@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
-  Sparkles, Receipt, Car, Trash2
+  Sparkles, Receipt, Car, Trash2, ChevronDown
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
@@ -18,6 +18,22 @@ interface Accessory {
 
 export default function NewDocumentPage() {
   const router = useRouter();
+  
+  // Custom dropdown states
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Form State
   const [vin, setVin] = useState("");
@@ -36,6 +52,7 @@ export default function NewDocumentPage() {
   const [customerBirthday, setCustomerBirthday] = useState("");
   const [systemCustomers, setSystemCustomers] = useState<any[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [isNewCustomer, setIsNewCustomer] = useState(false);
 
   // Warehouse vehicle selection
@@ -173,6 +190,11 @@ export default function NewDocumentPage() {
     p.sku.toLowerCase().includes(accessorySearch.toLowerCase())
   );
 
+  const filteredCustomers = systemCustomers.filter(cust => 
+    (cust.name || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+    (cust.phone || "").includes(customerSearchQuery)
+  );
+
   return (
     <div className="w-full space-y-6 stagger pb-12">
       {/* Page Header */}
@@ -259,7 +281,7 @@ export default function NewDocumentPage() {
             </div>
           )}
           
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground">Tiến độ tổng quan *</label>
               <select
@@ -298,6 +320,18 @@ export default function NewDocumentPage() {
                 <option value="PLATE_DONE">Đã bấm biển & Bàn giao xe</option>
               </select>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-primary">Giá bán thực tế (VNĐ) *</label>
+              <input
+                type="number"
+                required
+                placeholder="Nhập giá bán..."
+                value={listPrice}
+                onChange={(e) => setListPrice(e.target.value)}
+                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-primary"
+              />
+            </div>
           </div>
         </div>
 
@@ -308,42 +342,80 @@ export default function NewDocumentPage() {
             <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Thông tin Khách hàng</h4>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div className="space-y-1.5 relative" ref={dropdownRef}>
               <label className="text-xs font-bold text-muted-foreground">Chọn Khách hàng từ Hệ thống</label>
-              <select
-                value={selectedCustomerId}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedCustomerId(val);
-                  if (val) {
-                    const cust = systemCustomers.find(c => c.id.toString() === val);
-                    if (cust) {
-                      setCustomerName(cust.name || "");
-                      setCustomerPhone(cust.phone || "");
-                      setCustomerBirthday(
-                        cust.birthday 
-                          ? new Date(cust.birthday).toISOString().split("T")[0] 
-                          : ""
-                      );
-                      setIsNewCustomer(false);
-                    }
-                  } else {
-                    setCustomerName("");
-                    setCustomerPhone("");
-                    setCustomerBirthday("");
-                    setIsNewCustomer(false);
-                  }
-                }}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold"
+              
+              {/* Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full px-3 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-left flex items-center justify-between transition-all"
               >
-                <option value="">-- Chọn khách hàng đã có --</option>
-                {systemCustomers.map((cust) => (
-                  <option key={cust.id} value={cust.id.toString()}>
-                    {cust.name} ({cust.phone})
-                  </option>
-                ))}
-              </select>
+                <span className="truncate">
+                  {selectedCustomerId
+                    ? `${customerName} (${customerPhone})`
+                    : "-- Chọn khách hàng đã có --"}
+                </span>
+                <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown Panel */}
+              {isOpen && (
+                <div className="absolute left-0 right-0 top-[calc(100%+4px)] bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col stagger w-full">
+                  {/* Sticky Search Input inside Dropdown */}
+                  <div className="p-2 border-b border-border bg-secondary/15">
+                    <div className="relative">
+                      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Nhập tên hoặc số điện thoại để tìm..."
+                        value={customerSearchQuery}
+                        onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Options List */}
+                  <div className="max-h-60 overflow-y-auto p-1 divide-y divide-border/20">
+                    {filteredCustomers.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-muted-foreground text-center font-semibold">
+                        Không tìm thấy khách hàng nào
+                      </div>
+                    ) : (
+                      filteredCustomers.map((cust) => (
+                        <button
+                          key={cust.id}
+                          type="button"
+                          onClick={() => {
+                            const val = cust.id.toString();
+                            setSelectedCustomerId(val);
+                            setCustomerName(cust.name || "");
+                            setCustomerPhone(cust.phone || "");
+                            setCustomerBirthday(
+                              cust.birthday 
+                                ? new Date(cust.birthday).toISOString().split("T")[0] 
+                                : ""
+                            );
+                            setIsNewCustomer(false);
+                            setIsOpen(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left text-xs font-bold rounded-lg transition-colors flex items-center justify-between hover:bg-secondary/40 ${
+                            selectedCustomerId === cust.id.toString()
+                              ? "bg-primary/10 text-primary"
+                              : "text-foreground"
+                          }`}
+                        >
+                          <span>{cust.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-semibold ml-2 shrink-0">{cust.phone}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-end">
@@ -356,7 +428,7 @@ export default function NewDocumentPage() {
                     setCustomerPhone("");
                     setCustomerBirthday("");
                   }}
-                  className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                  className="w-full md:w-auto px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
                 >
                   <Plus size={14} /> Thêm khách hàng mới
                 </button>

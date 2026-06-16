@@ -1,27 +1,49 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = req.nextUrl;
+    const startDateStr = searchParams.get("startDate");
+    const endDateStr = searchParams.get("endDate");
+
+    let startDate: Date | undefined = undefined;
+    let endDate: Date | undefined = undefined;
+
+    if (startDateStr) {
+      startDate = new Date(startDateStr);
+    }
+    if (endDateStr) {
+      endDate = new Date(endDateStr);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     const branchId = getActiveBranchId();
+
+    const roWhere: any = branchId ? { branchId } : {};
+    if (startDate || endDate) {
+      roWhere.createdAt = {};
+      if (startDate) roWhere.createdAt.gte = startDate;
+      if (endDate) roWhere.createdAt.lte = endDate;
+    }
 
     // 1. Basic Counts
     const [totalROs, activeROs] = await Promise.all([
       prisma.repairOrder.count({
-        where: branchId ? { branchId } : {},
+        where: roWhere,
       }),
       prisma.repairOrder.count({
         where: {
           status: { notIn: ["DONE", "DELIVERED"] },
-          ...(branchId ? { branchId } : {}),
+          ...roWhere,
         },
       }),
     ]);
 
     // 2. Status Distribution
     const roList = await prisma.repairOrder.findMany({
-      where: branchId ? { branchId } : {},
+      where: roWhere,
       select: {
         status: true,
         laborCost: true,
@@ -62,13 +84,20 @@ export async function GET() {
     }));
 
     // 3. Technician Performance
+    const techROWhere: any = {
+      status: { in: ["DONE", "DELIVERED"] },
+    };
+    if (startDate || endDate) {
+      techROWhere.createdAt = {};
+      if (startDate) techROWhere.createdAt.gte = startDate;
+      if (endDate) techROWhere.createdAt.lte = endDate;
+    }
+
     const technicians = await prisma.technician.findMany({
       where: branchId ? { branchId } : {},
       include: {
         repairOrders: {
-          where: {
-            status: { in: ["DONE", "DELIVERED"] },
-          },
+          where: techROWhere,
           select: {
             laborCost: true,
             partsCost: true,
