@@ -28,9 +28,18 @@ export default function SalesPage() {
     image: "",
   });
 
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [search]);
+
   const fetchData = () => {
     const params = new URLSearchParams();
-    if (search) params.set("search", search);
+    if (debouncedSearch) params.set("search", debouncedSearch);
     if (statusF) params.set("status", statusF);
     fetch(`/api/sales?${params}`)
       .then((r) => r.json())
@@ -40,7 +49,7 @@ export default function SalesPage() {
 
   useEffect(() => {
     fetchData();
-  }, [search, statusF]);
+  }, [debouncedSearch, statusF]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Bạn có chắc chắn muốn xóa xe này?")) return;

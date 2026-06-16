@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/store";
 import { 
@@ -29,6 +29,48 @@ export default function MovementsPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
+
+  const groupMovementsIntoReceipts = (movements: any[]) => {
+    const groups: Record<string, {
+      id: string;
+      type: string;
+      createdBy: string;
+      createdAt: string;
+      reason: string;
+      items: any[];
+      totalAmount: number;
+    }> = {};
+
+    movements.forEach(m => {
+      const dateVal = new Date(m.createdAt).getTime();
+      const timeWindow = Math.floor(dateVal / 3000);
+      const key = `${m.type}-${m.createdBy}-${timeWindow}`;
+      
+      if (!groups[key]) {
+        groups[key] = {
+          id: key,
+          type: m.type,
+          createdBy: m.createdBy,
+          createdAt: m.createdAt,
+          reason: m.reason || "",
+          items: [],
+          totalAmount: 0
+        };
+      }
+      
+      groups[key].items.push(m);
+      groups[key].totalAmount += Number(m.totalCost || 0);
+    });
+
+    return Object.values(groups).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  };
+
+  const getReceiptCode = (type: string, dateStr: string) => {
+    const cleanDate = dateStr.replace(/\D/g, "").slice(2, 12);
+    const prefix = type === "IMPORT" ? "PN" : type === "EXPORT" ? "PX" : "PK";
+    return `${prefix}-${cleanDate}`;
+  };
 
   // Form State - Array of items
   const [items, setItems] = useState<MovementItem[]>([]);
@@ -39,28 +81,49 @@ export default function MovementsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const fetchData = async () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const fetchProducts = async () => {
     try {
-      const [prodRes, histRes] = await Promise.all([
-        fetch("/api/inventory?limit=1000&branchFilter=all"),
-        fetch("/api/inventory/movements?limit=20")
-      ]);
-      const prodData = await prodRes.json();
-      const histData = await histRes.json();
-      setProducts(prodData.products || []);
-      setHistory(histData.movements || []);
+      const res = await fetch("/api/inventory?limit=1000&branchFilter=all");
+      const data = await res.json();
+      setProducts(data.products || []);
     } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+      console.error("Lỗi tải danh mục sản phẩm:", e);
     }
+  };
+
+  const fetchMovements = async (p: number) => {
+    try {
+      const res = await fetch(`/api/inventory/movements?page=${p}&limit=50`);
+      const data = await res.json();
+      setHistory(data.movements || []);
+      if (data.pagination) {
+        setTotalPages(data.pagination.totalPages || 1);
+      }
+    } catch (e) {
+      console.error("Lỗi tải lịch sử kho:", e);
+    }
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    setCurrentPage(1);
+    await Promise.all([fetchProducts(), fetchMovements(1)]);
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchData();
-    // Initialize one row
     resetItems();
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchMovements(currentPage);
+    }
+  }, [currentPage]);
 
   const resetItems = () => {
     setItems([{
@@ -90,10 +153,22 @@ export default function MovementsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredProducts = products.filter(p => 
-    (p.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.sku || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    if (!query) return products.slice(0, 50);
+    return products.filter(p => 
+      (p.name || "").toLowerCase().includes(query) ||
+      (p.sku || "").toLowerCase().includes(query)
+    ).slice(0, 50);
+  }, [products, searchQuery]);
+
+  const productMap = useMemo(() => {
+    const map = new Map<string, any>();
+    products.forEach(p => map.set(p.id.toString(), p));
+    return map;
+  }, [products]);
+
+  const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
 
   const handleProductSelect = (idx: number, productId: string) => {
     const product = products.find(p => p.id.toString() === productId);
@@ -181,7 +256,9 @@ export default function MovementsPage() {
   };
 
   // Grand total calculation for IMPORT
-  const grandTotal = items.reduce((acc, item) => acc + ((item.quantity || 0) * (item.unitCost || 0)), 0);
+  const grandTotal = useMemo(() => {
+    return items.reduce((acc, item) => acc + ((item.quantity || 0) * (item.unitCost || 0)), 0);
+  }, [items]);
 
   if (loading) {
     return (
@@ -233,10 +310,10 @@ export default function MovementsPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="divide-y divide-border">
-          <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div>
             
             {/* LEFT COLUMN: The list */}
-            <div className="p-4 space-y-3 lg:col-span-8">
+            <div className="p-4 space-y-3">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
                   {activeTab === "IMPORT" ? "YÊU CẦU PHỤ TÙNG CẦN NHẬP" : 
@@ -278,7 +355,7 @@ export default function MovementsPage() {
 
               <div className="space-y-3 lg:space-y-1">
                 {items.map((item, idx) => {
-                  const selectedProd = products.find(p => p.id.toString() === item.productId);
+                  const selectedProd = productMap.get(item.productId);
 
                   return (
                     <div key={item.id} className={`flex flex-col lg:grid lg:grid-cols-12 gap-1.5 items-center bg-secondary/10 lg:bg-transparent p-3 lg:p-1 rounded-xl border border-border lg:border-none relative ${activeDropdownIdx === idx ? "z-50" : "z-10"}`}>
@@ -441,88 +518,7 @@ export default function MovementsPage() {
               </div>
             </div>
 
-            {/* RIGHT COLUMN: PREVIEW */}
-            <div className="p-4 bg-secondary/10 lg:col-span-4 flex flex-col justify-start">
-              <div className="flex items-center gap-2 text-muted-foreground mb-4">
-                <div className="w-6 h-6 rounded-md bg-secondary flex items-center justify-center border border-border">
-                  <SlidersHorizontal size={14} className={activeTab === "IMPORT" ? "text-primary" : activeTab === "EXPORT" ? "text-rose-500" : "text-amber-500"} />
-                </div>
-                <h3 className="text-xs font-bold tracking-widest uppercase">PREVIEW TRƯỚC KHI LƯU</h3>
-              </div>
-              
-              {(() => {
-                const focusedItem = items[focusedIdx] || items[0];
-                const focusedProd = products.find(p => p.id.toString() === focusedItem?.productId);
-                
-                if (!focusedProd) {
-                  return (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-border rounded-xl">
-                      <p className="text-sm font-semibold text-muted-foreground">Chọn phụ tùng để xem trước kết quả</p>
-                    </div>
-                  );
-                }
-
-                const finalQuantity = focusedItem.quantity * focusedItem.conversionFactor;
-                let newStock = focusedProd.stockCount;
-                if (activeTab === "IMPORT") newStock += finalQuantity;
-                else if (activeTab === "EXPORT") newStock -= finalQuantity;
-                else if (activeTab === "ADJUST") newStock = focusedItem.actualStock;
-
-                return (
-                  <div className="space-y-6">
-                    <div className="flex flex-col border-l-4 pl-3 py-1 border-primary">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">{focusedProd.sku}</span>
-                      <span className="text-base font-bold text-foreground leading-tight">{focusedProd.name}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-card border border-border rounded-xl p-3 shadow-sm flex flex-col justify-between">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Tồn hiện tại</span>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-lg font-black">{focusedProd.stockCount}</span>
-                          <span className="text-xs text-muted-foreground font-semibold">{focusedProd.unit}</span>
-                        </div>
-                      </div>
-                      <div className="bg-card border border-border rounded-xl p-3 shadow-sm flex flex-col justify-between">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Loại thao tác</span>
-                        <div className="flex items-baseline gap-1">
-                          <span className={`text-sm font-black ${
-                            activeTab === "IMPORT" ? "text-primary" :
-                            activeTab === "EXPORT" ? "text-rose-500" : "text-amber-500"
-                          }`}>
-                            {activeTab === "IMPORT" ? "Nhập kho" : activeTab === "EXPORT" ? "Xuất kho" : "Kiểm kê"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="bg-card border border-border rounded-xl p-3 shadow-sm flex flex-col justify-between">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">SL Quy đổi</span>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-lg font-black">{finalQuantity}</span>
-                          <span className="text-xs text-muted-foreground font-semibold">{focusedProd.unit}</span>
-                        </div>
-                      </div>
-                      {activeTab === "IMPORT" && (
-                        <div className="bg-card border border-border rounded-xl p-3 shadow-sm flex flex-col justify-between">
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Giá nhập/đv</span>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-sm font-black text-primary">{formatCurrency(focusedItem.unitCost)}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className={activeTab === "EXPORT" ? "border-rose-500/50 bg-rose-500/5 border-2 rounded-xl p-4 shadow-inner" : "border-primary/50 bg-primary/5 border-2 rounded-xl p-4 shadow-inner"}>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Tồn sau thao tác</span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-black text-foreground">{newStock}</span>
-                        <span className="text-sm text-muted-foreground font-semibold ml-1">{focusedProd.unit}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
-          </div>
 
           <div className="p-4 bg-secondary/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-b-xl">
             {activeTab === "IMPORT" ? (
@@ -554,57 +550,306 @@ export default function MovementsPage() {
 
       {/* HISTORY TABLE */}
       <div className="mt-10 pt-8 border-t border-border">
-        <div className="flex items-center gap-2 mb-4">
-          <h3 className="font-bold text-lg">Lịch sử giao dịch (20 gần nhất)</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-bold text-lg">Lịch sử phiếu nhập xuất kho</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Danh sách các phiếu nhập, xuất và kiểm kê kho được gom nhóm tự động.</p>
+          </div>
         </div>
+        
         <div className="border border-border bg-card overflow-hidden rounded-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-secondary/30 border-b border-border">
                 <tr>
+                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Mã phiếu</th>
                   <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Thời gian</th>
-                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Loại</th>
-                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Sản phẩm</th>
-                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Số lượng</th>
-                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Thực hiện</th>
-                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Lý do / Ghi chú</th>
+                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Loại phiếu</th>
+                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Người thực hiện</th>
+                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Số mặt hàng</th>
+                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Tổng tiền (Nhập)</th>
+                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Ghi chú</th>
+                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">Hành động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {history.map((m: any) => (
-                  <tr key={m.id} className="hover:bg-secondary/20 transition-colors">
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(m.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] font-bold px-2 py-1 uppercase rounded-md ${
-                        m.type === "IMPORT" ? "bg-primary/10 text-primary" :
-                        m.type === "EXPORT" ? "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200" :
-                        "bg-amber-500/10 text-amber-500"
-                      }`}>
-                        {m.type === "IMPORT" ? "Nhập" : m.type === "EXPORT" ? "Xuất" : "Kiểm kê"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-xs">{m.product?.sku}</td>
-                    <td className={`px-4 py-3 font-bold ${
-                      m.type === "IMPORT" ? "text-primary" : m.type === "EXPORT" ? "text-rose-500" : ""
-                    }`}>
-                      {m.type === "IMPORT" ? "+" : m.type === "EXPORT" ? "-" : ""}{m.quantity} {m.product?.unit}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{m.createdBy}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground truncate max-w-[200px]">{m.reason || "—"}</td>
-                  </tr>
-                ))}
+                {groupedReceipts.map((r: any) => {
+                  const receiptCode = getReceiptCode(r.type, r.createdAt);
+                  return (
+                    <tr 
+                      key={r.id} 
+                      onClick={() => setSelectedReceipt(r)}
+                      className="hover:bg-primary/[0.02] cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-3 font-mono font-bold text-primary text-xs">{receiptCode}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {formatDate(r.createdAt)} {new Date(r.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-bold px-2 py-1 uppercase rounded-md ${
+                          r.type === "IMPORT" ? "bg-primary/10 text-primary" :
+                          r.type === "EXPORT" ? "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200" :
+                          "bg-amber-500/10 text-amber-500"
+                        }`}>
+                          {r.type === "IMPORT" ? "Nhập kho" : r.type === "EXPORT" ? "Xuất kho" : "Kiểm kê"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-medium">{r.createdBy}</td>
+                      <td className="px-4 py-3 text-xs font-semibold">{r.items.length} mặt hàng</td>
+                      <td className="px-4 py-3 text-xs font-bold text-foreground">
+                        {r.type === "IMPORT" ? formatCurrency(r.totalAmount) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground truncate max-w-[150px]">{r.reason || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setSelectedReceipt(r)}
+                          className="px-2.5 py-1.5 rounded-lg bg-secondary text-foreground hover:bg-primary hover:text-white transition-all text-xs font-semibold flex items-center gap-1 mx-auto"
+                        >
+                          Xem chi tiết
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {history.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">
-                      Chưa có lịch sử. Hãy tạo giao dịch đầu tiên.
+                    <td colSpan={8} className="text-center py-8 text-muted-foreground text-sm">
+                      Chưa có lịch sử giao dịch. Hãy tạo giao dịch đầu tiên.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
+              <div className="text-xs text-muted-foreground">
+                Trang <span className="font-semibold text-foreground">{currentPage}</span> / <span className="font-semibold text-foreground">{totalPages}</span>
+              </div>
+              <div className="flex gap-1 items-center">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-bold hover:bg-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {(() => {
+                  const delta = 2;
+                  const range = [];
+                  for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+                    range.push(i);
+                  }
+                  if (currentPage - delta > 2) range.unshift("...");
+                  if (currentPage + delta < totalPages - 1) range.push("...");
+                  range.unshift(1);
+                  if (totalPages > 1) range.push(totalPages);
+
+                  return range.map((p, idx) => {
+                    if (p === "...") {
+                      return (
+                        <span key={`dots-${idx}`} className="px-2 py-1 text-xs text-muted-foreground">
+                          ...
+                        </span>
+                      );
+                    }
+                    return (
+                      <button
+                        key={`page-${p}`}
+                        type="button"
+                        onClick={() => setCurrentPage(Number(p))}
+                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                          currentPage === p
+                            ? "bg-primary text-primary-foreground font-extrabold"
+                            : "border border-border bg-card hover:bg-secondary text-foreground"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  });
+                })()}
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-bold hover:bg-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* RECEIPT DETAIL MODAL */}
+      {selectedReceipt && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4 print:p-0">
+          <div className="bg-card border border-border w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden print:border-none print:shadow-none print:w-full print:max-h-full print:rounded-none">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-secondary/10 print:hidden">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Chi tiết giao dịch</span>
+              </div>
+              <button 
+                onClick={() => setSelectedReceipt(null)}
+                className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body / Invoice Printable Area */}
+            <div className="p-8 flex-1 overflow-y-auto print:overflow-visible space-y-6 bg-white text-zinc-900" id="printable-receipt">
+              {/* Invoice Header */}
+              <div className="flex justify-between items-start border-b border-zinc-200 pb-6">
+                <div>
+                  <h1 className="text-2xl font-black tracking-tight text-primary">AUTO-SMART CRM & ERP</h1>
+                  <p className="text-xs text-zinc-500 mt-1">Hệ thống quản trị doanh nghiệp ô tô thông minh</p>
+                  <p className="text-xs text-zinc-400">Chi nhánh: Mặc định</p>
+                </div>
+                <div className="text-right">
+                  <h2 className="text-lg font-bold uppercase tracking-wider text-zinc-700">
+                    {selectedReceipt.type === "IMPORT" ? "PHIẾU NHẬP KHO" : 
+                     selectedReceipt.type === "EXPORT" ? "PHIẾU XUẤT KHO" : "BIÊN BẢN KIỂM KÊ"}
+                  </h2>
+                  <p className="font-mono font-bold text-xs text-zinc-800 mt-1">
+                    Số: {getReceiptCode(selectedReceipt.type, selectedReceipt.createdAt)}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Ngày lập: {formatDate(selectedReceipt.createdAt)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Invoice Metadata */}
+              <div className="grid grid-cols-2 gap-4 text-xs text-zinc-600 bg-zinc-50 p-4 rounded-xl">
+                <div>
+                  <p><span className="font-bold text-zinc-800">Người lập phiếu:</span> {selectedReceipt.createdBy}</p>
+                  <p className="mt-1"><span className="font-bold text-zinc-800">Bộ phận:</span> Phòng phụ tùng / Kho hàng</p>
+                </div>
+                <div>
+                  <p><span className="font-bold text-zinc-800">Hình thức:</span> {
+                    selectedReceipt.type === "IMPORT" ? "Nhập tay (Manual)" : 
+                    selectedReceipt.type === "EXPORT" ? "Xuất kho trực tiếp" : "Kiểm kê định kỳ"
+                  }</p>
+                  <p className="mt-1"><span className="font-bold text-zinc-800">Ghi chú:</span> {selectedReceipt.reason || "—"}</p>
+                </div>
+              </div>
+
+              {/* Invoice Table */}
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-zinc-300 text-zinc-850 font-bold">
+                    <th className="py-2.5 w-10">STT</th>
+                    <th className="py-2.5">Mã SKU</th>
+                    <th className="py-2.5">Tên sản phẩm / phụ tùng</th>
+                    <th className="py-2.5 text-center w-20">Số lượng</th>
+                    <th className="py-2.5 text-center w-16">Đơn vị</th>
+                    {selectedReceipt.type === "IMPORT" && (
+                      <>
+                        <th className="py-2.5 text-right w-28">Đơn giá</th>
+                        <th className="py-2.5 text-right w-28">Thành tiền</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200">
+                  {selectedReceipt.items.map((m: any, idx: number) => (
+                    <tr key={m.id} className="text-zinc-700">
+                      <td className="py-2.5">{idx + 1}</td>
+                      <td className="py-2.5 font-mono font-bold text-zinc-850">{m.product?.sku}</td>
+                      <td className="py-2.5">{m.product?.name}</td>
+                      <td className="py-2.5 text-center">{m.quantity}</td>
+                      <td className="py-2.5 text-center">{m.product?.unit}</td>
+                      {selectedReceipt.type === "IMPORT" && (
+                        <>
+                          <td className="py-2.5 text-right">{formatCurrency(Number(m.totalCost) / m.quantity)}</td>
+                          <td className="py-2.5 text-right font-semibold text-zinc-950">{formatCurrency(Number(m.totalCost))}</td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Total Summary */}
+              {selectedReceipt.type === "IMPORT" && (
+                <div className="border-t border-zinc-300 pt-4 flex justify-between items-start">
+                  <div className="text-xs text-zinc-500 italic max-w-sm">
+                    * Giá trị trên đã bao gồm thuế VAT (nếu có) và được tính theo đơn giá trung bình nhập kho thực tế.
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-zinc-500 font-bold uppercase mr-4">Tổng cộng:</span>
+                    <span className="text-lg font-black text-zinc-950">{formatCurrency(selectedReceipt.totalAmount)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Signatures */}
+              <div className="grid grid-cols-3 gap-4 text-center text-xs pt-12 text-zinc-800">
+                <div>
+                  <p className="font-bold">Người lập phiếu</p>
+                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                  <p className="mt-14 font-semibold">{selectedReceipt.createdBy}</p>
+                </div>
+                <div>
+                  <p className="font-bold">Thủ kho</p>
+                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                  <div className="mt-14" />
+                </div>
+                <div>
+                  <p className="font-bold">Người kiểm duyệt</p>
+                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                  <div className="mt-14" />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-border bg-secondary/15 flex justify-between items-center print:hidden">
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-zinc-800 text-white rounded-xl text-xs font-bold hover:bg-zinc-700 transition-colors flex items-center gap-1.5 shadow-md"
+              >
+                In phiếu
+              </button>
+              <button
+                onClick={() => setSelectedReceipt(null)}
+                className="px-4 py-2 bg-secondary border border-border text-foreground rounded-xl text-xs font-bold hover:bg-secondary/80 transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-receipt, #printable-receipt * {
+            visibility: visible;
+          }
+          #printable-receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white !important;
+            color: black !important;
+            padding: 20px !important;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
