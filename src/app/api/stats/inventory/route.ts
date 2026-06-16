@@ -1,9 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = req.nextUrl;
+    const startDateStr = searchParams.get("startDate");
+    const endDateStr = searchParams.get("endDate");
+
+    let startDate: Date | undefined = undefined;
+    let endDate: Date | undefined = undefined;
+
+    if (startDateStr) {
+      startDate = new Date(startDateStr);
+    }
+    if (endDateStr) {
+      endDate = new Date(endDateStr);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     const branchId = getActiveBranchId();
 
     // 1. Basic Counts
@@ -81,12 +96,19 @@ export async function GET() {
       });
 
     // 5. Recent stock movements
-    const recentMovements = await prisma.stockMovement.findMany({
-      where: {
-        product: {
-          ...(branchId ? { branchId } : {}),
-        },
+    const movementWhere: any = {
+      product: {
+        ...(branchId ? { branchId } : {}),
       },
+    };
+    if (startDate || endDate) {
+      movementWhere.createdAt = {};
+      if (startDate) movementWhere.createdAt.gte = startDate;
+      if (endDate) movementWhere.createdAt.lte = endDate;
+    }
+
+    const recentMovements = await prisma.stockMovement.findMany({
+      where: movementWhere,
       take: 10,
       orderBy: { id: "desc" },
       include: {
@@ -94,6 +116,64 @@ export async function GET() {
           select: { name: true, sku: true, unit: true },
         },
       },
+    });
+
+    // 6. Sales metrics within the date range
+    const exportWhere: any = { type: "EXPORT" };
+    if (branchId) {
+      exportWhere.product = { branchId };
+    }
+    if (startDate || endDate) {
+      exportWhere.createdAt = {};
+      if (startDate) exportWhere.createdAt.gte = startDate;
+      if (endDate) exportWhere.createdAt.lte = endDate;
+    }
+
+    const exports = await prisma.stockMovement.findMany({
+      where: exportWhere,
+      include: {
+        product: {
+          include: {
+            prices: true,
+          },
+        },
+      },
+    });
+
+    let totalSoldQty = 0;
+    let totalSoldAmount = 0;
+
+    exports.forEach((m) => {
+      totalSoldQty += m.quantity;
+      if (Number(m.totalCost) > 0) {
+        totalSoldAmount += Number(m.totalCost);
+      } else {
+        const retailPrice = m.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
+        totalSoldAmount += m.quantity * Number(retailPrice);
+      }
+    });
+
+    const serializedExports = exports.map(m => {
+      const retailPrice = m.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
+      const actualPrice = Number(m.unitCost) > 0 ? Number(m.unitCost) : Number(retailPrice);
+      return {
+        id: m.id,
+        productId: m.productId,
+        type: m.type,
+        quantity: m.quantity,
+        unitCost: Number(m.unitCost),
+        totalCost: Number(m.totalCost) > 0 ? Number(m.totalCost) : actualPrice * m.quantity,
+        reason: m.reason,
+        relatedRoId: m.relatedRoId,
+        createdBy: m.createdBy,
+        createdAt: m.createdAt,
+        product: {
+          sku: m.product.sku,
+          name: m.product.name,
+          unit: m.product.unit,
+          price: actualPrice
+        }
+      };
     });
 
     return NextResponse.json({
@@ -104,6 +184,9 @@ export async function GET() {
       categories,
       lowStockItems,
       recentMovements,
+      totalSoldQty,
+      totalSoldAmount,
+      exports: serializedExports,
     });
   } catch (error) {
     console.error("Inventory Stats API error:", error);

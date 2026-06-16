@@ -1,44 +1,69 @@
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-const prisma = new PrismaClient();
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = req.nextUrl;
+    const startDateStr = searchParams.get("startDate");
+    const endDateStr = searchParams.get("endDate");
+
+    let startDate: Date | undefined = undefined;
+    let endDate: Date | undefined = undefined;
+
+    if (startDateStr) {
+      startDate = new Date(startDateStr);
+    }
+    if (endDateStr) {
+      endDate = new Date(endDateStr);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    const whereSold: any = { status: "SOLD" };
+    if (startDate || endDate) {
+      whereSold.updatedAt = {};
+      if (startDate) whereSold.updatedAt.gte = startDate;
+      if (endDate) whereSold.updatedAt.lte = endDate;
+    }
+
     const [
-      totalVehicles,
-      availableVehicles,
       soldVehicles,
-      reservedVehicles,
-      inventoryValueResult,
-      recentVehicles
+      soldValueResult,
+      soldList
     ] = await Promise.all([
-      prisma.vehicle.count(),
-      prisma.vehicle.count({ where: { status: "AVAILABLE" } }),
-      prisma.vehicle.count({ where: { status: "SOLD" } }),
-      prisma.vehicle.count({ where: { status: "RESERVED" } }),
+      prisma.vehicle.count({ where: whereSold }),
       prisma.vehicle.aggregate({
         _sum: { listPrice: true },
-        where: { status: { in: ["AVAILABLE", "RESERVED", "INCOMING"] } }
+        where: whereSold
       }),
       prisma.vehicle.findMany({
-        take: 5,
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          vin: true,
-          model: true,
-          variant: true,
-          status: true,
-          listPrice: true,
-          createdAt: true
+        where: whereSold,
+        orderBy: { updatedAt: "desc" },
+        include: {
+          customer: {
+            select: { name: true, phone: true }
+          }
         }
       })
     ]);
 
-    const inventoryValue = inventoryValueResult._sum.listPrice || 0;
+    const soldValue = soldValueResult._sum.listPrice || 0;
+    const avgPrice = soldVehicles > 0 ? Number(soldValue) / soldVehicles : 0;
 
-    // Fetch all SOLD vehicles to calculate real monthly sales
+    // Group by model to calculate top selling models
+    const modelMap = new Map<string, { model: string; count: number; value: number }>();
+    soldList.forEach(v => {
+      const modelName = v.model || "Khác";
+      const priceVal = Number(v.listPrice || 0);
+      const current = modelMap.get(modelName) || { model: modelName, count: 0, value: 0 };
+      modelMap.set(modelName, {
+        model: modelName,
+        count: current.count + 1,
+        value: current.value + priceVal
+      });
+    });
+    const topModels = Array.from(modelMap.values()).sort((a, b) => b.value - a.value);
+
+    // Fetch all SOLD vehicles to calculate real monthly sales trend
     const soldVehiclesData = await prisma.vehicle.findMany({
       where: { status: "SOLD" },
       select: { updatedAt: true },
@@ -51,7 +76,6 @@ export async function GET() {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
       const key = `T${d.getMonth() + 1}`;
-      // In case we have duplicate month names (e.g., if we go back exactly 12 months it's tricky, but this simple approach is fine for 11 to 0)
       if (!monthlySalesMap.has(key)) {
         monthlySalesMap.set(key, 0);
       }
@@ -60,7 +84,6 @@ export async function GET() {
     const now = new Date();
     soldVehiclesData.forEach(car => {
       const d = new Date(car.updatedAt);
-      // Check if within the last 12 months (approximate)
       const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
       
       if (diffMonths >= 0 && diffMonths < 12) {
@@ -73,7 +96,7 @@ export async function GET() {
 
     const monthlySales = Array.from(monthlySalesMap.entries()).map(([label, value]) => ({ label, value }));
 
-    // Calculate real trend: compare current month with previous month
+    // Calculate trend percentage
     let trendPercentage = 0;
     if (monthlySales.length >= 2) {
       const currentMonthData = monthlySales[monthlySales.length - 1].value;
@@ -87,12 +110,11 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      totalVehicles,
-      availableVehicles,
       soldVehicles,
-      reservedVehicles,
-      inventoryValue,
-      recentVehicles,
+      soldValue,
+      avgPrice,
+      soldList,
+      topModels,
       monthlySales,
       trendPercentage
     });

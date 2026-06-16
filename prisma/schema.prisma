@@ -189,26 +189,28 @@ model TechPerformance {
 
 // ========== VEHICLE SALES ==========
 model Vehicle {
-  id            Int      @id @default(autoincrement())
-  vin           String   @unique
-  engineNumber  String?
-  model         String
-  variant       String?
-  color         String?
-  year          Int
-  status        String   @default("AVAILABLE") // AVAILABLE, RESERVED, INCOMING, SOLD
-  listPrice     Decimal
-  floorPrice    Decimal
-  image         String?
-  customerId    Int?
-  customer      Customer? @relation(fields: [customerId], references: [id])
-  bankStatus    String?
-  plateStatus   String?
-  notes         String?
-  branchId      Int?
-  branch        Branch?   @relation(fields: [branchId], references: [id])
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  vin             String   @unique
+  engineNumber    String?
+  model           String
+  variant         String?
+  color           String?
+  year            Int
+  status          String   @default("AVAILABLE") // AVAILABLE, RESERVED, INCOMING, SOLD
+  listPrice       Decimal
+  floorPrice      Decimal
+  image           String?
+  customerId      Int?
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  bankStatus      String?
+  plateStatus     String?
+  plateCost       Decimal?  @default(0)
+  accessoriesJson String?   @default("[]")
+  notes           String?
+  branchId        Int?
+  branch          Branch?   @relation(fields: [branchId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([vin])
   @@index([status])

@@ -153,12 +153,15 @@ export async function createDirectExport(data: {
     note?: string;
   }[];
   createdBy: string;
+  exportType?: "RETAIL" | "WHOLESALE";
 }) {
   const branchId = getActiveBranchId();
 
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách xuất kho không được trống");
   }
+
+  const exportType = data.exportType || "RETAIL";
 
   const results = await prisma.$transaction(async (tx) => {
     const movementsCreated = [];
@@ -171,7 +174,10 @@ export async function createDirectExport(data: {
       const factor = item.conversionFactor || 1;
       const actualQty = item.quantity * factor;
 
-      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      const product = await tx.product.findUnique({ 
+        where: { id: item.productId },
+        include: { prices: true }
+      });
       if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
       if (branchId && product.branchId !== branchId) {
         throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
@@ -187,15 +193,25 @@ export async function createDirectExport(data: {
         data: { stockCount: newStock },
       });
 
+      // Find the price based on export type
+      const priceObj = product.prices.find((p) => p.type === exportType) || 
+                       product.prices.find((p) => p.type === "RETAIL");
+      const unitPrice = priceObj ? Number(priceObj.amount) : 0;
+
+      const exportTypeLabel = exportType === "RETAIL" ? "Bán lẻ" : "Bán buôn";
+      const finalReason = item.note 
+        ? `[${exportTypeLabel}] ${item.note}` 
+        : `[${exportTypeLabel}]`;
+
       const movement = await tx.stockMovement.create({
         data: {
           productId: item.productId,
           type: "EXPORT",
           quantity: actualQty,
-          unitCost: 0,
-          totalCost: 0,
+          unitCost: unitPrice,
+          totalCost: unitPrice * actualQty,
           createdBy: data.createdBy,
-          reason: item.note,
+          reason: finalReason,
         },
       });
       movementsCreated.push(movement);
@@ -204,7 +220,13 @@ export async function createDirectExport(data: {
     return { movements: movementsCreated };
   });
 
-  return { success: true, movements: results.movements };
+  const serializedMovements = results.movements.map((m) => ({
+    ...m,
+    unitCost: Number(m.unitCost),
+    totalCost: Number(m.totalCost),
+  }));
+
+  return { success: true, movements: serializedMovements };
 }
 
 export async function createManualAdjust(data: {

@@ -7,9 +7,9 @@ import {
   Loader2, ArrowDownToLine, ArrowUpFromLine, 
   SlidersHorizontal, Search, X, Plus, Trash2, Save
 } from "lucide-react";
-import { createManualImport, createDirectExport, createManualAdjust } from "@/app/actions";
+import { createManualImport, createDirectExport } from "@/app/actions";
 
-type TabType = "IMPORT" | "EXPORT" | "ADJUST";
+type TabType = "IMPORT" | "EXPORT";
 
 interface MovementItem {
   id: string; // unique local id
@@ -17,7 +17,6 @@ interface MovementItem {
   quantity: number;
   conversionFactor: number;
   unitCost: number; // For IMPORT
-  actualStock: number; // For ADJUST
   note: string;
 }
 
@@ -25,6 +24,7 @@ export default function MovementsPage() {
   const { user } = useAuth();
   
   const [activeTab, setActiveTab] = useState<TabType>("IMPORT");
+  const [exportType, setExportType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
   const [products, setProducts] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,7 +132,6 @@ export default function MovementsPage() {
       quantity: 1,
       conversionFactor: 1,
       unitCost: 0,
-      actualStock: 0,
       note: ""
     }]);
   };
@@ -171,13 +170,11 @@ export default function MovementsPage() {
   const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
 
   const handleProductSelect = (idx: number, productId: string) => {
-    const product = products.find(p => p.id.toString() === productId);
     setItems(prev => prev.map((item, i) => {
       if (i === idx) {
         return {
           ...item,
-          productId,
-          actualStock: product ? product.stockCount : 0 // auto fill actualStock for ADJUST
+          productId
         };
       }
       return item;
@@ -196,7 +193,6 @@ export default function MovementsPage() {
       quantity: 1,
       conversionFactor: 1,
       unitCost: 0,
-      actualStock: 0,
       note: ""
     }]);
   };
@@ -232,16 +228,8 @@ export default function MovementsPage() {
             conversionFactor: i.conversionFactor,
             note: i.note
           })),
-          createdBy: user?.name || "system"
-        });
-      } else if (activeTab === "ADJUST") {
-        await createManualAdjust({
-          items: items.map(i => ({
-            productId: parseInt(i.productId),
-            actualStock: i.actualStock,
-            note: i.note
-          })),
-          createdBy: user?.name || "system"
+          createdBy: user?.name || "system",
+          exportType
         });
       }
       
@@ -284,6 +272,7 @@ export default function MovementsPage() {
         {/* Tabs */}
         <div className="flex border-b border-border bg-secondary/20 rounded-t-xl overflow-hidden">
           <button 
+            type="button"
             onClick={() => setActiveTab("IMPORT")}
             className={`flex-1 py-2.5 text-xs font-bold flex justify-center items-center gap-2 transition-all ${
               activeTab === "IMPORT" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary/40"
@@ -292,6 +281,7 @@ export default function MovementsPage() {
             <ArrowDownToLine size={14} /> Nhập kho
           </button>
           <button 
+            type="button"
             onClick={() => setActiveTab("EXPORT")}
             className={`flex-1 py-2.5 text-xs font-bold flex justify-center items-center gap-2 transition-all ${
               activeTab === "EXPORT" ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900" : "text-muted-foreground hover:bg-secondary/40"
@@ -299,15 +289,37 @@ export default function MovementsPage() {
           >
             <ArrowUpFromLine size={14} /> Xuất kho
           </button>
-          <button 
-            onClick={() => setActiveTab("ADJUST")}
-            className={`flex-1 py-2.5 text-xs font-bold flex justify-center items-center gap-2 transition-all ${
-              activeTab === "ADJUST" ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-secondary/40"
-            }`}
-          >
-            <SlidersHorizontal size={14} /> Kiểm kê
-          </button>
         </div>
+
+        {activeTab === "EXPORT" && (
+          <div className="p-4 bg-secondary/5 border-b border-border flex items-center gap-4">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Hình thức xuất:</span>
+            <div className="flex bg-card border border-border rounded-lg p-0.5 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setExportType("RETAIL")}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                  exportType === "RETAIL" 
+                    ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-sm" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Bán lẻ (Retail)
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportType("WHOLESALE")}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                  exportType === "WHOLESALE" 
+                    ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-sm" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Bán buôn (Wholesale)
+              </button>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="divide-y divide-border">
           <div>
@@ -316,8 +328,7 @@ export default function MovementsPage() {
             <div className="p-4 space-y-3">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
-                  {activeTab === "IMPORT" ? "YÊU CẦU PHỤ TÙNG CẦN NHẬP" : 
-                   activeTab === "EXPORT" ? "YÊU CẦU PHỤ TÙNG CẦN XUẤT" : "DANH SÁCH PHỤ TÙNG KIỂM KÊ"}
+                  {activeTab === "IMPORT" ? "YÊU CẦU PHỤ TÙNG CẦN NHẬP" : "YÊU CẦU PHỤ TÙNG CẦN XUẤT"}
                 </h3>
                 <button
                   type="button"
@@ -331,24 +342,15 @@ export default function MovementsPage() {
               {/* Desktop Table Header */}
               <div className="hidden lg:grid grid-cols-12 gap-2 px-1 pb-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/50">
                 <div className="col-span-4">Sản phẩm phụ tùng (Nhấp để tìm kiếm)</div>
-                {activeTab === "ADJUST" ? (
+                <div className="col-span-2">Số lượng</div>
+                <div className="col-span-2">Quy đổi</div>
+                {activeTab === "IMPORT" ? (
                   <>
-                    <div className="col-span-3 text-center">Tồn hệ thống</div>
-                    <div className="col-span-4">Tồn thực tế</div>
+                    <div className="col-span-2">Đơn giá (VND)</div>
+                    <div className="col-span-1 text-right">Tổng</div>
                   </>
                 ) : (
-                  <>
-                    <div className="col-span-2">Số lượng</div>
-                    <div className="col-span-2">Quy đổi</div>
-                    {activeTab === "IMPORT" ? (
-                      <>
-                        <div className="col-span-2">Đơn giá (VND)</div>
-                        <div className="col-span-1 text-right">Tổng</div>
-                      </>
-                    ) : (
-                      <div className="col-span-3">Ghi chú</div>
-                    )}
-                  </>
+                  <div className="col-span-3">Ghi chú</div>
                 )}
                 <div className="col-span-1 text-center">Xóa</div>
               </div>
@@ -428,79 +430,59 @@ export default function MovementsPage() {
                         )}
                       </div>
 
-                      {activeTab === "ADJUST" ? (
+                      <div className="w-full lg:col-span-2">
+                        <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Số lượng</label>
+                        <input
+                          type="number" required min={1}
+                          onFocus={() => setFocusedIdx(idx)}
+                          value={item.quantity}
+                          onChange={(e) => updateItem(idx, "quantity", parseInt(e.target.value) || 1)}
+                          className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-center"
+                        />
+                      </div>
+
+                      <div className="w-full lg:col-span-2">
+                        <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Hệ số quy đổi</label>
+                        <div className="relative">
+                          <input
+                            type="number" required min={1}
+                            onFocus={() => setFocusedIdx(idx)}
+                            value={item.conversionFactor}
+                            onChange={(e) => updateItem(idx, "conversionFactor", parseInt(e.target.value) || 1)}
+                            className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-center pr-6"
+                          />
+                        </div>
+                      </div>
+
+                      {activeTab === "IMPORT" ? (
                         <>
-                          <div className="w-full lg:col-span-3 lg:text-center text-lg font-bold text-muted-foreground">
-                            {selectedProd ? `${selectedProd.stockCount} ${selectedProd.unit}` : "—"}
-                          </div>
-                          <div className="w-full lg:col-span-4">
-                            <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Tồn thực tế</label>
+                          <div className="w-full lg:col-span-2">
+                            <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Đơn giá</label>
                             <input
                               type="number" required min={0}
                               onFocus={() => setFocusedIdx(idx)}
-                              value={item.actualStock}
-                              onChange={(e) => updateItem(idx, "actualStock", parseInt(e.target.value) || 0)}
-                              className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold text-amber-600"
+                              value={item.unitCost}
+                              onChange={(e) => updateItem(idx, "unitCost", parseInt(e.target.value) || 0)}
+                              className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-primary font-semibold"
                             />
+                          </div>
+                          <div className="w-full lg:col-span-1 lg:text-right font-bold text-xs">
+                            <span className="lg:hidden text-xs text-muted-foreground font-normal mr-2">Tổng:</span>
+                            {formatCurrency(item.quantity * item.unitCost)}
                           </div>
                         </>
                       ) : (
-                        <>
-                          <div className="w-full lg:col-span-2">
-                            <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Số lượng</label>
-                            <input
-                              type="number" required min={1}
-                              onFocus={() => setFocusedIdx(idx)}
-                              value={item.quantity}
-                              onChange={(e) => updateItem(idx, "quantity", parseInt(e.target.value) || 1)}
-                              className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-center"
-                            />
-                          </div>
-
-                          <div className="w-full lg:col-span-2">
-                            <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Hệ số quy đổi</label>
-                            <div className="relative">
-                              <input
-                                type="number" required min={1}
-                                onFocus={() => setFocusedIdx(idx)}
-                                value={item.conversionFactor}
-                                onChange={(e) => updateItem(idx, "conversionFactor", parseInt(e.target.value) || 1)}
-                                className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-center pr-6"
-                              />
-                            </div>
-                          </div>
-
-                          {activeTab === "IMPORT" ? (
-                            <>
-                              <div className="w-full lg:col-span-2">
-                                <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Đơn giá</label>
-                                <input
-                                  type="number" required min={0}
-                                  onFocus={() => setFocusedIdx(idx)}
-                                  value={item.unitCost}
-                                  onChange={(e) => updateItem(idx, "unitCost", parseInt(e.target.value) || 0)}
-                                  className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-primary font-semibold"
-                                />
-                              </div>
-                              <div className="w-full lg:col-span-1 lg:text-right font-bold text-xs">
-                                <span className="lg:hidden text-xs text-muted-foreground font-normal mr-2">Tổng:</span>
-                                {formatCurrency(item.quantity * item.unitCost)}
-                              </div>
-                            </>
-                          ) : (
-                            <div className="w-full lg:col-span-3">
-                              <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Ghi chú</label>
-                              <input
-                                type="text"
-                                onFocus={() => setFocusedIdx(idx)}
-                                value={item.note}
-                                onChange={(e) => updateItem(idx, "note", e.target.value)}
-                                placeholder="Lý do xuất..."
-                                className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none"
-                              />
-                            </div>
-                          )}
-                        </>
+                        <div className="w-full lg:col-span-3">
+                          <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Ghi chú</label>
+                          <input
+                            type="text"
+                            onFocus={() => setFocusedIdx(idx)}
+                            value={item.note}
+                            onChange={(e) => updateItem(idx, "note", e.target.value)}
+                            placeholder="Lý do xuất..."
+                            className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none"
+                          />
+                        </div>
                       )}
 
                       <div className="absolute right-4 top-4 lg:relative lg:right-0 lg:top-0 lg:col-span-1 flex justify-center">
@@ -536,12 +518,11 @@ export default function MovementsPage() {
                 disabled={submitLoading || items.length === 0}
                 className={`text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg transition-all uppercase tracking-wider ${
                   activeTab === "IMPORT" ? "bg-primary hover:bg-primary/90 shadow-primary/20" : 
-                  activeTab === "EXPORT" ? "bg-zinc-800 hover:bg-zinc-700 shadow-zinc-800/20 dark:bg-zinc-200 dark:text-zinc-900" : 
-                  "bg-amber-500 hover:bg-amber-600 shadow-amber-500/20"
+                  "bg-zinc-800 hover:bg-zinc-700 shadow-zinc-800/20 dark:bg-zinc-200 dark:text-zinc-900"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {submitLoading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                {activeTab === "IMPORT" ? "Lưu phiếu nhập" : activeTab === "EXPORT" ? "Lưu phiếu xuất" : "Lưu kiểm kê"}
+                {activeTab === "IMPORT" ? "Lưu phiếu nhập" : "Lưu phiếu xuất"}
               </button>
             </div>
           </div>
@@ -751,7 +732,7 @@ export default function MovementsPage() {
                     <th className="py-2.5">Tên sản phẩm / phụ tùng</th>
                     <th className="py-2.5 text-center w-20">Số lượng</th>
                     <th className="py-2.5 text-center w-16">Đơn vị</th>
-                    {selectedReceipt.type === "IMPORT" && (
+                    {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
                       <>
                         <th className="py-2.5 text-right w-28">Đơn giá</th>
                         <th className="py-2.5 text-right w-28">Thành tiền</th>
@@ -767,9 +748,9 @@ export default function MovementsPage() {
                       <td className="py-2.5">{m.product?.name}</td>
                       <td className="py-2.5 text-center">{m.quantity}</td>
                       <td className="py-2.5 text-center">{m.product?.unit}</td>
-                      {selectedReceipt.type === "IMPORT" && (
+                      {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
                         <>
-                          <td className="py-2.5 text-right">{formatCurrency(Number(m.totalCost) / m.quantity)}</td>
+                          <td className="py-2.5 text-right">{formatCurrency(Number(m.unitCost))}</td>
                           <td className="py-2.5 text-right font-semibold text-zinc-950">{formatCurrency(Number(m.totalCost))}</td>
                         </>
                       )}
@@ -779,14 +760,16 @@ export default function MovementsPage() {
               </table>
 
               {/* Total Summary */}
-              {selectedReceipt.type === "IMPORT" && (
+              {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
                 <div className="border-t border-zinc-300 pt-4 flex justify-between items-start">
                   <div className="text-xs text-zinc-500 italic max-w-sm">
-                    * Giá trị trên đã bao gồm thuế VAT (nếu có) và được tính theo đơn giá trung bình nhập kho thực tế.
+                    {selectedReceipt.type === "IMPORT" 
+                      ? "* Giá trị trên đã bao gồm thuế VAT (nếu có) và được tính theo đơn giá trung bình nhập kho thực tế."
+                      : "* Giá trị xuất kho được tính dựa theo hình thức bán (Bán lẻ hoặc Bán buôn)."}
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-zinc-500 font-bold uppercase mr-4">Tổng cộng:</span>
-                    <span className="text-lg font-black text-zinc-950">{formatCurrency(selectedReceipt.totalAmount)}</span>
+                    <span className="text-lg font-black text-zinc-950">{formatCurrency(selectedReceipt.items.reduce((sum: number, it: any) => sum + Number(it.totalCost || 0), 0))}</span>
                   </div>
                 </div>
               )}
