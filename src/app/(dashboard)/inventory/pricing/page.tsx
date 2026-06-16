@@ -360,7 +360,7 @@ export default function PricingPage() {
               disabled={page === 1}
               className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              ‹ Trước
+              ‹
             </button>
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
@@ -383,7 +383,7 @@ export default function PricingPage() {
               disabled={page === totalPages}
               className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Tiếp ›
+              ›
             </button>
             <button
               onClick={() => { setPage(totalPages); setLoading(true); }}

@@ -199,6 +199,7 @@ model Vehicle {
   status        String   @default("AVAILABLE") // AVAILABLE, RESERVED, INCOMING, SOLD
   listPrice     Decimal
   floorPrice    Decimal
+  image         String?
   customerId    Int?
   customer      Customer? @relation(fields: [customerId], references: [id])
   bankStatus    String?

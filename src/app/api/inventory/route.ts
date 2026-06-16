@@ -42,6 +42,37 @@ export async function GET(req: NextRequest) {
   }
   if (category) where.category = category;
 
+  const statFilter = searchParams.get("statFilter");
+  if (statFilter === "low" || statFilter === "high") {
+    let branchCondition = "";
+    
+    if (branchFilter) {
+      if (branchFilter !== "all") {
+        branchCondition = `AND "branchId" = ${Number(branchFilter)}`;
+      }
+    } else {
+      if (scope === "current" && branchId) {
+        branchCondition = `AND "branchId" = ${branchId}`;
+      } else if (scope === "other" && branchId) {
+        branchCondition = `AND "branchId" != ${branchId}`;
+      } else if (branchId) {
+        branchCondition = `AND "branchId" = ${branchId}`;
+      }
+    }
+
+    if (statFilter === "low") {
+      const rows = await prisma.$queryRawUnsafe<Array<{id: number}>>(`
+        SELECT id FROM "Product" WHERE "stockCount" <= "stockMin" AND status = 'ACTIVE' ${branchCondition}
+      `);
+      where.id = { in: rows.map(r => r.id) };
+    } else {
+      const rows = await prisma.$queryRawUnsafe<Array<{id: number}>>(`
+        SELECT id FROM "Product" WHERE "stockCount" >= "stockMax" AND status = 'ACTIVE' ${branchCondition}
+      `);
+      where.id = { in: rows.map(r => r.id) };
+    }
+  }
+
   const [products, total, categories] = await Promise.all([
     prisma.product.findMany({
       where,

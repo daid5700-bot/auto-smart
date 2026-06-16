@@ -74,10 +74,10 @@ export default function AdminDashboard() {
   // Calculate coordinates for SVG area chart (max value based on real revenue, min 10 to avoid div-by-zero)
   const monthlyRevenue = data.monthlyRevenue || [];
   const maxVal = Math.max(...monthlyRevenue.map((r: any) => r.value), 10);
-  const chartHeight = 160;
-  const chartWidth = 520;
+  const chartHeight = 320;
+  const chartWidth = 920;
   const paddingX = 40;
-  const paddingY = 20;
+  const paddingY = 40;
 
   const points = monthlyRevenue.map((m: any, index: number) => {
     const x = (index / 11) * chartWidth + paddingX;
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Cảnh báo tồn kho */}
-        <div className="glass-card rounded-xl p-5 border-l-4 border-l-zinc-500 hover:-translate-y-0.5 transition-transform">
+        <Link href="/inventory?filter=low" className="glass-card rounded-xl p-5 border-l-4 border-l-zinc-500 hover:-translate-y-0.5 transition-transform block">
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
             CẢNH BÁO TỒN KHO
           </p>
@@ -174,13 +174,13 @@ export default function AdminDashboard() {
           <p className="text-xs text-muted-foreground mt-1">
             Dưới ngưỡng min
           </p>
-        </div>
+        </Link>
       </div>
 
       {/* Row with Chart and Top KTV */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Doanh thu sửa chữa Chart */}
-        <div className="lg:col-span-2 glass-card rounded-xl p-6 flex flex-col justify-between">
+        <div className="glass-card rounded-xl p-6 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
@@ -203,7 +203,7 @@ export default function AdminDashboard() {
 
           {/* SVG Area Chart */}
           <div className="w-full mt-6 relative overflow-x-auto min-w-[500px]">
-            <svg viewBox="0 0 600 220" className="w-full h-auto overflow-visible">
+            <svg viewBox={`0 0 ${chartWidth + paddingX * 2} ${chartHeight + paddingY * 2}`} className="w-full h-auto overflow-visible">
               <defs>
                 <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--primary-color, #f97316)" stopOpacity="0.25" />
@@ -212,18 +212,21 @@ export default function AdminDashboard() {
               </defs>
 
               {/* Grid Lines */}
-              <line x1="40" y1="20" x2="560" y2="20" stroke="var(--border-color, #e4e4e7)" strokeWidth="0.5" strokeDasharray="3 3" />
-              <line x1="40" y1="65" x2="560" y2="65" stroke="var(--border-color, #e4e4e7)" strokeWidth="0.5" strokeDasharray="3 3" />
-              <line x1="40" y1="110" x2="560" y2="110" stroke="var(--border-color, #e4e4e7)" strokeWidth="0.5" strokeDasharray="3 3" />
-              <line x1="40" y1="155" x2="560" y2="155" stroke="var(--border-color, #e4e4e7)" strokeWidth="0.5" strokeDasharray="3 3" />
-              <line x1="40" y1="180" x2="560" y2="180" stroke="var(--border-color, #e4e4e7)" strokeWidth="1" />
+              {[0, 1, 2, 3, 4].map((i) => {
+                const y = paddingY + 40 + (i / 4) * (chartHeight - 40);
+                return (
+                  <line key={i} x1={paddingX} y1={y} x2={chartWidth + paddingX} y2={y} stroke="var(--border-color, #e4e4e7)" strokeWidth={i === 4 ? 1 : 0.5} strokeDasharray={i === 4 ? "" : "3 3"} />
+                );
+              })}
 
               {/* Y Axis Labels */}
-              <text x="30" y="24" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{Math.round(maxVal)}</text>
-              <text x="30" y="69" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{Math.round(maxVal * 0.75)}</text>
-              <text x="30" y="114" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{Math.round(maxVal * 0.5)}</text>
-              <text x="30" y="159" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{Math.round(maxVal * 0.25)}</text>
-              <text x="30" y="184" textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">0</text>
+              {[0, 1, 2, 3, 4].map((i) => {
+                const y = paddingY + 40 + (i / 4) * (chartHeight - 40) + 4;
+                const val = Math.round(maxVal * (1 - i / 4));
+                return (
+                  <text key={i} x="30" y={y} textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{val}</text>
+                );
+              })}
 
               {/* Chart Line and Area */}
               {points.length > 0 && (
@@ -244,7 +247,7 @@ export default function AdminDashboard() {
 
               {/* X Axis Labels */}
               {points.map((p: any, idx: number) => (
-                <text key={idx} x={p.x} y="204" textAnchor="middle" className="text-[10px] fill-muted-foreground font-bold">
+                <text key={idx} x={p.x} y={chartHeight + paddingY + 12} textAnchor="middle" className="text-[10px] fill-muted-foreground font-bold">
                   {p.label}
                 </text>
               ))}

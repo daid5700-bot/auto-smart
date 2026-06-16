@@ -4,8 +4,14 @@ import { formatCurrency, formatNumber, statusText, statusBadge, checkSlowMoving,
 import { Package, Search, Plus, AlertTriangle, TrendingUp, TrendingDown, ChevronRight, Edit, Trash2, Eye, Loader2, X, Download } from "lucide-react";
 import { useAuth } from "@/lib/store";
 
-export default function InventoryPage() {
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
+function InventoryContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const initFilter = searchParams.get("filter");
+  
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -13,9 +19,17 @@ export default function InventoryPage() {
   const [scope, setScope] = useState<"current" | "other">("current");
   const [branches, setBranches] = useState<any[]>([]);
   const [branchFilter, setBranchFilter] = useState("all");
-  const [statFilter, setStatFilter] = useState<"all" | "low" | "high">("all");
+  const [statFilter, setStatFilter] = useState<"all" | "low" | "high">(
+    (initFilter === "low" || initFilter === "high") ? initFilter : "all"
+  );
   const [page, setPage] = useState(1);
   const LIMIT = 20;
+
+  useEffect(() => {
+    if (initFilter === "low" || initFilter === "high") {
+      setStatFilter(initFilter);
+    }
+  }, [initFilter]);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -39,6 +53,7 @@ export default function InventoryPage() {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (catFilter) params.set("category", catFilter);
+    if (statFilter !== "all") params.set("statFilter", statFilter);
     params.set("page", String(page));
     params.set("limit", String(LIMIT));
     if (user?.role === "ADMIN") {
@@ -54,7 +69,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchData();
-  }, [search, catFilter, scope, branchFilter, user, page]);
+  }, [search, catFilter, scope, branchFilter, statFilter, user, page]);
 
   useEffect(() => {
     fetch("/api/branches")
@@ -205,11 +220,7 @@ export default function InventoryPage() {
   const totalPages = data?.totalPages || 1;
   const totalCount = data?.totalCount || 0;
 
-  const products = rawProducts.filter((p: any) => {
-    if (statFilter === "low") return p.stockCount <= p.stockMin;
-    if (statFilter === "high") return p.stockCount >= p.stockMax;
-    return true;
-  });
+  const products = rawProducts;
 
   return (
     <div className="space-y-6 stagger">
@@ -419,7 +430,7 @@ export default function InventoryPage() {
               disabled={page === 1}
               className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              ‹ Trước
+              ‹
             </button>
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
@@ -442,7 +453,7 @@ export default function InventoryPage() {
               disabled={page === totalPages}
               className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Tiếp ›
+              ›
             </button>
             <button
               onClick={() => { setPage(totalPages); setLoading(true); }}
@@ -545,5 +556,13 @@ export default function InventoryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function InventoryPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+      <InventoryContent />
+    </Suspense>
   );
 }

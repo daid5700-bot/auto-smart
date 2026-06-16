@@ -60,10 +60,10 @@ export default function WorkshopStatsPage() {
   // Monthly trends chart data
   const monthlyTrends = data.monthlyTrends || [];
   const maxVal = Math.max(...monthlyTrends.map((m: any) => m.amount), 10);
-  const chartHeight = 160;
-  const chartWidth = 520;
+  const chartHeight = 320;
+  const chartWidth = 920;
   const paddingX = 40;
-  const paddingY = 20;
+  const paddingY = 40;
 
   const points = monthlyTrends.map((m: any, index: number) => {
     const x = (index / Math.max(monthlyTrends.length - 1, 1)) * chartWidth + paddingX;
@@ -168,9 +168,9 @@ export default function WorkshopStatsPage() {
       </div>
 
       {/* Row with Monthly Trend Chart & Status breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Doanh thu sửa chữa chart */}
-        <div className="lg:col-span-2 glass-card rounded-xl p-6 flex flex-col justify-between">
+        <div className="glass-card rounded-xl p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <div>
@@ -186,8 +186,8 @@ export default function WorkshopStatsPage() {
               </span>
             </div>
             
-            <div className="h-48 mt-6 relative w-full overflow-x-auto">
-              <svg className="w-full h-full min-w-[500px]" viewBox={`0 0 ${chartWidth + paddingX * 2} ${chartHeight + paddingY * 2}`}>
+            <div className="w-full mt-6 relative overflow-x-auto min-w-[500px]">
+              <svg viewBox={`0 0 ${chartWidth + paddingX * 2} ${chartHeight + paddingY * 2}`} className="w-full h-auto overflow-visible">
                 <defs>
                   <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="rgb(59, 130, 246)" stopOpacity="0.15" />
@@ -197,7 +197,7 @@ export default function WorkshopStatsPage() {
                 
                 {/* Grid Lines */}
                 {[0, 1, 2, 3, 4].map((i) => {
-                  const y = paddingY + (i / 4) * (chartHeight - 40);
+                  const y = paddingY + 40 + (i / 4) * (chartHeight - 40);
                   return (
                     <line
                       key={i}
@@ -275,7 +275,7 @@ export default function WorkshopStatsPage() {
         </div>
 
         {/* Trạng thái sửa chữa */}
-        <div className="lg:col-span-1 glass-card rounded-xl p-6 flex flex-col justify-between">
+        <div className="glass-card rounded-xl p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Layers size={18} className="text-primary" />

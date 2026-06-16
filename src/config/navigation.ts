@@ -16,8 +16,7 @@ const NAV: NavSection[] = [
   { title: "Kho phụ tùng", items: [
     { title: "Thống kê kho", href: "/inventory/stats", icon: TrendingUp, perm: "inventory.view" },
     { title: "Danh mục phụ tùng", href: "/inventory", icon: Package, perm: "inventory.view" },
-    { title: "Nhập kho", href: "/inventory/import", icon: Warehouse, perm: "inventory.manage" },
-    { title: "Xuất kho", href: "/inventory/export", icon: ClipboardList, perm: "inventory.manage" },
+    { title: "Lệnh xuất/nhập kho", href: "/inventory/movements", icon: Warehouse, perm: "inventory.manage" },
     { title: "Bảng giá", href: "/inventory/pricing", icon: DollarSign, perm: "inventory.pricing" },
     { title: "Duyệt yêu cầu xuất", href: "/inventory/requisitions", icon: ClipboardList, perm: "inventory.manage" },
   ]},
@@ -29,6 +28,7 @@ const NAV: NavSection[] = [
     { title: "Lịch sử xe", href: "/workshop/history", icon: History, perm: "workshop.view" },
   ]},
   { title: "Kinh doanh xe", items: [
+    { title: "Thống kê kinh doanh", href: "/sales/stats", icon: TrendingUp, perm: "sales.view" },
     { title: "Kho xe", href: "/sales", icon: Car, perm: "sales.view" },
     { title: "Bảng giá xe", href: "/sales/pricing", icon: DollarSign, perm: "sales.pricing" },
     { title: "Hồ sơ & Thủ tục", href: "/sales/documents", icon: FileText, perm: "sales.manage" },

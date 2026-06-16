@@ -58,6 +58,7 @@ export async function createManualImport(data: {
     quantity: number;
     unitCost: number;
     conversionFactor?: number;
+    note?: string;
   }[];
   createdBy: string;
 }) {
@@ -103,6 +104,7 @@ export async function createManualImport(data: {
           unitCost: avgCost,
           totalCost: item.unitCost * item.quantity,
           createdBy: data.createdBy,
+          reason: item.note,
         },
       });
       movementsCreated.push(movement);
@@ -142,6 +144,120 @@ export async function sellItem(productId: number, quantity: number) {
 
 
 
+
+export async function createDirectExport(data: {
+  items: {
+    productId: number;
+    quantity: number;
+    conversionFactor?: number;
+    note?: string;
+  }[];
+  createdBy: string;
+}) {
+  const branchId = getActiveBranchId();
+
+  if (!data.items || data.items.length === 0) {
+    throw new Error("Danh sách xuất kho không được trống");
+  }
+
+  const results = await prisma.$transaction(async (tx) => {
+    const movementsCreated = [];
+
+    for (const item of data.items) {
+      if (item.conversionFactor !== undefined && item.conversionFactor <= 0) {
+        throw new Error("Hệ số quy đổi phải lớn hơn 0");
+      }
+
+      const factor = item.conversionFactor || 1;
+      const actualQty = item.quantity * factor;
+
+      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
+      if (branchId && product.branchId !== branchId) {
+        throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
+      }
+      if (product.stockCount < actualQty) {
+        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho (hiện tại: ${product.stockCount}, cần: ${actualQty})`);
+      }
+
+      const newStock = product.stockCount - actualQty;
+
+      await tx.product.update({
+        where: { id: item.productId },
+        data: { stockCount: newStock },
+      });
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          productId: item.productId,
+          type: "EXPORT",
+          quantity: actualQty,
+          unitCost: 0,
+          totalCost: 0,
+          createdBy: data.createdBy,
+          reason: item.note,
+        },
+      });
+      movementsCreated.push(movement);
+    }
+
+    return { movements: movementsCreated };
+  });
+
+  return { success: true, movements: results.movements };
+}
+
+export async function createManualAdjust(data: {
+  items: {
+    productId: number;
+    actualStock: number;
+    note?: string;
+  }[];
+  createdBy: string;
+}) {
+  const branchId = getActiveBranchId();
+
+  if (!data.items || data.items.length === 0) {
+    throw new Error("Danh sách kiểm kê không được trống");
+  }
+
+  const results = await prisma.$transaction(async (tx) => {
+    const movementsCreated = [];
+
+    for (const item of data.items) {
+      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
+      if (branchId && product.branchId !== branchId) {
+        throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
+      }
+
+      const diff = item.actualStock - product.stockCount;
+      if (diff !== 0) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stockCount: item.actualStock },
+        });
+
+        const movement = await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            type: "ADJUST",
+            quantity: Math.abs(diff),
+            unitCost: 0,
+            totalCost: 0,
+            createdBy: data.createdBy,
+            reason: item.note || `Kiểm kê lệch ${diff > 0 ? "+" : ""}${diff}`,
+          },
+        });
+        movementsCreated.push(movement);
+      }
+    }
+
+    return { movements: movementsCreated };
+  });
+
+  return { success: true, movements: results.movements };
+}
 
 // ===== WORKSHOP LOGIC =====
 

@@ -5,35 +5,49 @@ import { getActiveBranchId } from "@/lib/branch";
 // GET /api/workshop — list repair orders + technicians
 export async function GET(req: NextRequest) {
   const branchId = getActiveBranchId();
+  const { searchParams } = req.nextUrl;
+  
+  // Pagination params
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50")));
+  const skip = (page - 1) * limit;
 
-  const repairOrders = await prisma.repairOrder.findMany({
-    where: branchId ? { branchId } : {},
-    orderBy: { createdAt: "desc" },
-    include: { customer: true, technician: true, items: { include: { product: true } } },
-  });
-
-  const technicians = await prisma.technician.findMany({
-    where: branchId ? { branchId } : {},
-    orderBy: { code: "asc" },
-    include: {
-      repairOrders: {
-        where: branchId ? { branchId } : {},
+  // Run independent queries in parallel for speed
+  const [repairOrders, totalROs, technicians] = await Promise.all([
+    prisma.repairOrder.findMany({
+      where: branchId ? { branchId } : {},
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: { customer: true, technician: true, items: { include: { product: true } } },
+    }),
+    prisma.repairOrder.count({ where: branchId ? { branchId } : {} }),
+    prisma.technician.findMany({
+      where: branchId ? { branchId } : {},
+      orderBy: { code: "asc" },
+      include: {
+        _count: {
+          select: { repairOrders: true }
+        },
+        performances: {
+          select: { commissionAmount: true },
+        },
       },
-      performances: {
-        where: branchId ? { repairOrderId: { in: repairOrders.map((ro) => ro.id) } } : {},
-        select: { commissionAmount: true },
-      },
-    },
-  });
+    })
+  ]);
 
   // Enrich technicians with totals
   const enrichedTechs = technicians.map((t: any) => ({
     ...t,
-    completedOrders: (t.repairOrders || []).length,
+    completedOrders: t._count.repairOrders,
     totalCommission: (t.performances || []).reduce((s: number, p: any) => s + Number(p.commissionAmount), 0),
   }));
 
-  return NextResponse.json({ repairOrders, technicians: enrichedTechs });
+  return NextResponse.json({ 
+    repairOrders, 
+    technicians: enrichedTechs,
+    pagination: { total: totalROs, page, limit, totalPages: Math.ceil(totalROs / limit) }
+  });
 }
 
 // POST /api/workshop — create repair order

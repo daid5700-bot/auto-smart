@@ -13,12 +13,13 @@ const ROLE_PATHS: Record<string, string[]> = {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip auth for login page and static assets
+  // Skip auth for login page, API login, and static assets
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/select-branch") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/uploads") ||
     pathname === "/"
   ) {
     return NextResponse.next();
@@ -28,15 +29,22 @@ export function middleware(request: NextRequest) {
   const userRole = request.cookies.get("user_role")?.value;
 
   if (!userRole) {
+    // Return 401 for API requests instead of redirecting
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Unauthorized access" }, { status: 401 });
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const allowed = ROLE_PATHS[userRole] || [];
-  const isAllowed = allowed.some((p) => pathname.startsWith(p));
+  // Role checking for pages (non-API)
+  if (!pathname.startsWith("/api")) {
+    const allowed = ROLE_PATHS[userRole] || [];
+    const isAllowed = allowed.some((p) => pathname.startsWith(p));
 
-  if (!isAllowed) {
-    const defaultRedirect = allowed[0] || "/login";
-    return NextResponse.redirect(new URL(defaultRedirect, request.url));
+    if (!isAllowed) {
+      const defaultRedirect = allowed[0] || "/login";
+      return NextResponse.redirect(new URL(defaultRedirect, request.url));
+    }
   }
 
   return NextResponse.next();

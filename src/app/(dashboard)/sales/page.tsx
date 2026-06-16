@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { formatCurrency, statusText, statusBadge } from "@/lib/utils";
-import { Car, Plus, Search, Grid3X3, List, Eye, Edit, Trash2, X, Loader2 } from "lucide-react";
+import { Car, Plus, Search, Grid3X3, List, Eye, Edit, Trash2, X, Loader2, Upload } from "lucide-react";
 
 const COLOR_DOT: Record<string, string> = { "Đen": "bg-gray-800", "Trắng": "bg-white border border-border", "Bạc": "bg-gray-400", "Đỏ": "bg-red-500", "Xanh": "bg-blue-500" };
 
@@ -11,6 +11,7 @@ export default function SalesPage() {
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [uploading, setUploading] = useState(false);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -24,6 +25,7 @@ export default function SalesPage() {
     listPrice: 0,
     floorPrice: 0,
     status: "AVAILABLE",
+    image: "",
   });
 
   const fetchData = () => {
@@ -63,6 +65,7 @@ export default function SalesPage() {
       listPrice: 0,
       floorPrice: 0,
       status: "AVAILABLE",
+      image: "",
     });
     setModalOpen(true);
   };
@@ -78,8 +81,35 @@ export default function SalesPage() {
       listPrice: Number(v.listPrice),
       floorPrice: Number(v.floorPrice),
       status: v.status,
+      image: v.image || "",
     });
     setModalOpen(true);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: fd,
+      });
+      const resData = await res.json();
+      if (resData.url) {
+        setFormData((prev) => ({ ...prev, image: resData.url }));
+      } else {
+        alert("Upload thất bại: " + (resData.error || "Lỗi không xác định"));
+      }
+    } catch (err: any) {
+      alert("Lỗi upload: " + err.message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,25 +163,85 @@ export default function SalesPage() {
       </div>
 
       {view === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           {vehicles.map((v: any) => (
-            <div key={v.id} className="glass-card rounded-xl overflow-hidden hover:-translate-y-1 transition-transform group">
-              <div className="h-40 bg-gradient-to-br from-secondary/50 to-secondary/20 flex items-center justify-center relative">
-                <Car size={64} className="text-muted-foreground/20" />
-                <span className={`badge ${statusBadge(v.status)} absolute top-3 right-3`}>{statusText(v.status)}</span>
+            <div key={v.id} className="glass-card rounded-2xl overflow-hidden hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 group flex flex-col h-full border border-border/40">
+              {/* Image / Thumbnail Section */}
+              <div className="h-48 bg-gradient-to-tr from-slate-100 via-slate-50 to-blue-50/30 flex items-center justify-center relative overflow-hidden border-b border-border/30 shrink-0">
+                {v.image ? (
+                  <img src={v.image} alt={v.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10">
+                      <Car size={32} className="text-primary/40" />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Chưa cập nhật ảnh</span>
+                  </div>
+                )}
+                {/* Status Badge */}
+                <span className={`badge ${statusBadge(v.status)} absolute top-3 right-3 shadow-sm backdrop-blur-md`}>
+                  {statusText(v.status)}
+                </span>
+                {/* Year Label */}
+                <span className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-md text-white text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                  {v.year}
+                </span>
               </div>
-              <div className="p-5">
-                <h3 className="text-lg font-bold">{v.model}</h3>
-                <p className="text-sm text-muted-foreground">{v.variant} • {v.year}</p>
-                <div className="flex items-center gap-2 mt-2"><div className={`w-4 h-4 rounded-full ${COLOR_DOT[v.color] || "bg-gray-500"}`} /><span className="text-xs text-muted-foreground">{v.color}</span></div>
-                <div className="mt-4 pt-3 border-t border-border/30">
-                  <p className="text-lg font-bold text-primary">{formatCurrency(Number(v.listPrice))}</p>
-                  <p className="text-[10px] text-muted-foreground">Floor: {formatCurrency(Number(v.floorPrice))}</p>
+
+              {/* Content Section */}
+              <div className="p-5 flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">{v.model}</h3>
+                      <p className="text-xs text-muted-foreground font-medium mt-0.5">{v.variant}</p>
+                    </div>
+                  </div>
+
+                  {/* Attribute Tags Grid */}
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {/* Color Tag */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-secondary/50 border border-border/20 rounded-lg text-xs text-muted-foreground">
+                      <div className={`w-2 h-2 rounded-full ${COLOR_DOT[v.color] || "bg-gray-500"}`} />
+                      <span>{v.color}</span>
+                    </div>
+                    {/* VIN Tag */}
+                    <div className="flex items-center gap-1 px-2.5 py-1 bg-secondary/50 border border-border/20 rounded-lg text-xs">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">VIN:</span>
+                      <code className="text-foreground font-mono">{v.vin?.slice(-8)}</code>
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="my-4 border-t border-border/40" />
+
+                  {/* Pricing Box */}
+                  <div className="flex items-baseline justify-between bg-primary/[0.02] border border-primary/[0.04] p-3 rounded-xl">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Giá niêm yết</p>
+                      <p className="text-lg font-extrabold text-primary tracking-tight mt-0.5">{formatCurrency(Number(v.listPrice))}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Giá sàn (Floor)</p>
+                      <p className="text-xs font-bold text-foreground/80 mt-0.5">{formatCurrency(Number(v.floorPrice))}</p>
+                    </div>
+                  </div>
                 </div>
-                <code className="text-[10px] bg-secondary/50 px-2 py-1 rounded mt-2 inline-block">VIN: {v.vin?.slice(-8)}</code>
-                <div className="mt-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => handleOpenEdit(v)} className="flex-1 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 flex items-center justify-center gap-1"><Edit size={12} />Sửa</button>
-                  <button onClick={() => handleDelete(v.id)} className="flex-1 py-2 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold hover:bg-destructive/20 flex items-center justify-center gap-1"><Trash2 size={12} />Xóa</button>
+
+                {/* Actions Section */}
+                <div className="mt-5 pt-4 border-t border-border/30 flex gap-2.5">
+                  <button 
+                    onClick={() => handleOpenEdit(v)} 
+                    className="flex-1 py-2 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 border border-primary/15"
+                  >
+                    <Edit size={14} />Sửa
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(v.id)} 
+                    className="flex-1 py-2 rounded-xl bg-destructive/5 text-destructive text-xs font-semibold hover:bg-destructive hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 border border-destructive/10"
+                  >
+                    <Trash2 size={14} />Xóa
+                  </button>
                 </div>
               </div>
             </div>
@@ -162,7 +252,18 @@ export default function SalesPage() {
           <thead><tr><th>VIN</th><th>Model</th><th>Phiên bản</th><th>Màu</th><th>Năm</th><th>Giá niêm yết</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
           <tbody>{vehicles.map((v: any) => (
             <tr key={v.id}>
-              <td><code className="text-xs">{v.vin?.slice(-8)}</code></td>
+              <td>
+                <div className="flex items-center gap-3">
+                  {v.image ? (
+                    <img src={v.image} alt={v.model} className="w-10 h-10 rounded-lg object-cover bg-secondary border border-border shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center border border-border shrink-0">
+                      <Car size={16} className="text-muted-foreground/50" />
+                    </div>
+                  )}
+                  <code className="text-xs">{v.vin?.slice(-8)}</code>
+                </div>
+              </td>
               <td className="font-medium">{v.model}</td>
               <td>{v.variant}</td>
               <td><div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${COLOR_DOT[v.color] || "bg-gray-500"}`} />{v.color}</div></td>
@@ -237,6 +338,40 @@ export default function SalesPage() {
                   <option value="INCOMING">Đang về (Incoming)</option>
                   <option value="SOLD">Đã bán (Sold)</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Ảnh xe</label>
+                <div className="flex items-center gap-4">
+                  {formData.image ? (
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-border bg-secondary shrink-0">
+                      <img src={formData.image} alt="Vehicle preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, image: "" })}
+                        className="absolute top-1 right-1 bg-destructive text-white rounded-full p-1 shadow hover:bg-destructive/80 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="w-24 h-24 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-secondary/20 hover:border-primary/50 transition-all shrink-0">
+                      {uploading ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                      ) : (
+                        <>
+                          <Upload className="w-5 h-5 text-muted-foreground" />
+                          <span className="text-[10px] text-muted-foreground mt-1 font-semibold">Tải lên</span>
+                        </>
+                      )}
+                      <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+                    </label>
+                  )}
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p className="font-semibold text-foreground">Ảnh đại diện xe</p>
+                    <p>Hỗ trợ định dạng JPG, PNG, WEBP.</p>
+                    <p>Lưu trữ trực tiếp trong thư mục hệ thống.</p>
+                  </div>
+                </div>
               </div>
               <div className="flex gap-3 justify-end pt-4">
                 <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>

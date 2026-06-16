@@ -7,6 +7,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const search = searchParams.get("search") || "";
   const status = searchParams.get("status") || "";
+  
+  // Pagination params
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20")));
+  const skip = (page - 1) * limit;
+
   const branchId = getActiveBranchId();
 
   const where: any = {};
@@ -19,16 +25,34 @@ export async function GET(req: NextRequest) {
   }
   if (status) where.status = status;
 
-  const vehicles = await prisma.vehicle.findMany({ where, orderBy: { createdAt: "desc" }, include: { customer: true } });
+  // Run heavy queries in parallel
+  const [vehicles, total, countAvailable, countReserved, countIncoming, countSold] = await Promise.all([
+    prisma.vehicle.findMany({ 
+      where, 
+      orderBy: { createdAt: "desc" }, 
+      skip,
+      take: limit,
+      include: { customer: true } 
+    }),
+    prisma.vehicle.count({ where }),
+    prisma.vehicle.count({ where: { status: "AVAILABLE", ...(branchId ? { branchId } : {}) } }),
+    prisma.vehicle.count({ where: { status: "RESERVED", ...(branchId ? { branchId } : {}) } }),
+    prisma.vehicle.count({ where: { status: "INCOMING", ...(branchId ? { branchId } : {}) } }),
+    prisma.vehicle.count({ where: { status: "SOLD", ...(branchId ? { branchId } : {}) } }),
+  ]);
 
   const counts = {
-    AVAILABLE: await prisma.vehicle.count({ where: { status: "AVAILABLE", ...(branchId ? { branchId } : {}) } }),
-    RESERVED: await prisma.vehicle.count({ where: { status: "RESERVED", ...(branchId ? { branchId } : {}) } }),
-    INCOMING: await prisma.vehicle.count({ where: { status: "INCOMING", ...(branchId ? { branchId } : {}) } }),
-    SOLD: await prisma.vehicle.count({ where: { status: "SOLD", ...(branchId ? { branchId } : {}) } }),
+    AVAILABLE: countAvailable,
+    RESERVED: countReserved,
+    INCOMING: countIncoming,
+    SOLD: countSold,
   };
 
-  return NextResponse.json({ vehicles, counts });
+  return NextResponse.json({ 
+    vehicles, 
+    counts, 
+    pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } 
+  });
 }
 
 // POST /api/sales — add vehicle

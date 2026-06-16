@@ -7,26 +7,41 @@ export async function GET(req: NextRequest) {
   const tab = req.nextUrl.searchParams.get("tab") || "leads";
   const branchId = getActiveBranchId();
 
+  const page = Math.max(1, parseInt(req.nextUrl.searchParams.get("page") || "1"));
+  const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") || "50")));
+  const skip = (page - 1) * limit;
+
   if (tab === "leads") {
-    const leads = await prisma.lead.findMany({
-      where: branchId ? { branchId } : {},
-      orderBy: { createdAt: "desc" },
-      include: { customer: true, assignedTo: true },
-    });
-    return NextResponse.json({ leads });
+    const [leads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where: branchId ? { branchId } : {},
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: { customer: true, assignedTo: true },
+      }),
+      prisma.lead.count({ where: branchId ? { branchId } : {} })
+    ]);
+    return NextResponse.json({ leads, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }
 
   if (tab === "customers") {
-    const customers = await prisma.customer.findMany({
-      where: (branchId ? { branchId } : {}) as any,
-      orderBy: { totalSpent: "desc" },
-    });
-    return NextResponse.json({ customers });
+    const [customers, total] = await Promise.all([
+      prisma.customer.findMany({
+        where: (branchId ? { branchId } : {}) as any,
+        orderBy: { totalSpent: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.customer.count({ where: (branchId ? { branchId } : {}) as any })
+    ]);
+    return NextResponse.json({ customers, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }
 
   if (tab === "reminders") {
     const customers = await prisma.customer.findMany({
       where: (branchId ? { branchId } : {}) as any,
+      take: 150, // Limit to prevent massive memory usage
       include: {
         repairOrders: {
           where: { status: { in: ["DONE", "DELIVERED"] } },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import {
   Package, DollarSign, AlertTriangle, TrendingUp,
@@ -132,7 +133,7 @@ export default function InventoryStatsPage() {
         </div>
 
         {/* Cảnh báo hết hàng */}
-        <div className="glass-card rounded-xl p-5 border-l-4 border-l-rose-500 hover:-translate-y-0.5 transition-transform">
+        <Link href="/inventory?filter=low" className="glass-card rounded-xl p-5 border-l-4 border-l-rose-500 hover:-translate-y-0.5 transition-transform block">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Cảnh báo tồn kho
@@ -145,7 +146,7 @@ export default function InventoryStatsPage() {
           <p className="text-xs text-muted-foreground mt-1.5">
             Phụ tùng chạm/dưới mức tối thiểu
           </p>
-        </div>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
