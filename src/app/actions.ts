@@ -333,14 +333,38 @@ export async function updateROStatus(data: {
       },
     });
 
-    // Send ZNS
+    // Send ZNS live
+    const templateData = {
+      customerName: updatedRo.customer.name,
+      vehiclePlate: updatedRo.plateNumber,
+      finalTotal: Number(updatedRo.totalAmount).toLocaleString("vi-VN") + "đ",
+      points: String(points)
+    };
+
+    let znsStatus = "SUCCESS";
+    let znsError: string | null = null;
+    
+    try {
+      const { sendZaloZns } = await import("@/lib/zalo");
+      const result = await sendZaloZns(updatedRo.customer.phone, "CRM_THANK_YOU_001", templateData);
+      if (!result.success) {
+        znsStatus = "FAILED";
+        znsError = result.error || "Lỗi không xác định";
+      }
+    } catch (e: any) {
+      znsStatus = "FAILED";
+      znsError = e.message;
+    }
+
     await prisma.znsLog.create({
       data: {
         customerId: updatedRo.customerId,
         phone: updatedRo.customer.phone,
         messageType: "THANK_YOU",
+        templateId: "CRM_THANK_YOU_001",
         content: `Cảm ơn khách hàng ${updatedRo.customer.name} đã sửa chữa xe. Quý khách tích được +${points} điểm!`,
-        status: "SENT",
+        status: znsStatus === "SUCCESS" ? "SUCCESS" : "FAILED",
+        error: znsError,
         branchId: updatedRo.branchId,
       },
     });
@@ -498,16 +522,44 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
     throw new Error("Khách hàng không thuộc chi nhánh hiện tại");
   }
 
+  const nextServiceDate = new Date();
+  nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
+  const nextServiceText = `Thay dầu (${nextServiceDate.toLocaleDateString("vi-VN")})`;
+
+  const templateData = {
+    customerName: customer.name,
+    vehiclePlate: data.plateNumber,
+    nextService: nextServiceText
+  };
+
+  const { sendZaloZns } = await import("@/lib/zalo");
+  const result = await sendZaloZns(data.phone, "CRM_OIL_REMIND_002", templateData);
+
+  let status = "SUCCESS";
+  let errorMsg: string | null = null;
+
+  if (!result.success) {
+    status = "FAILED";
+    errorMsg = result.error || "Gửi ZNS thất bại";
+  }
+
   await prisma.znsLog.create({
     data: {
       customerId: data.customerId,
       phone: data.phone,
       messageType: "OIL_CHANGE",
+      templateId: "CRM_OIL_REMIND_002",
       content: `Nhắc lịch: Xe ${data.plateNumber} của quý khách đã đến kỳ thay dầu nhớt định kỳ. Vui lòng liên hệ AutoSmart để đặt lịch hẹn!`,
-      status: "SENT",
+      status,
+      error: errorMsg,
       branchId: customer.branchId,
     },
   });
+
+  if (status === "FAILED") {
+    throw new Error(errorMsg || "Gửi Zalo ZNS thất bại");
+  }
+
   return { success: true };
 }
 
@@ -819,6 +871,44 @@ export async function sendCustomZnsAction(data: {
   const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
   if (!customer) throw new Error("Khách hàng không tồn tại");
 
+  let status = "SUCCESS";
+  let errorMsg: string | null = null;
+
+  if (data.templateId) {
+    // Compile template data dynamically for Zalo ZNS
+    const lastRo = await prisma.repairOrder.findFirst({
+      where: { customerId: data.customerId },
+      orderBy: { createdAt: "desc" },
+    });
+    const plate = lastRo?.plateNumber || customer.vehiclePlates?.[0] || "N/A";
+    const finalTotal = lastRo 
+      ? Number(lastRo.totalAmount).toLocaleString("vi-VN") + "đ"
+      : Number(customer.totalSpent).toLocaleString("vi-VN") + "đ";
+      
+    const nextServiceDate = new Date();
+    nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
+    const nextServiceText = `${data.messageType === "GENERAL_INSPECT" ? "Kiểm tra" : "Thay dầu"} (${nextServiceDate.toLocaleDateString("vi-VN")})`;
+
+    const templateData = {
+      customerName: customer.name,
+      vehiclePlate: plate,
+      finalTotal: finalTotal,
+      points: String(customer.loyaltyPoints),
+      nextService: nextServiceText
+    };
+
+    const { sendZaloZns } = await import("@/lib/zalo");
+    const result = await sendZaloZns(data.phone, data.templateId, templateData);
+    
+    if (!result.success) {
+      status = "FAILED";
+      errorMsg = result.error || "Lỗi gửi ZNS";
+    }
+  } else {
+    // Falls back to mock SENT status if no templateId provided
+    status = "SENT";
+  }
+
   await prisma.znsLog.create({
     data: {
       customerId: data.customerId,
@@ -826,10 +916,16 @@ export async function sendCustomZnsAction(data: {
       messageType: data.messageType,
       templateId: data.templateId || null,
       content: data.content,
-      status: "SENT",
+      status,
+      error: errorMsg,
       branchId: customer.branchId,
     },
   });
+
+  if (status === "FAILED") {
+    throw new Error(errorMsg || "Gửi Zalo ZNS thất bại");
+  }
+
   return { success: true };
 }
 
