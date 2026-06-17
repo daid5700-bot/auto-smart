@@ -100,7 +100,7 @@ export async function refreshZaloToken(): Promise<string> {
   params.append("app_id", appId);
   params.append("grant_type", "refresh_token");
 
-  const response = await fetch("https://oauth.zalo.me/v4/oa/access_token", {
+  let response = await fetch("https://oauth.zalo.me/v4/oa/access_token", {
     method: "POST",
     headers: {
       "secret_key": secretKey,
@@ -109,7 +109,30 @@ export async function refreshZaloToken(): Promise<string> {
     body: params,
   });
 
-  const data = await response.json();
+  let data = await response.json();
+
+  // If DB refresh token failed, fallback to process.env.ZALO_REFRESH_TOKEN if different
+  if (!data.access_token && process.env.ZALO_REFRESH_TOKEN && process.env.ZALO_REFRESH_TOKEN !== refreshToken) {
+    console.warn("⚠️ DB refresh token failed. Attempting fallback with process.env.ZALO_REFRESH_TOKEN...");
+    const paramsEnv = new URLSearchParams();
+    paramsEnv.append("refresh_token", process.env.ZALO_REFRESH_TOKEN);
+    paramsEnv.append("app_id", appId);
+    paramsEnv.append("grant_type", "refresh_token");
+
+    const responseEnv = await fetch("https://oauth.zalo.me/v4/oa/access_token", {
+      method: "POST",
+      headers: {
+        "secret_key": secretKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: paramsEnv,
+    });
+    const dataEnv = await responseEnv.json();
+    if (dataEnv.access_token && dataEnv.refresh_token) {
+      console.log("✅ Fallback with process.env.ZALO_REFRESH_TOKEN succeeded!");
+      data = dataEnv;
+    }
+  }
 
   if (data.access_token && data.refresh_token) {
     await updateZaloCredentials({
@@ -169,7 +192,31 @@ export async function sendZaloZns(
         response = await makeRequest(newAccessToken);
         resData = await response.json();
       } catch (refreshErr: any) {
-        return { success: false, error: `Token refresh failed during retry: ${refreshErr.message}` };
+        // Continue to check fallback even if refresh fails
+        console.warn(`⚠️ Token refresh failed during retry: ${refreshErr.message}`);
+      }
+    }
+
+    // Fallback: If DB token failed (error != 0), try using the direct process.env token if different
+    if (resData.error !== 0 && process.env.ZALO_OA_ACCESS_TOKEN && process.env.ZALO_OA_ACCESS_TOKEN !== accessToken) {
+      console.warn("⚠️ DB token failed. Attempting fallback with process.env.ZALO_OA_ACCESS_TOKEN...");
+      try {
+        const envToken = process.env.ZALO_OA_ACCESS_TOKEN;
+        const envResponse = await makeRequest(envToken);
+        const envResData = await envResponse.json();
+        
+        if (envResData.error === 0) {
+          console.log("✅ Fallback with process.env token succeeded! Syncing new tokens to DB...");
+          await updateZaloCredentials({
+            ZALO_OA_ACCESS_TOKEN: envToken,
+            ZALO_REFRESH_TOKEN: process.env.ZALO_REFRESH_TOKEN || "",
+          });
+          resData = envResData;
+        } else {
+          console.warn("⚠️ Fallback token in process.env also failed:", envResData);
+        }
+      } catch (fallbackErr: any) {
+        console.error("❌ Fallback token attempt errored:", fallbackErr.message);
       }
     }
 
