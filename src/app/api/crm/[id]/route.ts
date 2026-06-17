@@ -19,8 +19,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
       if (!currentCust) return NextResponse.json({ error: "Khách hàng không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
-      if (updateData.tags && typeof updateData.tags === "string") {
-        updateData.tags = updateData.tags.split(",").map((t: string) => t.trim());
+      if (typeof updateData.tags === "string") {
+        updateData.tags = updateData.tags.trim() ? updateData.tags.split(",").map((t: string) => t.trim()) : [];
       }
       const customer = await prisma.customer.update({
         where: { id },
@@ -43,6 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json(lead);
     }
   } catch (error: any) {
+    console.error("❌ PATCH CRM ERROR:", error);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
