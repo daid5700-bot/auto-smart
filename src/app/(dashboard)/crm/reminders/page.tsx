@@ -181,10 +181,12 @@ export default function RemindersPage() {
         alert("Gửi tin nhắn ZNS thành công!");
         setModalOpen(false);
         fetchData();
+      } else {
+        alert("Lỗi khi gửi tin ZNS: " + res.error);
       }
     } catch (e: any) {
       console.error(e);
-      alert("Lỗi khi gửi tin ZNS: " + e.message);
+      alert("Lỗi hệ thống khi gửi tin ZNS: " + e.message);
     } finally {
       setSendingZns(false);
     }

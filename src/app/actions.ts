@@ -923,7 +923,7 @@ export async function sendCustomZnsAction(data: {
   });
 
   if (status === "FAILED") {
-    throw new Error(errorMsg || "Gửi Zalo ZNS thất bại");
+    return { success: false, error: errorMsg || "Gửi Zalo ZNS thất bại" };
   }
 
   return { success: true };
