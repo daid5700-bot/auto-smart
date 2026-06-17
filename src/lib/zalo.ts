@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { prisma } from "@/lib/prisma";
 
 // Format phone number for Zalo (e.g. 0901234567 -> 84901234567)
 export function formatPhoneForZalo(phone: string): string {
@@ -13,44 +14,83 @@ export function formatPhoneForZalo(phone: string): string {
   return cleaned;
 }
 
-// Update local .env file programmatically
-export function updateEnvFile(updates: Record<string, string>) {
+// Get credential from Database first, fallback to process.env and auto-cache to DB
+export async function getZaloCredential(key: string): Promise<string> {
+  try {
+    const config = await prisma.systemConfig.findUnique({ where: { key } });
+    if (config?.value) return config.value;
+  } catch (dbErr) {
+    console.warn(`⚠️ Warning: Could not read ${key} from DB, falling back to process.env`);
+  }
+
+  const envValue = process.env[key] || "";
+  
+  if (envValue) {
+    try {
+      await prisma.systemConfig.upsert({
+        where: { key },
+        update: { value: envValue },
+        create: { key, value: envValue },
+      });
+    } catch (saveErr) {
+      console.warn(`⚠️ Warning: Could not cache ${key} to DB:`, saveErr);
+    }
+  }
+
+  return envValue;
+}
+
+// Update token in DB and safely try local .env (ignores write failures in read-only production environments like Vercel)
+export async function updateZaloCredentials(updates: Record<string, string>) {
+  // 1. Persist to Database (Production-safe, works on Vercel)
+  for (const [key, value] of Object.entries(updates)) {
+    try {
+      await prisma.systemConfig.upsert({
+        where: { key },
+        update: { value },
+        create: { key, value },
+      });
+      console.log(`✅ Persisted Zalo key ${key} to database.`);
+    } catch (dbErr: any) {
+      console.error(`❌ Failed to save ${key} to database:`, dbErr.message);
+    }
+  }
+
+  // 2. Persist to local .env (For local development comfort)
   try {
     const envPath = path.resolve(process.cwd(), ".env");
-    if (!fs.existsSync(envPath)) {
-      console.warn("No .env file found to update Zalo tokens.");
-      return;
-    }
-    let envContent = fs.readFileSync(envPath, "utf-8");
-
-    for (const [key, value] of Object.entries(updates)) {
-      const regex = new RegExp(`^${key}=.*$`, "m");
-      if (regex.test(envContent)) {
-        envContent = envContent.replace(regex, `${key}="${value}"`);
-      } else {
-        envContent += `\n${key}="${value}"`;
+    if (fs.existsSync(envPath)) {
+      let envContent = fs.readFileSync(envPath, "utf-8");
+      for (const [key, value] of Object.entries(updates)) {
+        const regex = new RegExp(`^${key}=.*$`, "m");
+        if (regex.test(envContent)) {
+          envContent = envContent.replace(regex, `${key}="${value}"`);
+        } else {
+          envContent += `\n${key}="${value}"`;
+        }
       }
+      fs.writeFileSync(envPath, envContent, "utf-8");
+      console.log("✅ Updated tokens in local .env file");
     }
-    fs.writeFileSync(envPath, envContent, "utf-8");
-    
-    // Also update current process.env variables so they are available immediately
-    for (const [key, value] of Object.entries(updates)) {
-      process.env[key] = value;
-    }
-    console.log("✅ Successfully updated tokens in .env");
   } catch (error: any) {
-    console.error("❌ Failed to update .env file:", error.message);
+    // Silently ignore write failures on Vercel
+    console.warn("⚠️ Local .env file could not be updated (this is normal on Vercel / serverless):", error.message);
+  }
+
+  // 3. Update current process memory
+  for (const [key, value] of Object.entries(updates)) {
+    process.env[key] = value;
   }
 }
 
 // Refresh Zalo OA Access Token using Refresh Token
 export async function refreshZaloToken(): Promise<string> {
-  const appId = process.env.ZALO_APP_ID;
-  const secretKey = process.env.ZALO_APP_SECRET;
-  const refreshToken = process.env.ZALO_REFRESH_TOKEN;
+  const appId = await getZaloCredential("ZALO_APP_ID");
+  const secretKey = await getZaloCredential("ZALO_APP_SECRET");
+  const refreshToken = await getZaloCredential("ZALO_REFRESH_TOKEN");
 
   if (!appId || !secretKey || !refreshToken) {
-    throw new Error("Missing Zalo credentials (App ID, Secret Key, or Refresh Token) in environment");
+    throw new Error("Missing Zalo credentials (App ID, Secret Key, or Refresh Token) in environment/database");
   }
 
   console.log("🔄 Attempting to refresh Zalo OA Access Token...");
@@ -72,7 +112,7 @@ export async function refreshZaloToken(): Promise<string> {
   const data = await response.json();
 
   if (data.access_token && data.refresh_token) {
-    updateEnvFile({
+    await updateZaloCredentials({
       ZALO_OA_ACCESS_TOKEN: data.access_token,
       ZALO_REFRESH_TOKEN: data.refresh_token,
     });
@@ -90,7 +130,7 @@ export async function sendZaloZns(
   templateData: Record<string, any>
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   const formattedPhone = formatPhoneForZalo(phone);
-  let accessToken = process.env.ZALO_OA_ACCESS_TOKEN || "";
+  let accessToken = await getZaloCredential("ZALO_OA_ACCESS_TOKEN");
 
   if (!accessToken) {
     try {
