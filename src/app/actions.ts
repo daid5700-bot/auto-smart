@@ -174,7 +174,7 @@ export async function createDirectExport(data: {
       const factor = item.conversionFactor || 1;
       const actualQty = item.quantity * factor;
 
-      const product = await tx.product.findUnique({ 
+      const product = await tx.product.findUnique({
         where: { id: item.productId },
         include: { prices: true }
       });
@@ -194,13 +194,13 @@ export async function createDirectExport(data: {
       });
 
       // Find the price based on export type
-      const priceObj = product.prices.find((p) => p.type === exportType) || 
-                       product.prices.find((p) => p.type === "RETAIL");
+      const priceObj = product.prices.find((p) => p.type === exportType) ||
+        product.prices.find((p) => p.type === "RETAIL");
       const unitPrice = priceObj ? Number(priceObj.amount) : 0;
 
       const exportTypeLabel = exportType === "RETAIL" ? "Bán lẻ" : "Bán buôn";
-      const finalReason = item.note 
-        ? `[${exportTypeLabel}] ${item.note}` 
+      const finalReason = item.note
+        ? `[${exportTypeLabel}] ${item.note}`
         : `[${exportTypeLabel}]`;
 
       const movement = await tx.stockMovement.create({
@@ -351,7 +351,7 @@ export async function updateROStatus(data: {
 
     let znsStatus = "SUCCESS";
     let znsError: string | null = null;
-    
+
     try {
       const { sendZaloZns } = await import("@/lib/zalo");
       const result = await sendZaloZns(updatedRo.customer.phone, "CRM_THANK_YOU_001", templateData);
@@ -646,7 +646,7 @@ export async function createManualExport(data: {
       // Create OrderItem if RO repair export
       if (data.exportType === "REPAIR") {
         if (!data.repairOrderId) throw new Error("Yêu cầu mã lệnh sửa chữa (RO) để xuất kho sửa chữa");
-        
+
         const ro = await tx.repairOrder.findUnique({ where: { id: data.repairOrderId } });
         if (!ro) throw new Error("Lệnh sửa chữa không tồn tại");
         if (branchId && ro.branchId !== branchId) {
@@ -889,10 +889,10 @@ export async function sendCustomZnsAction(data: {
       orderBy: { createdAt: "desc" },
     });
     const plate = lastRo?.plateNumber || customer.vehiclePlates?.[0] || "N/A";
-    const finalTotal = lastRo 
+    const finalTotal = lastRo
       ? Number(lastRo.totalAmount).toLocaleString("vi-VN") + "đ"
       : Number(customer.totalSpent).toLocaleString("vi-VN") + "đ";
-      
+
     const nextServiceDate = new Date();
     nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
     const nextServiceText = `${data.messageType === "GENERAL_INSPECT" ? "Kiểm tra" : "Thay dầu"} (${nextServiceDate.toLocaleDateString("vi-VN")})`;
@@ -907,7 +907,7 @@ export async function sendCustomZnsAction(data: {
 
     const { sendZaloZns } = await import("@/lib/zalo");
     const result = await sendZaloZns(data.phone, data.templateId, templateData);
-    
+
     if (!result.success) {
       status = "FAILED";
       errorMsg = result.error || "Lỗi gửi ZNS";
