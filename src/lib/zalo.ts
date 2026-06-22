@@ -187,6 +187,13 @@ export async function sendZaloZns(
     tracking_id: trackingId,
   };
 
+  // === LOG CHI TIẾT KHI GỬI ZNS ===
+  console.log("[ZNS] ====== BẮT ĐẦU GỬI ZNS ======");
+  console.log(`[ZNS] 📱 Số điện thoại: ${formattedPhone}`);
+  console.log(`[ZNS] 📋 Template ID (nội bộ): ${templateId} → (Zalo): ${realTemplateId}`);
+  console.log(`[ZNS] 🔑 Access Token (10 ký tự đầu): ${accessToken?.substring(0, 10)}...`);
+  console.log(`[ZNS] 📤 Template Data:`, JSON.stringify(templateData));
+  console.log(`[ZNS] 🏷️  Tracking ID: ${trackingId}`);
 
   const makeRequest = async (token: string) => {
     return fetch("https://business.openapi.zalo.me/message/template", {
@@ -203,16 +210,19 @@ export async function sendZaloZns(
     let response = await makeRequest(accessToken);
     let resData = await response.json();
 
-    // Check if access token is invalid/expired (error code -216 or -301)
-    if (resData.error === -216 || resData.error === -301) {
-      console.warn("⚠️ Zalo Access Token expired or invalid. Attempting auto-refresh...");
+    console.log(`[ZNS] 📨 Phản hồi từ Zalo: error=${resData.error}, message=${resData.message}`);
+
+    // Auto-refresh khi token hết hạn hoặc không hợp lệ (-124, -216, -301)
+    if (resData.error === -124 || resData.error === -216 || resData.error === -301) {
+      console.warn(`⚠️ [ZNS] Token lỗi (${resData.error}: ${resData.message}). Đang tự động lấy token mới...`);
       try {
         const newAccessToken = await refreshZaloToken();
+        console.log(`[ZNS] ✅ Lấy token mới thành công! Token mới (10 ký tự đầu): ${newAccessToken.substring(0, 10)}...`);
         response = await makeRequest(newAccessToken);
         resData = await response.json();
+        console.log(`[ZNS] 📨 Phản hồi sau khi dùng token mới: error=${resData.error}, message=${resData.message}`);
       } catch (refreshErr: any) {
-        // Continue to check fallback even if refresh fails
-        console.warn(`⚠️ Token refresh failed during retry: ${refreshErr.message}`);
+        console.warn(`⚠️ [ZNS] Lấy token mới thất bại: ${refreshErr.message}`);
       }
     }
 
@@ -240,10 +250,12 @@ export async function sendZaloZns(
     }
 
     if (resData.error === 0) {
-      console.log(`✅ ZNS message sent successfully to ${formattedPhone}`);
+      console.log(`[ZNS] ✅ GỬI THÀNH CÔNG đến ${formattedPhone} | msg_id: ${resData.data?.msg_id}`);
+      console.log("[ZNS] ====== KẾT THÚC GỬI ZNS ======");
       return { success: true, data: resData };
     } else {
-      console.error(`❌ Zalo ZNS API Error for ${formattedPhone}:`, resData);
+      console.error(`[ZNS] ❌ GỬI THẤT BẠI đến ${formattedPhone} | Lỗi ${resData.error}: ${resData.message}`);
+      console.log("[ZNS] ====== KẾT THÚC GỬI ZNS ======");
       return { success: false, error: resData.message || `Error code: ${resData.error}` };
     }
   } catch (error: any) {
