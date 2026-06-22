@@ -898,11 +898,11 @@ export async function sendCustomZnsAction(data: {
     const nextServiceText = `${data.messageType === "GENERAL_INSPECT" ? "Kiểm tra" : "Thay dầu"} (${nextServiceDate.toLocaleDateString("vi-VN")})`;
 
     const templateData = {
-      customerName: customer.name,
-      vehiclePlate: plate,
-      finalTotal: finalTotal,
-      points: String(customer.loyaltyPoints),
-      nextService: nextServiceText
+      customer_name: customer.name,
+      order_date: new Date().toLocaleDateString("vi-VN"),
+      note: `Nhắc dịch vụ cho xe ${plate} (${nextServiceText})`,
+      point: "0",
+      total_point: String(customer.loyaltyPoints || 0),
     };
 
     const { sendZaloZns } = await import("@/lib/zalo");
