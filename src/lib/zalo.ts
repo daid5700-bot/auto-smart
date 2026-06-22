@@ -163,11 +163,30 @@ export async function sendZaloZns(
     }
   }
 
+  // Map internal logical template IDs to actual Zalo ZNS numerical IDs
+  let realTemplateId = templateId;
+  if (templateId === "CRM_THANK_YOU_001") {
+    const dbVal = await getZaloCredential("ZALO_TEMPLATE_THANK_YOU");
+    if (dbVal) realTemplateId = dbVal;
+  } else if (templateId === "CRM_OIL_REMIND_002") {
+    const dbVal = await getZaloCredential("ZALO_TEMPLATE_OIL_REMIND");
+    if (dbVal) realTemplateId = dbVal;
+  } else if (templateId === "CRM_BIRTHDAY_003") {
+    const dbVal = await getZaloCredential("ZALO_TEMPLATE_BIRTHDAY");
+    if (dbVal) realTemplateId = dbVal;
+  } else if (templateId === "CRM_INSPECT_004") {
+    const dbVal = await getZaloCredential("ZALO_TEMPLATE_INSPECT");
+    if (dbVal) realTemplateId = dbVal;
+  }
+
+  const trackingId = `zns_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
   const payload = {
     phone: formattedPhone,
-    template_id: templateId,
+    template_id: realTemplateId,
     template_data: templateData,
+    tracking_id: trackingId,
   };
+
 
   const makeRequest = async (token: string) => {
     return fetch("https://business.openapi.zalo.me/message/template", {
