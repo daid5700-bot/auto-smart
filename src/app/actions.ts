@@ -312,7 +312,7 @@ export async function updateROStatus(data: {
     include: { customer: true, technician: true, items: true },
   });
 
-  if (isFinalizing && updatedRo.technicianId) {
+  if (isFinalizing) {
     const tech = updatedRo.technician;
     if (tech) {
       // Update tech status back to idle
