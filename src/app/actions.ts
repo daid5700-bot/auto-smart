@@ -334,11 +334,19 @@ export async function updateROStatus(data: {
     });
 
     // Send ZNS live
+    // Fetch updated customer to get new total points after increment
+    const updatedCustomer = await prisma.customer.findUnique({
+      where: { id: updatedRo.customerId },
+      select: { loyaltyPoints: true },
+    });
+    const totalPoint = updatedCustomer?.loyaltyPoints ?? points;
+
     const templateData = {
-      customerName: updatedRo.customer.name,
-      vehiclePlate: updatedRo.plateNumber,
-      finalTotal: Number(updatedRo.totalAmount).toLocaleString("vi-VN") + "đ",
-      points: String(points)
+      customer_name: updatedRo.customer.name,
+      order_date: new Date().toLocaleDateString("vi-VN"),
+      note: updatedRo.vehicleModel || updatedRo.plateNumber || "Dịch vụ sửa chữa xe",
+      point: String(points),
+      total_point: String(totalPoint),
     };
 
     let znsStatus = "SUCCESS";
