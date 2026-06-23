@@ -35,9 +35,9 @@ export default function PricingPage() {
   const LIMIT = 20;
 
   // Editing Prices State
-  const [retailPrice, setRetailPrice] = useState(0);
-  const [wholesalePrice, setWholesalePrice] = useState(0);
-  const [insurancePrice, setInsurancePrice] = useState(0);
+  const [retailPrice, setRetailPrice] = useState<number | "">(0);
+  const [wholesalePrice, setWholesalePrice] = useState<number | "">(0);
+  const [insurancePrice, setInsurancePrice] = useState<number | "">(0);
 
   const fetchData = async () => {
     try {
@@ -90,9 +90,9 @@ export default function PricingPage() {
     try {
       setLoading(true);
       const prices = [
-        { type: "RETAIL", amount: retailPrice },
-        { type: "WHOLESALE", amount: wholesalePrice },
-        { type: "INSURANCE", amount: insurancePrice },
+        { type: "RETAIL", amount: Number(retailPrice) || 0 },
+        { type: "WHOLESALE", amount: Number(wholesalePrice) || 0 },
+        { type: "INSURANCE", amount: Number(insurancePrice) || 0 },
       ];
       const res = await fetch(`/api/inventory/${productId}`, {
         method: "PATCH",
@@ -253,12 +253,17 @@ export default function PricingPage() {
                         </td>
                       )}
                       <td className="text-muted-foreground text-xs">{p.unit}</td>
-                      <td>
+                       <td>
                         {isEditing ? (
                           <input 
-                            type="number" 
-                            value={retailPrice} 
-                            onChange={(e) => setRetailPrice(parseInt(e.target.value) || 0)} 
+                            type="text" 
+                            inputMode="numeric"
+                            pattern="[0-9.]*"
+                            value={retailPrice === "" ? "" : Number(retailPrice).toLocaleString("vi-VN")} 
+                            onChange={(e) => {
+                              const cleanVal = e.target.value.replace(/\D/g, "");
+                              setRetailPrice(cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                            }} 
                             className="w-full px-2 py-1.5 bg-secondary/40 border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none text-primary" 
                           />
                         ) : (
@@ -268,9 +273,14 @@ export default function PricingPage() {
                       <td>
                         {isEditing ? (
                           <input 
-                            type="number" 
-                            value={wholesalePrice} 
-                            onChange={(e) => setWholesalePrice(parseInt(e.target.value) || 0)} 
+                            type="text" 
+                            inputMode="numeric"
+                            pattern="[0-9.]*"
+                            value={wholesalePrice === "" ? "" : Number(wholesalePrice).toLocaleString("vi-VN")} 
+                            onChange={(e) => {
+                              const cleanVal = e.target.value.replace(/\D/g, "");
+                              setWholesalePrice(cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                            }} 
                             className="w-full px-2 py-1.5 bg-secondary/40 border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none text-success" 
                           />
                         ) : (
@@ -280,9 +290,14 @@ export default function PricingPage() {
                       <td>
                         {isEditing ? (
                           <input 
-                            type="number" 
-                            value={insurancePrice} 
-                            onChange={(e) => setInsurancePrice(parseInt(e.target.value) || 0)} 
+                            type="text" 
+                            inputMode="numeric"
+                            pattern="[0-9.]*"
+                            value={insurancePrice === "" ? "" : Number(insurancePrice).toLocaleString("vi-VN")} 
+                            onChange={(e) => {
+                              const cleanVal = e.target.value.replace(/\D/g, "");
+                              setInsurancePrice(cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                            }} 
                             className="w-full px-2 py-1.5 bg-secondary/40 border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none text-purple-600" 
                           />
                         ) : (

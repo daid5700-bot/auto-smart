@@ -14,9 +14,9 @@ type TabType = "IMPORT" | "EXPORT";
 interface MovementItem {
   id: string; // unique local id
   productId: string;
-  quantity: number;
-  conversionFactor: number;
-  unitCost: number; // For IMPORT
+  quantity: number | "";
+  conversionFactor: number | "";
+  unitCost: number | ""; // For IMPORT
   note: string;
 }
 
@@ -131,7 +131,7 @@ export default function MovementsPage() {
       productId: "",
       quantity: 1,
       conversionFactor: 1,
-      unitCost: 0,
+      unitCost: "",
       note: ""
     }]);
   };
@@ -192,7 +192,7 @@ export default function MovementsPage() {
       productId: "",
       quantity: 1,
       conversionFactor: 1,
-      unitCost: 0,
+      unitCost: "",
       note: ""
     }]);
   };
@@ -213,9 +213,9 @@ export default function MovementsPage() {
         await createManualImport({
           items: items.map(i => ({
             productId: parseInt(i.productId),
-            quantity: i.quantity,
-            unitCost: i.unitCost,
-            conversionFactor: i.conversionFactor,
+            quantity: Number(i.quantity) || 0,
+            unitCost: Number(i.unitCost) || 0,
+            conversionFactor: Number(i.conversionFactor) || 1,
             note: i.note
           })),
           createdBy: user?.name || "system"
@@ -224,8 +224,8 @@ export default function MovementsPage() {
         await createDirectExport({
           items: items.map(i => ({
             productId: parseInt(i.productId),
-            quantity: i.quantity,
-            conversionFactor: i.conversionFactor,
+            quantity: Number(i.quantity) || 0,
+            conversionFactor: Number(i.conversionFactor) || 1,
             note: i.note
           })),
           createdBy: user?.name || "system",
@@ -245,7 +245,7 @@ export default function MovementsPage() {
 
   // Grand total calculation for IMPORT
   const grandTotal = useMemo(() => {
-    return items.reduce((acc, item) => acc + ((item.quantity || 0) * (item.unitCost || 0)), 0);
+    return items.reduce((acc, item) => acc + ((Number(item.quantity) || 0) * (Number(item.unitCost) || 0)), 0);
   }, [items]);
 
   if (loading) {
@@ -433,10 +433,16 @@ export default function MovementsPage() {
                       <div className="w-full lg:col-span-2">
                         <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Số lượng</label>
                         <input
-                          type="number" required min={1}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9.]*"
+                          required
                           onFocus={() => setFocusedIdx(idx)}
-                          value={item.quantity}
-                          onChange={(e) => updateItem(idx, "quantity", parseInt(e.target.value) || 1)}
+                          value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
+                          onChange={(e) => {
+                            const cleanVal = e.target.value.replace(/\D/g, "");
+                            updateItem(idx, "quantity", cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                          }}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-center"
                         />
                       </div>
@@ -445,11 +451,17 @@ export default function MovementsPage() {
                         <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Hệ số quy đổi</label>
                         <div className="relative">
                           <input
-                            type="number" required min={1}
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9.]*"
+                            required
                             onFocus={() => setFocusedIdx(idx)}
-                            value={item.conversionFactor}
-                            onChange={(e) => updateItem(idx, "conversionFactor", parseInt(e.target.value) || 1)}
-                            className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-center pr-6"
+                            value={item.conversionFactor === "" ? "" : Number(item.conversionFactor).toLocaleString("vi-VN")}
+                            onChange={(e) => {
+                              const cleanVal = e.target.value.replace(/\D/g, "");
+                              updateItem(idx, "conversionFactor", cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                            }}
+                            className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-center"
                           />
                         </div>
                       </div>
@@ -459,16 +471,22 @@ export default function MovementsPage() {
                           <div className="w-full lg:col-span-2">
                             <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Đơn giá</label>
                             <input
-                              type="number" required min={0}
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9.]*"
+                              required
                               onFocus={() => setFocusedIdx(idx)}
-                              value={item.unitCost}
-                              onChange={(e) => updateItem(idx, "unitCost", parseInt(e.target.value) || 0)}
+                              value={item.unitCost === "" ? "" : Number(item.unitCost).toLocaleString("vi-VN")}
+                              onChange={(e) => {
+                                const cleanVal = e.target.value.replace(/\D/g, "");
+                                updateItem(idx, "unitCost", cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                              }}
                               className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-primary font-semibold"
                             />
                           </div>
                           <div className="w-full lg:col-span-1 lg:text-right font-bold text-xs">
                             <span className="lg:hidden text-xs text-muted-foreground font-normal mr-2">Tổng:</span>
-                            {formatCurrency(item.quantity * item.unitCost)}
+                            {formatCurrency((Number(item.quantity) || 0) * (Number(item.unitCost) || 0))}
                           </div>
                         </>
                       ) : (

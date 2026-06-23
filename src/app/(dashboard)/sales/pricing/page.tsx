@@ -9,8 +9,8 @@ export default function VehiclePricingPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   // Form edit price
-  const [listPrice, setListPrice] = useState(0);
-  const [floorPrice, setFloorPrice] = useState(0);
+  const [listPrice, setListPrice] = useState<number | "">(0);
+  const [floorPrice, setFloorPrice] = useState<number | "">(0);
 
   const fetchData = async () => {
     try {
@@ -40,7 +40,10 @@ export default function VehiclePricingPage() {
       const res = await fetch(`/api/sales/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listPrice, floorPrice }),
+        body: JSON.stringify({
+          listPrice: Number(listPrice) || 0,
+          floorPrice: Number(floorPrice) || 0
+        }),
       });
       if (res.ok) {
         setEditingId(null);
@@ -92,14 +95,34 @@ export default function VehiclePricingPage() {
                   <td><span className={`badge ${statusBadge(v.status)}`}>{statusText(v.status)}</span></td>
                   <td>
                     {isEditing ? (
-                      <input type="number" value={listPrice} onChange={(e) => setListPrice(parseInt(e.target.value) || 0)} className="w-32 px-2 py-1 bg-secondary/30 border border-border rounded text-sm focus:ring-1 focus:ring-primary outline-none" />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9.]*"
+                        value={listPrice === "" ? "" : Number(listPrice).toLocaleString("vi-VN")}
+                        onChange={(e) => {
+                          const cleanVal = e.target.value.replace(/\D/g, "");
+                          setListPrice(cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                        }}
+                        className="w-32 px-2 py-1 bg-secondary/30 border border-border rounded text-sm focus:ring-1 focus:ring-primary outline-none font-semibold text-primary"
+                      />
                     ) : (
                       <span className="font-bold text-primary">{formatCurrency(Number(v.listPrice))}</span>
                     )}
                   </td>
                   <td>
                     {isEditing ? (
-                      <input type="number" value={floorPrice} onChange={(e) => setFloorPrice(parseInt(e.target.value) || 0)} className="w-32 px-2 py-1 bg-secondary/30 border border-border rounded text-sm focus:ring-1 focus:ring-primary outline-none" />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9.]*"
+                        value={floorPrice === "" ? "" : Number(floorPrice).toLocaleString("vi-VN")}
+                        onChange={(e) => {
+                          const cleanVal = e.target.value.replace(/\D/g, "");
+                          setFloorPrice(cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                        }}
+                        className="w-32 px-2 py-1 bg-secondary/30 border border-border rounded text-sm focus:ring-1 focus:ring-primary outline-none font-semibold text-success"
+                      />
                     ) : (
                       <span className="font-bold text-success">{formatCurrency(Number(v.floorPrice))}</span>
                     )}

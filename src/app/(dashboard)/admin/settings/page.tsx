@@ -96,12 +96,16 @@ export default function SettingsPage() {
               Lãi suất trả góp ngân hàng cơ bản (% / năm)
             </label>
             <input
-              type="number"
-              step="0.1"
-              min="0"
-              max="30"
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9.]*"
               value={leaseRate}
-              onChange={(e) => setLeaseRate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9.]/g, "");
+                const parts = val.split(".");
+                if (parts.length > 2) return;
+                setLeaseRate(val);
+              }}
               className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
@@ -115,12 +119,16 @@ export default function SettingsPage() {
               Tỷ lệ tích điểm (% trên tổng thanh toán)
             </label>
             <input
-              type="number"
-              step="0.1"
-              min="0"
-              max="10"
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9.]*"
               value={pointsRate}
-              onChange={(e) => setPointsRate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9.]/g, "");
+                const parts = val.split(".");
+                if (parts.length > 2) return;
+                setPointsRate(val);
+              }}
               className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
             />
             <p className="text-[10px] text-muted-foreground mt-1">

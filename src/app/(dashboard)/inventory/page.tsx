@@ -34,17 +34,30 @@ function InventoryContent() {
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    sku: string;
+    name: string;
+    category: string;
+    unit: string;
+    stockCount: number | "";
+    stockMin: number | "";
+    stockMax: number | "";
+    retailPrice: number | "";
+    wholesalePrice: number | "";
+    insurancePrice: number | "";
+    parentId: string;
+    branchId: string;
+  }>({
     sku: "",
     name: "",
     category: "",
     unit: "",
-    stockCount: 0,
-    stockMin: 0,
-    stockMax: 100,
-    retailPrice: 0,
-    wholesalePrice: 0,
-    insurancePrice: 0,
+    stockCount: "",
+    stockMin: "",
+    stockMax: "",
+    retailPrice: "",
+    wholesalePrice: "",
+    insurancePrice: "",
     parentId: "",
     branchId: "",
   });
@@ -97,12 +110,12 @@ function InventoryContent() {
       name: "",
       category: "Lọc",
       unit: "Cái",
-      stockCount: 0,
+      stockCount: "",
       stockMin: 5,
       stockMax: 100,
-      retailPrice: 0,
-      wholesalePrice: 0,
-      insurancePrice: 0,
+      retailPrice: "",
+      wholesalePrice: "",
+      insurancePrice: "",
       parentId: "",
       branchId: "",
     });
@@ -522,29 +535,95 @@ function InventoryContent() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số lượng tồn</label>
-                  <input type="number" required value={formData.stockCount} onChange={(e) => setFormData({ ...formData, stockCount: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.stockCount === "" ? "" : Number(formData.stockCount).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, stockCount: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Min an toàn</label>
-                  <input type="number" required value={formData.stockMin} onChange={(e) => setFormData({ ...formData, stockMin: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.stockMin === "" ? "" : Number(formData.stockMin).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, stockMin: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Max an toàn</label>
-                  <input type="number" required value={formData.stockMax} onChange={(e) => setFormData({ ...formData, stockMax: parseInt(e.target.value) || 100 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.stockMax === "" ? "" : Number(formData.stockMax).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, stockMax: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3 pt-2 border-t border-border/40">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giá bán lẻ</label>
-                  <input type="number" required value={formData.retailPrice} onChange={(e) => setFormData({ ...formData, retailPrice: parseInt(e.target.value) || 0 })} className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.retailPrice === "" ? "" : Number(formData.retailPrice).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, retailPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giá bán sỉ</label>
-                  <input type="number" required value={formData.wholesalePrice} onChange={(e) => setFormData({ ...formData, wholesalePrice: parseInt(e.target.value) || 0 })} className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.wholesalePrice === "" ? "" : Number(formData.wholesalePrice).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, wholesalePrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giá Bảo hiểm</label>
-                  <input type="number" required value={formData.insurancePrice} onChange={(e) => setFormData({ ...formData, insurancePrice: parseInt(e.target.value) || 0 })} className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.insurancePrice === "" ? "" : Number(formData.insurancePrice).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, insurancePrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
               </div>
               <div className="flex gap-3 justify-end pt-4">

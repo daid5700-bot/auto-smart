@@ -13,7 +13,7 @@ interface Accessory {
   name: string;
   sku: string;
   price: number;
-  quantity: number;
+  quantity: number | "";
 }
 
 export default function NewDocumentPage() {
@@ -112,7 +112,7 @@ export default function NewDocumentPage() {
     const exists = selectedAccessories.find(a => a.id === p.id);
     if (exists) {
       setSelectedAccessories(
-        selectedAccessories.map(a => a.id === p.id ? { ...a, quantity: a.quantity + 1 } : a)
+        selectedAccessories.map(a => a.id === p.id ? { ...a, quantity: (Number(a.quantity) || 0) + 1 } : a)
       );
     } else {
       const retailPrice = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
@@ -127,9 +127,9 @@ export default function NewDocumentPage() {
     setSelectedAccessories(selectedAccessories.filter(a => a.id !== id));
   };
 
-  const handleUpdateAccessoryQty = (id: number, qty: number) => {
+  const handleUpdateAccessoryQty = (id: number, qty: number | "") => {
     setSelectedAccessories(
-      selectedAccessories.map(a => a.id === id ? { ...a, quantity: Math.max(1, qty) } : a)
+      selectedAccessories.map(a => a.id === id ? { ...a, quantity: qty === "" ? "" : Math.max(1, qty) } : a)
     );
   };
 
@@ -157,7 +157,7 @@ export default function NewDocumentPage() {
         bankStatus,
         plateStatus,
         plateCost: Number(plateCost) || 0,
-        accessoriesJson: JSON.stringify(selectedAccessories),
+        accessoriesJson: JSON.stringify(selectedAccessories.map(a => ({ ...a, quantity: Number(a.quantity) || 1 }))),
         notes: rawNotes,
         customerName,
         customerPhone,
@@ -324,11 +324,16 @@ export default function NewDocumentPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-primary">Giá bán thực tế (VNĐ) *</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9.]*"
                 required
                 placeholder="Nhập giá bán..."
-                value={listPrice}
-                onChange={(e) => setListPrice(e.target.value)}
+                value={listPrice === "" ? "" : Number(listPrice).toLocaleString("vi-VN")}
+                onChange={(e) => {
+                  const cleanVal = e.target.value.replace(/\D/g, "");
+                  setListPrice(cleanVal);
+                }}
                 className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-primary"
               />
             </div>
@@ -508,10 +513,15 @@ export default function NewDocumentPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground">Chi phí làm biển tự điền (VNĐ)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9.]*"
                 placeholder="Tự điền chi phí biển..."
-                value={plateCost}
-                onChange={(e) => setPlateCost(e.target.value)}
+                value={plateCost === "" ? "" : Number(plateCost).toLocaleString("vi-VN")}
+                onChange={(e) => {
+                  const cleanVal = e.target.value.replace(/\D/g, "");
+                  setPlateCost(cleanVal);
+                }}
                 className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-emerald-600 dark:text-emerald-400"
               />
             </div>
@@ -583,10 +593,14 @@ export default function NewDocumentPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <input
-                          type="number"
-                          min={1}
-                          value={a.quantity}
-                          onChange={(e) => handleUpdateAccessoryQty(a.id, parseInt(e.target.value) || 1)}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9.]*"
+                          value={a.quantity === "" ? "" : Number(a.quantity).toLocaleString("vi-VN")}
+                          onChange={(e) => {
+                            const cleanVal = e.target.value.replace(/\D/g, "");
+                            handleUpdateAccessoryQty(a.id, cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                          }}
                           className="w-12 text-center py-0.5 border border-border rounded bg-secondary/30 text-xs font-bold"
                         />
                         <button

@@ -16,14 +16,24 @@ export default function SalesPage() {
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    vin: string;
+    model: string;
+    variant: string;
+    color: string;
+    year: number | "";
+    listPrice: number | "";
+    floorPrice: number | "";
+    status: string;
+    image: string;
+  }>({
     vin: "",
     model: "",
     variant: "",
     color: "Đen",
     year: 2026,
-    listPrice: 0,
-    floorPrice: 0,
+    listPrice: "",
+    floorPrice: "",
     status: "AVAILABLE",
     image: "",
   });
@@ -71,8 +81,8 @@ export default function SalesPage() {
       variant: "",
       color: "Đen",
       year: 2026,
-      listPrice: 0,
-      floorPrice: 0,
+      listPrice: "",
+      floorPrice: "",
       status: "AVAILABLE",
       image: "",
     });
@@ -127,10 +137,17 @@ export default function SalesPage() {
       const method = editingId ? "PATCH" : "POST";
       const url = editingId ? `/api/sales/${editingId}` : "/api/sales";
 
+      const payload = {
+        ...formData,
+        year: Number(formData.year) || 2026,
+        listPrice: Number(formData.listPrice) || 0,
+        floorPrice: Number(formData.floorPrice) || 0,
+      };
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -386,17 +403,50 @@ export default function SalesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Năm sản xuất</label>
-                  <input type="number" required value={formData.year} onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) || 2026 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.year === "" ? "" : Number(formData.year).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, year: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giá niêm yết</label>
-                  <input type="number" required value={formData.listPrice} onChange={(e) => setFormData({ ...formData, listPrice: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.listPrice === "" ? "" : Number(formData.listPrice).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, listPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giá sàn (Floor)</label>
-                  <input type="number" required value={formData.floorPrice} onChange={(e) => setFormData({ ...formData, floorPrice: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.floorPrice === "" ? "" : Number(formData.floorPrice).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, floorPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
               </div>
               <div>

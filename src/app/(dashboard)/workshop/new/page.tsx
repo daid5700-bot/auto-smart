@@ -8,8 +8,8 @@ import { useAuth } from "@/lib/store";
 
 interface RequisitionItemInput {
   productId: string;
-  quantity: number;
-  unitPrice: number;
+  quantity: number | "";
+  unitPrice: number | "";
 }
 
 export default function NewRepairOrderPage() {
@@ -123,24 +123,24 @@ export default function NewRepairOrderPage() {
     setItems(updated);
   };
 
-  const handleItemQuantityChange = (index: number, val: number) => {
+  const handleItemQuantityChange = (index: number, val: number | "") => {
     const updated = [...items];
-    updated[index].quantity = Math.max(1, val);
+    updated[index].quantity = val === "" ? "" : Math.max(1, val);
     setItems(updated);
   };
 
-  const handleItemPriceChange = (index: number, val: number) => {
+  const handleItemPriceChange = (index: number, val: number | "") => {
     const updated = [...items];
-    updated[index].unitPrice = Math.max(0, val);
+    updated[index].unitPrice = val === "" ? "" : Math.max(0, val);
     setItems(updated);
   };
 
   // Calculations
-  const partsCostTotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const partsCostTotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
   const totalAmount = (Number(laborCost) || 0) + partsCostTotal;
   const vatEstimate = totalAmount * 0.1;
 
-  const totalPartsQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalPartsQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -357,15 +357,15 @@ export default function NewRepairOrderPage() {
                 <input
                   type="text"
                   inputMode="numeric"
-                  pattern="[0-9]*"
+                  pattern="[0-9.]*"
                   required
-                  value={kmIn}
+                  value={kmIn === "" ? "" : Number(kmIn).toLocaleString("vi-VN")}
                   onChange={(e) => {
                     const cleanVal = e.target.value.replace(/\D/g, "");
                     setKmIn(cleanVal === "" ? "" : parseInt(cleanVal, 10));
                   }}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                  placeholder="VD: 45000"
+                  placeholder="VD: 45.000"
                 />
               </div>
 
@@ -394,15 +394,15 @@ export default function NewRepairOrderPage() {
                 <input
                   type="text"
                   inputMode="numeric"
-                  pattern="[0-9]*"
+                  pattern="[0-9.]*"
                   required
-                  value={laborCost}
+                  value={laborCost === "" ? "" : Number(laborCost).toLocaleString("vi-VN")}
                   onChange={(e) => {
                     const cleanVal = e.target.value.replace(/\D/g, "");
                     setLaborCost(cleanVal === "" ? "" : parseInt(cleanVal, 10));
                   }}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
-                  placeholder="VD: 150000"
+                  placeholder="VD: 150.000"
                 />
               </div>
             </div>
@@ -545,11 +545,11 @@ export default function NewRepairOrderPage() {
                             <input
                               type="text"
                               inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={item.quantity}
+                              pattern="[0-9.]*"
+                              value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
                               onChange={(e) => {
                                 const cleanVal = e.target.value.replace(/\D/g, "");
-                                handleItemQuantityChange(index, cleanVal === "" ? 1 : parseInt(cleanVal, 10));
+                                handleItemQuantityChange(index, cleanVal === "" ? "" : parseInt(cleanVal, 10));
                               }}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-center outline-none"
                             />
@@ -558,17 +558,17 @@ export default function NewRepairOrderPage() {
                             <input
                               type="text"
                               inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={item.unitPrice}
+                              pattern="[0-9.]*"
+                              value={item.unitPrice === "" ? "" : Number(item.unitPrice).toLocaleString("vi-VN")}
                               onChange={(e) => {
                                 const cleanVal = e.target.value.replace(/\D/g, "");
-                                handleItemPriceChange(index, cleanVal === "" ? 0 : parseInt(cleanVal, 10));
+                                handleItemPriceChange(index, cleanVal === "" ? "" : parseInt(cleanVal, 10));
                               }}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-primary outline-none"
                             />
                           </td>
                           <td className="p-2 text-right font-bold text-foreground">
-                            {formatCurrency(item.quantity * item.unitPrice)}
+                            {formatCurrency((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
                           </td>
                           <td className="p-2 text-center">
                             <button

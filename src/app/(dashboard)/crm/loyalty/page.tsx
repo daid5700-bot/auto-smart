@@ -10,7 +10,7 @@ export default function LoyaltyPage() {
 
   // Form State
   const [customerId, setCustomerId] = useState("");
-  const [pointsToRedeem, setPointsToRedeem] = useState(10);
+  const [pointsToRedeem, setPointsToRedeem] = useState<number | "">(10);
   const [successMsg, setSuccessMsg] = useState("");
 
   const fetchData = async () => {
@@ -35,7 +35,7 @@ export default function LoyaltyPage() {
       setLoading(true);
       const discount = await redeemPointsDb({
         customerId: parseInt(customerId),
-        points: pointsToRedeem,
+        points: Number(pointsToRedeem) || 0,
       });
       setSuccessMsg(`Quy đổi điểm thành công! Khách hàng được giảm giá ${formatCurrency(discount)} trên hóa đơn.`);
       setCustomerId("");
@@ -79,7 +79,18 @@ export default function LoyaltyPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Số điểm quy đổi</label>
-              <input type="number" required min={1} value={pointsToRedeem} onChange={(e) => setPointsToRedeem(parseInt(e.target.value) || 1)} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none font-semibold text-primary" />
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9.]*"
+                required
+                value={pointsToRedeem === "" ? "" : Number(pointsToRedeem).toLocaleString("vi-VN")}
+                onChange={(e) => {
+                  const cleanVal = e.target.value.replace(/\D/g, "");
+                  setPointsToRedeem(cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                }}
+                className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none font-semibold text-primary"
+              />
             </div>
             {successMsg && <p className="text-xs text-success font-semibold bg-success/10 p-2.5 rounded-lg border border-success/20">{successMsg}</p>}
             <button type="submit" className="w-full py-2.5 gradient-primary text-white text-sm font-semibold rounded-xl hover:opacity-90">Tiến hành khấu trừ</button>

@@ -37,9 +37,9 @@ export default function WorkshopPage() {
     reason: string;
     items: {
       productId: string;
-      quantity: number;
+      quantity: number | "";
       priceType: "RETAIL" | "WHOLESALE" | "INSURANCE";
-      customUnitPrice?: number;
+      customUnitPrice?: number | "";
       searchQuery: string;
       showDropdown: boolean;
     }[];
@@ -52,15 +52,26 @@ export default function WorkshopPage() {
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    plateNumber: string;
+    vehicleModel: string;
+    kmIn: number | "";
+    symptoms: string;
+    status: string;
+    technicianId: string;
+    laborCost: number | "";
+    partsCost: number | "";
+    customerId: string;
+    carCondition: string;
+  }>({
     plateNumber: "",
     vehicleModel: "",
-    kmIn: 0,
+    kmIn: "",
     symptoms: "",
     status: "PENDING",
     technicianId: "",
-    laborCost: 0,
-    partsCost: 0,
+    laborCost: "",
+    partsCost: "",
     customerId: "", // auto-populated for demo
     carCondition: "",
   });
@@ -124,7 +135,7 @@ export default function WorkshopPage() {
       const prod = branchProducts.find((p) => p.id.toString() === item.productId);
       if (!prod) return sum;
       const unitPrice = item.customUnitPrice ?? Number(prod.prices.find((p: any) => p.type === item.priceType)?.amount || 0);
-      return sum + (unitPrice * item.quantity);
+      return sum + ((Number(unitPrice) || 0) * (Number(item.quantity) || 0));
     }, 0);
   };
 
@@ -147,9 +158,9 @@ export default function WorkshopPage() {
         createdBy: user?.name || "Cố vấn dịch vụ",
         items: reqFormData.items.map((i) => ({
           productId: parseInt(i.productId),
-          quantity: i.quantity,
+          quantity: Number(i.quantity) || 0,
           priceType: i.priceType,
-          customUnitPrice: i.customUnitPrice
+          customUnitPrice: Number(i.customUnitPrice) || 0
         }))
       };
 
@@ -198,12 +209,12 @@ export default function WorkshopPage() {
     setFormData({
       plateNumber: "",
       vehicleModel: "",
-      kmIn: 0,
+      kmIn: "",
       symptoms: "",
       status: "PENDING",
       technicianId: data?.technicians?.[0]?.id?.toString() || "",
-      laborCost: 0,
-      partsCost: 0,
+      laborCost: "",
+      partsCost: "",
       customerId: data?.customers?.[0]?.id?.toString() || "1",
       carCondition: "",
     });
@@ -507,7 +518,18 @@ export default function WorkshopPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số KM vào xưởng</label>
-                  <input type="number" required value={formData.kmIn} onChange={(e) => setFormData({ ...formData, kmIn: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.kmIn === "" ? "" : Number(formData.kmIn).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, kmIn: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Chỉ định Khách hàng</label>
@@ -538,11 +560,33 @@ export default function WorkshopPage() {
               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/40">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền công thợ</label>
-                  <input type="number" required value={formData.laborCost} onChange={(e) => setFormData({ ...formData, laborCost: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.laborCost === "" ? "" : Number(formData.laborCost).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, laborCost: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền phụ tùng thay thế</label>
-                  <input type="number" required value={formData.partsCost} onChange={(e) => setFormData({ ...formData, partsCost: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    required
+                    value={formData.partsCost === "" ? "" : Number(formData.partsCost).toLocaleString("vi-VN")}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, partsCost: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                    }}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -819,13 +863,16 @@ export default function WorkshopPage() {
                         {/* Quantity Input */}
                         <div className="w-full md:w-24">
                           <input
-                            type="number"
-                            min={0.1}
-                            step="any"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9.]*"
                             required
                             placeholder="SL"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(idx, { quantity: parseFloat(e.target.value) || 1 })}
+                            value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
+                            onChange={(e) => {
+                              const cleanVal = e.target.value.replace(/\D/g, "");
+                              updateItem(idx, { quantity: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                            }}
                             className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none text-center font-bold"
                           />
                         </div>
@@ -846,10 +893,15 @@ export default function WorkshopPage() {
                         {/* Custom Unit Price */}
                         <div className="w-full md:w-36">
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9.]*"
                             placeholder="Đơn giá"
-                            value={item.customUnitPrice ?? ""}
-                            onChange={(e) => updateItem(idx, { customUnitPrice: parseFloat(e.target.value) || 0 })}
+                            value={item.customUnitPrice === undefined || item.customUnitPrice === "" ? "" : Number(item.customUnitPrice).toLocaleString("vi-VN")}
+                            onChange={(e) => {
+                              const cleanVal = e.target.value.replace(/\D/g, "");
+                              updateItem(idx, { customUnitPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                            }}
                             className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none text-right font-semibold text-primary"
                           />
                         </div>
