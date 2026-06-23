@@ -4,6 +4,7 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ["*.ngrok-free.app", "*.ngrok.io", "localhost:3000"],
     },
+    optimizePackageImports: ["lucide-react"],
   },
 };
 

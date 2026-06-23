@@ -139,7 +139,21 @@ export async function GET() {
       };
     }).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0, 5);
 
-    // 7. Last 12 months revenue
+    // 7. Last 12 months revenue (Optimized: 1 query instead of 12)
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
+    twelveMonthsAgo.setDate(1);
+    twelveMonthsAgo.setHours(0, 0, 0, 0);
+
+    const allYearROs = await prisma.repairOrder.findMany({
+      where: {
+        status: { in: ["DONE", "DELIVERED"] },
+        completedAt: { gte: twelveMonthsAgo },
+        ...(branchId ? { branchId } : {}),
+      },
+      select: { completedAt: true, totalAmount: true },
+    });
+
     const monthlyRevenue = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date();
@@ -149,16 +163,10 @@ export async function GET() {
       const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
       const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
       
-      const monthROs = await prisma.repairOrder.findMany({
-        where: {
-          status: { in: ["DONE", "DELIVERED"] },
-          completedAt: { gte: startOfMonth, lte: endOfMonth },
-          ...(branchId ? { branchId } : {}),
-        },
-        select: { totalAmount: true },
-      });
+      const total = allYearROs
+        .filter(ro => ro.completedAt && ro.completedAt >= startOfMonth && ro.completedAt <= endOfMonth)
+        .reduce((sum, ro) => sum + Number(ro.totalAmount) / 1000000, 0); // in millions VND
       
-      const total = monthROs.reduce((sum, ro) => sum + Number(ro.totalAmount) / 1000000, 0); // in millions VND
       monthlyRevenue.push({ label: monthLabel, value: Number(total.toFixed(1)) });
     }
 
