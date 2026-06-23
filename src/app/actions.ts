@@ -351,7 +351,7 @@ export async function updateROStatus(data: {
       const templateData = {
         customer_name: custName.length > 49 ? custName.substring(0, 49) : custName,
         order_date: formatDateForZalo(new Date()),
-        note: noteVal.length > 49 ? noteVal.substring(0, 49) : noteVal,
+        note: noteVal.length > 29 ? noteVal.substring(0, 29) : noteVal,
         point: String(points),
         total_point: String(totalPoint),
       };
@@ -536,8 +536,8 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
   nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
   const nextServiceText = `Thay dầu (${formatDateForZalo(nextServiceDate)})`;
 
-  const rawNote = `Xe ${data.plateNumber}: ${nextServiceText}`;
-  const truncatedNote = rawNote.length > 49 ? rawNote.substring(0, 49) : rawNote;
+  const rawNote = `Thay dầu xe ${data.plateNumber}`;
+  const truncatedNote = rawNote.length > 29 ? rawNote.substring(0, 29) : rawNote;
   const custName = customer.name;
   const truncatedCustName = custName.length > 49 ? custName.substring(0, 49) : custName;
 
@@ -906,9 +906,10 @@ export async function sendCustomZnsAction(data: {
     nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
     const nextServiceText = `${data.messageType === "GENERAL_INSPECT" ? "Kiểm tra" : "Thay dầu"} (${formatDateForZalo(nextServiceDate)})`;
 
-    // Zalo note field has a strict 50-character limit. Shorten and enforce truncation.
-    const rawNote = `Xe ${plate}: ${nextServiceText}`;
-    const truncatedNote = rawNote.length > 49 ? rawNote.substring(0, 49) : rawNote;
+    // Zalo note field has a strict 30-character limit. Shorten and enforce truncation.
+    const actionLabel = data.messageType === "GENERAL_INSPECT" ? "Bảo dưỡng" : "Thay dầu";
+    const rawNote = `${actionLabel} xe ${plate}`;
+    const truncatedNote = rawNote.length > 29 ? rawNote.substring(0, 29) : rawNote;
     const custName = customer.name;
     const truncatedCustName = custName.length > 49 ? custName.substring(0, 49) : custName;
 
