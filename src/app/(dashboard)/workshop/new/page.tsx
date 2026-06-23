@@ -23,7 +23,8 @@ export default function NewRepairOrderPage() {
   const [loading, setLoading] = useState(true);
 
   // Form states
-  const [customerId, setCustomerId] = useState("");
+  const [phone, setPhone] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
   const [kmIn, setKmIn] = useState(0);
@@ -31,6 +32,11 @@ export default function NewRepairOrderPage() {
   const [laborCost, setLaborCost] = useState(0);
   const [symptoms, setSymptoms] = useState("");
   const [carCondition, setCarCondition] = useState("");
+
+  // Search/Suggestions states
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [matchedPlates, setMatchedPlates] = useState<string[]>([]);
 
   // Requisition items state
   const [items, setItems] = useState<RequisitionItemInput[]>([]);
@@ -43,68 +49,6 @@ export default function NewRepairOrderPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Add Customer modal states
-  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
-  const [newCustName, setNewCustName] = useState("");
-  const [newCustPhone, setNewCustPhone] = useState("");
-  const [newCustPlates, setNewCustPlates] = useState("");
-  const [newCustLoading, setNewCustLoading] = useState(false);
-  const [modalError, setModalError] = useState("");
-
-  const handleCreateCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCustName.trim()) {
-      setModalError("Vui lòng nhập tên khách hàng");
-      return;
-    }
-    if (!newCustPhone.trim()) {
-      setModalError("Vui lòng nhập số điện thoại");
-      return;
-    }
-
-    setNewCustLoading(true);
-    setModalError("");
-
-    try {
-      const response = await fetch("/api/crm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "customer",
-          name: newCustName,
-          phone: newCustPhone,
-          vehiclePlates: newCustPlates ? [newCustPlates] : [],
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Gặp lỗi khi tạo khách hàng.");
-      }
-
-      // Add new customer to customers list
-      setCustomers((prev) => [...prev, data]);
-      
-      // Auto select new customer
-      setCustomerId(data.id.toString());
-      if (newCustPlates) {
-        setPlateNumber(newCustPlates);
-      } else {
-        setPlateNumber("");
-      }
-
-      // Reset modal state
-      setNewCustName("");
-      setNewCustPhone("");
-      setNewCustPlates("");
-      setShowAddCustomerModal(false);
-    } catch (err: any) {
-      setModalError(err.message);
-    } finally {
-      setNewCustLoading(false);
-    }
-  };
-
   useEffect(() => {
     Promise.all([
       fetch("/api/crm?tab=customers").then((r) => r.json()),
@@ -112,35 +56,38 @@ export default function NewRepairOrderPage() {
       fetch("/api/inventory?limit=100").then((r) => r.json()),
     ])
       .then(([customerData, techData, invData]) => {
-        const custs = customerData.customers || [];
-        setCustomers(custs);
+        setCustomers(customerData.customers || []);
         setTechnicians(techData.technicians || []);
         setProducts(invData.products || []);
-
-        if (custs.length > 0) {
-          setCustomerId(custs[0].id.toString());
-          const defaultPlates = custs[0].vehiclePlates || [];
-          if (defaultPlates.length > 0) {
-            setPlateNumber(defaultPlates[0]);
-          }
-        }
       })
       .catch((e) => console.error("Error loading form dependencies:", e))
       .finally(() => setLoading(false));
   }, []);
 
-  // Update plateNumber when customer changes
-  const handleCustomerChange = (cId: string) => {
-    setCustomerId(cId);
-    const selectedCust = customers.find((c) => c.id.toString() === cId);
-    if (selectedCust) {
-      const plates = selectedCust.vehiclePlates || [];
-      if (plates.length > 0) {
-        setPlateNumber(plates[0]);
-      } else {
-        setPlateNumber("");
-      }
+  const handlePhoneChange = (val: string) => {
+    setPhone(val);
+    if (val.trim().length > 1) {
+      const filtered = customers.filter((c) =>
+        c.phone.toLowerCase().includes(val.toLowerCase()) ||
+        c.name.toLowerCase().includes(val.toLowerCase())
+      );
+      setSuggestions(filtered);
+      setShowSuggestions(true);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
     }
+  };
+
+  const handleSelectSuggestedCustomer = (c: any) => {
+    setPhone(c.phone);
+    setCustomerName(c.name);
+    if (c.vehiclePlates && c.vehiclePlates.length > 0) {
+      setPlateNumber(c.vehiclePlates[0]);
+    } else {
+      setPlateNumber("");
+    }
+    setShowSuggestions(false);
   };
 
   // Requisition items actions
@@ -197,8 +144,12 @@ export default function NewRepairOrderPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerId) {
-      setErrorMsg("Vui lòng chọn khách hàng.");
+    if (!phone.trim()) {
+      setErrorMsg("Vui lòng nhập số điện thoại khách hàng.");
+      return;
+    }
+    if (!customerName.trim()) {
+      setErrorMsg("Vui lòng nhập họ và tên khách hàng.");
       return;
     }
     if (!plateNumber.trim()) {
@@ -211,8 +162,9 @@ export default function NewRepairOrderPage() {
 
     try {
       const payload = {
-        customerId,
-        plateNumber,
+        customerName: customerName.trim(),
+        phone: phone.trim(),
+        plateNumber: plateNumber.trim(),
         vehicleModel,
         kmIn,
         symptoms,
@@ -293,35 +245,70 @@ export default function NewRepairOrderPage() {
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* KHÁCH HÀNG */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase">Khách hàng</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCustomerModal(true)}
-                    className="text-xs text-primary hover:text-primary/80 font-semibold flex items-center gap-1.5 transition-colors"
-                  >
-                    <Plus size={13} /> Thêm khách hàng mới
-                  </button>
-                </div>
-                <select
+              {/* SỐ ĐIỆN THOẠI */}
+              <div className="relative">
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại *</label>
+                <input
                   required
-                  value={customerId}
-                  onChange={(e) => handleCustomerChange(e.target.value)}
+                  type="text"
+                  value={phone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  onFocus={() => {
+                    if (phone.trim().length > 1) {
+                      setShowSuggestions(true);
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.phone})
-                    </option>
-                  ))}
-                </select>
+                  placeholder="VD: 0912345678 (Nhập để tìm hoặc thêm mới)"
+                />
+                
+                {/* Suggestions List */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40 cursor-default"
+                      onClick={() => setShowSuggestions(false)}
+                    />
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-card border border-border rounded-xl shadow-2xl p-2 max-h-48 overflow-y-auto animate-slide-in-bottom">
+                      {suggestions.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            handleSelectSuggestedCustomer(c);
+                            setMatchedPlates(c.vehiclePlates || []);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-secondary/80 rounded-lg text-xs transition-colors block border-b border-border/20 last:border-0"
+                        >
+                          <div className="font-semibold text-primary">{c.phone}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {c.name} {c.vehiclePlates?.length > 0 ? `(${c.vehiclePlates.join(", ")})` : ""}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
+              {/* HỌ VÀ TÊN KHÁCH HÀNG */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Họ và tên khách hàng *</label>
+                <input
+                  required
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="VD: Nguyễn Văn A"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* BIẾN SỐ XE */}
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Biển số xe</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Biển số xe *</label>
                 <div className="relative">
                   <input
                     required
@@ -330,10 +317,10 @@ export default function NewRepairOrderPage() {
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                     placeholder="VD: 30A-123.45"
                   />
-                  {/* Quick-select if customer has multiple plates */}
-                  {customerId && customers.find((c) => c.id.toString() === customerId)?.vehiclePlates?.length > 1 && (
+                  {/* Quick-select if suggested customer has multiple plates */}
+                  {matchedPlates.length > 0 && (
                     <div className="absolute right-2 top-1.5 flex gap-1.5">
-                      {customers.find((c) => c.id.toString() === customerId)?.vehiclePlates.map((p: string) => (
+                      {matchedPlates.map((p: string) => (
                         <button
                           type="button"
                           key={p}
@@ -349,12 +336,10 @@ export default function NewRepairOrderPage() {
                   )}
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* MODEL XE */}
+              {/* DÒNG XE (MODEL) */}
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Dòng xe (Model)</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Dòng xe (Model) *</label>
                 <input
                   required
                   value={vehicleModel}
@@ -363,7 +348,9 @@ export default function NewRepairOrderPage() {
                   placeholder="VD: Toyota Camry 2026"
                 />
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* SỐ KM */}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số KM khi vào</label>
@@ -376,9 +363,7 @@ export default function NewRepairOrderPage() {
                   placeholder="VD: 45000"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* KỸ THUẬT VIÊN */}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Kỹ thuật viên đảm nhận</label>
@@ -395,7 +380,9 @@ export default function NewRepairOrderPage() {
                   ))}
                 </select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* TIỀN CÔNG THỢ */}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền công thợ dự kiến</label>
@@ -649,96 +636,6 @@ export default function NewRepairOrderPage() {
           </div>
         </div>
       </form>
-      {/* ADD CUSTOMER MODAL */}
-      {showAddCustomerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-in-bottom">
-            {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-border bg-secondary/15 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-primary">
-                <User size={18} />
-                <h3 className="font-bold text-sm uppercase">Thêm khách hàng mới</h3>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setShowAddCustomerModal(false)} 
-                className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-all"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateCustomer}>
-              {/* Modal Body */}
-              <div className="p-5 space-y-4">
-                {modalError && (
-                  <div className="flex items-center gap-2.5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs animate-fade-in">
-                    <AlertCircle size={15} />
-                    <span>{modalError}</span>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tên khách hàng *</label>
-                  <input
-                    required
-                    type="text"
-                    value={newCustName}
-                    onChange={(e) => setNewCustName(e.target.value)}
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                    placeholder="VD: Nguyễn Văn A"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại *</label>
-                  <input
-                    required
-                    type="text"
-                    value={newCustPhone}
-                    onChange={(e) => setNewCustPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                    placeholder="VD: 0912345678"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Biển số xe (nếu có)</label>
-                  <input
-                    type="text"
-                    value={newCustPlates}
-                    onChange={(e) => setNewCustPlates(e.target.value)}
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                    placeholder="VD: 51A-123.45"
-                  />
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="px-5 py-4 border-t border-border bg-secondary/10 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowAddCustomerModal(false)}
-                  className="px-4 py-2 border border-border hover:bg-secondary/40 rounded-xl text-xs font-semibold transition-colors text-center"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={newCustLoading}
-                  className="gradient-primary text-white px-4 py-2 rounded-xl text-xs font-semibold hover:opacity-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-1.5 transition-all"
-                >
-                  {newCustLoading ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <>Tạo khách hàng</>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
