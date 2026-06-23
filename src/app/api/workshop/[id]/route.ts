@@ -60,9 +60,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       include: { customer: true, technician: true },
     });
 
-    // Handle KTV status if completed
-    if (body.status === "DONE" && ro.technicianId && currentRo.status !== "DONE") {
-      await prisma.technician.update({ where: { id: ro.technicianId }, data: { status: "IDLE" } });
+    // Handle completion logic (points, technician status, ZNS)
+    if (body.status === "DONE" && currentRo.status !== "DONE") {
+      if (ro.technicianId) {
+        await prisma.technician.update({ where: { id: ro.technicianId }, data: { status: "IDLE" } });
+      }
+      
       // Send loyalty points & ZNS
       const points = Math.floor(Number(ro.totalAmount) / 1000); // 1 point per 1k VND
       await prisma.customer.update({
@@ -73,6 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           lastVisit: new Date(),
         },
       });
+
       // Ghi log tích điểm (audit trail)
       await prisma.loyaltyTransaction.create({
         data: {
@@ -84,13 +88,46 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           branchId: ro.branchId,
         },
       });
+
+      // Send Zalo ZNS Live
+      let znsStatus = "SUCCESS";
+      let znsError: string | null = null;
+      try {
+        const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
+        const updatedCustomer = await prisma.customer.findUnique({
+          where: { id: ro.customerId },
+          select: { loyaltyPoints: true },
+        });
+        const totalPoint = updatedCustomer?.loyaltyPoints ?? (ro.customer.loyaltyPoints + points);
+        
+        const custName = ro.customer.name;
+        const noteVal = ro.vehicleModel || ro.plateNumber || "Dịch vụ sửa chữa xe";
+        const templateData = {
+          customer_name: custName.length > 49 ? custName.substring(0, 49) : custName,
+          order_date: formatDateForZalo(new Date()),
+          note: noteVal.length > 29 ? noteVal.substring(0, 29) : noteVal,
+          point: String(points),
+          total_point: String(totalPoint),
+        };
+        const result = await sendZaloZns(ro.customer.phone, "CRM_THANK_YOU_001", templateData);
+        if (!result.success) {
+          znsStatus = "FAILED";
+          znsError = result.error || "Lỗi không xác định";
+        }
+      } catch (e: any) {
+        znsStatus = "FAILED";
+        znsError = e.message;
+      }
+
       await prisma.znsLog.create({
         data: {
           customerId: ro.customerId,
           phone: ro.customer.phone,
           messageType: "THANK_YOU",
-          content: `Cảm ơn khách hàng ${ro.customer.name} đã sửa chữa xe ${ro.vehicleModel}. Quý khách tích được +${points} điểm!`,
-          status: "SENT",
+          templateId: "CRM_THANK_YOU_001",
+          content: `Cảm ơn khách hàng ${ro.customer.name} đã sửa chữa xe ${ro.vehicleModel || ro.plateNumber}. Quý khách tích được +${points} điểm!`,
+          status: znsStatus === "SUCCESS" ? "SUCCESS" : "FAILED",
+          error: znsError,
           branchId: ro.branchId,
         },
       });
