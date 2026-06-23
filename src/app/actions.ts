@@ -346,10 +346,12 @@ export async function updateROStatus(data: {
 
     try {
       const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
+      const custName = updatedRo.customer.name;
+      const noteVal = updatedRo.vehicleModel || updatedRo.plateNumber || "Dịch vụ sửa chữa xe";
       const templateData = {
-        customer_name: updatedRo.customer.name,
+        customer_name: custName.length > 49 ? custName.substring(0, 49) : custName,
         order_date: formatDateForZalo(new Date()),
-        note: updatedRo.vehicleModel || updatedRo.plateNumber || "Dịch vụ sửa chữa xe",
+        note: noteVal.length > 49 ? noteVal.substring(0, 49) : noteVal,
         point: String(points),
         total_point: String(totalPoint),
       };
@@ -534,10 +536,17 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
   nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
   const nextServiceText = `Thay dầu (${formatDateForZalo(nextServiceDate)})`;
 
+  const rawNote = `Xe ${data.plateNumber}: ${nextServiceText}`;
+  const truncatedNote = rawNote.length > 49 ? rawNote.substring(0, 49) : rawNote;
+  const custName = customer.name;
+  const truncatedCustName = custName.length > 49 ? custName.substring(0, 49) : custName;
+
   const templateData = {
-    customerName: customer.name,
-    vehiclePlate: data.plateNumber,
-    nextService: nextServiceText
+    customer_name: truncatedCustName,
+    order_date: formatDateForZalo(new Date()),
+    note: truncatedNote,
+    point: "0",
+    total_point: String(customer.loyaltyPoints || 0),
   };
 
   const result = await sendZaloZns(data.phone, "CRM_OIL_REMIND_002", templateData);
@@ -897,10 +906,16 @@ export async function sendCustomZnsAction(data: {
     nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
     const nextServiceText = `${data.messageType === "GENERAL_INSPECT" ? "Kiểm tra" : "Thay dầu"} (${formatDateForZalo(nextServiceDate)})`;
 
+    // Zalo note field has a strict 50-character limit. Shorten and enforce truncation.
+    const rawNote = `Xe ${plate}: ${nextServiceText}`;
+    const truncatedNote = rawNote.length > 49 ? rawNote.substring(0, 49) : rawNote;
+    const custName = customer.name;
+    const truncatedCustName = custName.length > 49 ? custName.substring(0, 49) : custName;
+
     const templateData = {
-      customer_name: customer.name,
+      customer_name: truncatedCustName,
       order_date: formatDateForZalo(new Date()),
-      note: `Nhắc dịch vụ cho xe ${plate} (${nextServiceText})`,
+      note: truncatedNote,
       point: "0",
       total_point: String(customer.loyaltyPoints || 0),
     };
