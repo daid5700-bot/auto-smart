@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown, X, User } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/store";
@@ -42,6 +42,68 @@ export default function NewRepairOrderPage() {
   // Feedback states
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Add Customer modal states
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [newCustName, setNewCustName] = useState("");
+  const [newCustPhone, setNewCustPhone] = useState("");
+  const [newCustPlates, setNewCustPlates] = useState("");
+  const [newCustLoading, setNewCustLoading] = useState(false);
+  const [modalError, setModalError] = useState("");
+
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustName.trim()) {
+      setModalError("Vui lòng nhập tên khách hàng");
+      return;
+    }
+    if (!newCustPhone.trim()) {
+      setModalError("Vui lòng nhập số điện thoại");
+      return;
+    }
+
+    setNewCustLoading(true);
+    setModalError("");
+
+    try {
+      const response = await fetch("/api/crm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "customer",
+          name: newCustName,
+          phone: newCustPhone,
+          vehiclePlates: newCustPlates ? [newCustPlates] : [],
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Gặp lỗi khi tạo khách hàng.");
+      }
+
+      // Add new customer to customers list
+      setCustomers((prev) => [...prev, data]);
+      
+      // Auto select new customer
+      setCustomerId(data.id.toString());
+      if (newCustPlates) {
+        setPlateNumber(newCustPlates);
+      } else {
+        setPlateNumber("");
+      }
+
+      // Reset modal state
+      setNewCustName("");
+      setNewCustPhone("");
+      setNewCustPlates("");
+      setShowAddCustomerModal(false);
+    } catch (err: any) {
+      setModalError(err.message);
+    } finally {
+      setNewCustLoading(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -233,7 +295,16 @@ export default function NewRepairOrderPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* KHÁCH HÀNG */}
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Khách hàng</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase">Khách hàng</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCustomerModal(true)}
+                    className="text-xs text-primary hover:text-primary/80 font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Plus size={13} /> Thêm khách hàng mới
+                  </button>
+                </div>
                 <select
                   required
                   value={customerId}
@@ -578,6 +649,96 @@ export default function NewRepairOrderPage() {
           </div>
         </div>
       </form>
+      {/* ADD CUSTOMER MODAL */}
+      {showAddCustomerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-in-bottom">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-border bg-secondary/15 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-primary">
+                <User size={18} />
+                <h3 className="font-bold text-sm uppercase">Thêm khách hàng mới</h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowAddCustomerModal(false)} 
+                className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCustomer}>
+              {/* Modal Body */}
+              <div className="p-5 space-y-4">
+                {modalError && (
+                  <div className="flex items-center gap-2.5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs animate-fade-in">
+                    <AlertCircle size={15} />
+                    <span>{modalError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tên khách hàng *</label>
+                  <input
+                    required
+                    type="text"
+                    value={newCustName}
+                    onChange={(e) => setNewCustName(e.target.value)}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    placeholder="VD: Nguyễn Văn A"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại *</label>
+                  <input
+                    required
+                    type="text"
+                    value={newCustPhone}
+                    onChange={(e) => setNewCustPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    placeholder="VD: 0912345678"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Biển số xe (nếu có)</label>
+                  <input
+                    type="text"
+                    value={newCustPlates}
+                    onChange={(e) => setNewCustPlates(e.target.value)}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    placeholder="VD: 51A-123.45"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-5 py-4 border-t border-border bg-secondary/10 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomerModal(false)}
+                  className="px-4 py-2 border border-border hover:bg-secondary/40 rounded-xl text-xs font-semibold transition-colors text-center"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={newCustLoading}
+                  className="gradient-primary text-white px-4 py-2 rounded-xl text-xs font-semibold hover:opacity-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  {newCustLoading ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <>Tạo khách hàng</>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

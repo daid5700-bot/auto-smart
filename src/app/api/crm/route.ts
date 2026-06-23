@@ -208,6 +208,7 @@ export async function POST(req: NextRequest) {
           email: body.email || null,
           address: body.address || null,
           source: body.source || "WALKIN",
+          vehiclePlates: body.vehiclePlates ? (typeof body.vehiclePlates === "string" ? body.vehiclePlates.split(",").map((p: string) => p.trim()) : body.vehiclePlates) : [],
           tags: body.tags ? (typeof body.tags === "string" ? body.tags.split(",").map((t: string) => t.trim()) : body.tags) : [],
           branchId,
         } as any
