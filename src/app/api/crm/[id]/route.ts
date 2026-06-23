@@ -22,6 +22,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (typeof updateData.tags === "string") {
         updateData.tags = updateData.tags.trim() ? updateData.tags.split(",").map((t: string) => t.trim()) : [];
       }
+      if (updateData.birthday) {
+        updateData.birthday = new Date(updateData.birthday);
+      } else if (updateData.hasOwnProperty("birthday")) {
+        updateData.birthday = null;
+      }
       const customer = await prisma.customer.update({
         where: { id },
         data: updateData,

@@ -16,7 +16,7 @@ export default function CustomersPage() {
   
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "vip" | "inactive">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "vip" | "service" | "purchase" | "inactive">("all");
 
   // Modal State for CRUD
   const [modalOpen, setModalOpen] = useState(false);
@@ -27,6 +27,7 @@ export default function CustomersPage() {
     source: "WALKIN",
     email: "",
     address: "",
+    birthday: "",
     tags: "",
   });
 
@@ -69,6 +70,7 @@ export default function CustomersPage() {
       source: "WALKIN",
       email: "",
       address: "",
+      birthday: "",
       tags: "",
     });
     setModalOpen(true);
@@ -82,6 +84,7 @@ export default function CustomersPage() {
       source: c.source,
       email: c.email || "",
       address: c.address || "",
+      birthday: c.birthday ? c.birthday.substring(0, 10) : "",
       tags: c.tags ? c.tags.join(", ") : "",
     });
     setModalOpen(true);
@@ -104,6 +107,7 @@ export default function CustomersPage() {
           email: formData.email,
           address: formData.address,
           source: formData.source,
+          birthday: formData.birthday || null,
           tags: formData.tags,
         }),
       });
@@ -137,6 +141,12 @@ export default function CustomersPage() {
     // Tab filter
     if (activeTab === "vip") {
       return Number(c.totalSpent) >= 20000000 || (c.tags && c.tags.includes("VIP"));
+    }
+    if (activeTab === "service") {
+      return c.repairOrders && c.repairOrders.length > 0;
+    }
+    if (activeTab === "purchase") {
+      return c.vehicles && c.vehicles.length > 0;
     }
     if (activeTab === "inactive") {
       if (!c.lastVisit) return true;
@@ -190,6 +200,24 @@ export default function CustomersPage() {
             Tất cả khách hàng
           </button>
           <button
+            onClick={() => setActiveTab("purchase")}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === "purchase" ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20" : "bg-card border border-border text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50"
+            }`}
+          >
+            <Car size={12} />
+            Khách mua xe
+          </button>
+          <button
+            onClick={() => setActiveTab("service")}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeTab === "service" ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20" : "bg-card border border-border text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50"
+            }`}
+          >
+            <CalendarClock size={12} />
+            Khách sử dụng dịch vụ
+          </button>
+          <button
             onClick={() => setActiveTab("vip")}
             className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               activeTab === "vip" ? "bg-amber-500 text-white shadow-sm shadow-amber-500/20" : "bg-card border border-border text-amber-600 dark:text-amber-400 hover:bg-amber-50"
@@ -218,7 +246,6 @@ export default function CustomersPage() {
               <th>Số điện thoại</th>
               <th>Địa chỉ email</th>
               <th>Biển số xe / Dòng xe</th>
-              <th>Lần ghé cuối</th>
               <th>Điểm tích lũy</th>
               <th>Tổng chi tiêu (VND)</th>
               <th className="w-[100px]">Thao tác</th>
@@ -229,19 +256,26 @@ export default function CustomersPage() {
               const isVip = Number(c.totalSpent) >= 20000000 || (c.tags && c.tags.includes("VIP"));
               return (
                 <tr key={c.id}>
-                  <td className="font-semibold">
-                    <div className="flex items-center gap-1.5">
-                      <span>{c.name}</span>
-                      {isVip && (
-                        <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">
-                          VIP
-                        </span>
+                  <td className="font-semibold py-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm text-foreground">{c.name}</span>
+                        {isVip && (
+                          <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">
+                            VIP
+                          </span>
+                        )}
+                        {(c.tags || []).filter((t: string) => t !== "VIP").map((t: string) => (
+                          <span key={t} className="bg-blue-100 text-blue-800 text-[9px] font-semibold px-1 py-0.5 rounded mr-1">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      {c.birthday && (
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-normal">
+                          <span>🎂 {formatDate(c.birthday)}</span>
+                        </div>
                       )}
-                      {(c.tags || []).filter((t: string) => t !== "VIP").map((t: string) => (
-                        <span key={t} className="bg-blue-100 text-blue-800 text-[9px] font-semibold px-1 py-0.5 rounded mr-1">
-                          {t}
-                        </span>
-                      ))}
                     </div>
                   </td>
                   <td>{c.phone}</td>
@@ -256,9 +290,6 @@ export default function CustomersPage() {
                       {(!c.vehiclePlates || c.vehiclePlates.length === 0) && <span className="text-muted-foreground text-xs">—</span>}
                     </div>
                   </td>
-                  <td className="text-xs text-muted-foreground">
-                    {c.lastVisit ? formatDate(c.lastVisit) : "Chưa ghé thăm"}
-                  </td>
                   <td className="font-bold text-amber-600">{c.loyaltyPoints} điểm</td>
                   <td className="font-bold text-primary">{formatCurrency(Number(c.totalSpent))}</td>
                   <td>
@@ -272,7 +303,7 @@ export default function CustomersPage() {
             })}
             {filteredCustomers.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                <td colSpan={7} className="text-center py-8 text-muted-foreground">
                   Không tìm thấy khách hàng nào khớp với bộ lọc
                 </td>
               </tr>
@@ -319,9 +350,15 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Địa chỉ</label>
-                <input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: 123 Nguyễn Trãi, Thanh Xuân, Hà Nội" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Ngày sinh</label>
+                  <input type="date" value={formData.birthday} onChange={(e) => setFormData({ ...formData, birthday: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Địa chỉ</label>
+                  <input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: 123 Nguyễn Trãi, Hà Nội" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Phân loại / Tags (Phân tách bằng dấu phẩy)</label>

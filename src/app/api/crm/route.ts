@@ -29,6 +29,10 @@ export async function GET(req: NextRequest) {
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where: (branchId ? { branchId } : {}) as any,
+        include: {
+          vehicles: true,
+          repairOrders: true,
+        },
         orderBy: { totalSpent: "desc" },
         skip,
         take: limit,
@@ -198,6 +202,7 @@ export async function POST(req: NextRequest) {
           email: body.email || null,
           address: body.address || null,
           source: body.source || "WALKIN",
+          birthday: body.birthday ? new Date(body.birthday) : null,
           vehiclePlates: body.vehiclePlates ? (typeof body.vehiclePlates === "string" ? body.vehiclePlates.split(",").map((p: string) => p.trim()) : body.vehiclePlates) : [],
           tags: body.tags ? (typeof body.tags === "string" ? body.tags.split(",").map((t: string) => t.trim()) : body.tags) : [],
           branchId,
