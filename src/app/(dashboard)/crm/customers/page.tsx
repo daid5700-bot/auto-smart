@@ -16,7 +16,7 @@ export default function CustomersPage() {
   
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "vip" | "inactive" | "camry" | "bmw" | "vios">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "vip" | "inactive">("all");
 
   // Modal State for CRUD
   const [modalOpen, setModalOpen] = useState(false);
@@ -144,15 +144,6 @@ export default function CustomersPage() {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       return diffDays >= 90;
     }
-    if (activeTab === "camry") {
-      return c.vehiclePlates && c.vehiclePlates.some((plate: string) => plate.toLowerCase().includes("camry") || c.name.toLowerCase().includes("camry"));
-    }
-    if (activeTab === "bmw") {
-      return c.vehiclePlates && c.vehiclePlates.some((plate: string) => plate.toLowerCase().includes("bmw"));
-    }
-    if (activeTab === "vios") {
-      return c.vehiclePlates && c.vehiclePlates.some((plate: string) => plate.toLowerCase().includes("vios"));
-    }
 
     return true;
   });
@@ -215,33 +206,6 @@ export default function CustomersPage() {
           >
             <CalendarClock size={12} />
             Đã lâu chưa quay lại (&gt; 90 ngày)
-          </button>
-          <button
-            onClick={() => setActiveTab("camry")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === "camry" ? "bg-blue-600 text-white" : "bg-card border border-border text-muted-foreground hover:bg-secondary/40"
-            }`}
-          >
-            <Car size={12} />
-            Sở hữu Camry
-          </button>
-          <button
-            onClick={() => setActiveTab("bmw")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === "bmw" ? "bg-blue-600 text-white" : "bg-card border border-border text-muted-foreground hover:bg-secondary/40"
-            }`}
-          >
-            <Car size={12} />
-            Sở hữu BMW
-          </button>
-          <button
-            onClick={() => setActiveTab("vios")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === "vios" ? "bg-blue-600 text-white" : "bg-card border border-border text-muted-foreground hover:bg-secondary/40"
-            }`}
-          >
-            <Car size={12} />
-            Sở hữu Vios
           </button>
         </div>
       </div>

@@ -323,7 +323,12 @@ export async function updateROStatus(data: {
     }
 
     // Add customer loyalty points
-    const points = Math.floor(Number(updatedRo.totalAmount) * 0.01 / 1000); // 1% rate, 1 point per 1k VND
+    const configPointsRate = await prisma.systemConfig.findUnique({
+      where: { key: "points_rate" }
+    });
+    const pointsRatePercent = configPointsRate ? parseFloat(configPointsRate.value) : 1.0;
+    const points = Math.max(0, Math.floor((Number(updatedRo.totalAmount) * (pointsRatePercent / 100)) / 1000));
+
     await prisma.customer.update({
       where: { id: updatedRo.customerId },
       data: {

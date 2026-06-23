@@ -67,7 +67,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
       
       // Send loyalty points & ZNS
-      const points = Math.floor(Number(ro.totalAmount) / 1000); // 1 point per 1k VND
+      const configPointsRate = await prisma.systemConfig.findUnique({
+        where: { key: "points_rate" }
+      });
+      const pointsRatePercent = configPointsRate ? parseFloat(configPointsRate.value) : 1.0;
+      const points = Math.max(0, Math.floor((Number(ro.totalAmount) * (pointsRatePercent / 100)) / 1000));
+
       await prisma.customer.update({
         where: { id: ro.customerId },
         data: {
@@ -83,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           customerId: ro.customerId,
           type: "EARN",
           points: points,
-          description: `Tích điểm từ lệnh sửa chữa #${ro.id} - ${ro.vehicleModel || ro.plateNumber}`,
+          description: `Tích điểm từ lệnh sửa chữa #${ro.id} - ${ro.vehicleModel || ro.plateNumber} (tỷ lệ ${pointsRatePercent}%)`,
           relatedRoId: ro.id,
           branchId: ro.branchId,
         },
