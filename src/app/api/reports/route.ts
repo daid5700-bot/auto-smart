@@ -1,23 +1,50 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 
-// GET /api/reports — full branch-scoped ERP report
-export async function GET() {
+// GET /api/reports — full branch-scoped ERP report with date range filtering
+export async function GET(req: NextRequest) {
   try {
-    const branchId = getActiveBranchId();
-    const where = branchId ? { branchId } : {};
+    const { searchParams } = req.nextUrl;
+    const startDateStr = searchParams.get("startDate");
+    const endDateStr = searchParams.get("endDate");
 
-    // --- Date helpers ---
+    let startDate: Date | undefined = undefined;
+    let endDate: Date | undefined = undefined;
+
+    if (startDateStr) {
+      const parsed = new Date(startDateStr);
+      if (!isNaN(parsed.getTime())) {
+        startDate = parsed;
+      }
+    }
+    if (endDateStr) {
+      const parsed = new Date(endDateStr);
+      if (!isNaN(parsed.getTime())) {
+        endDate = parsed;
+        endDate.setHours(23, 59, 59, 999);
+      }
+    }
+
+    const branchId = getActiveBranchId();
+    const baseWhere: any = branchId ? { branchId } : {};
+
+    // Default dates for comparison if not filtering
     const now = new Date();
     const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
+    // Current period and previous period calculation
+    const startRange = startDate || startOfCurrentMonth;
+    const endRange = endDate || now;
+    const diffTime = endRange.getTime() - startRange.getTime();
+
+    const prevEnd = new Date(startRange.getTime() - 1);
+    const prevStart = new Date(startRange.getTime() - diffTime);
+
     // --- Summary stats ---
     const [
-      totalRepairOrders,
-      completedRepairOrders,
       activeKtv,
       totalCustomers,
       newCustomersThisMonth,
@@ -26,71 +53,74 @@ export async function GET() {
       totalVehiclesAvailable,
       totalVehiclesSold,
     ] = await Promise.all([
-      prisma.repairOrder.count({ where }),
-      prisma.repairOrder.count({ where: { ...where, status: { in: ["DONE", "DELIVERED"] } } }),
-      prisma.technician.count({ where: { ...where, status: "WORKING" } }),
-      prisma.customer.count({ where }),
-      prisma.customer.count({ where: { ...where, createdAt: { gte: startOfCurrentMonth } } }),
-      prisma.lead.count({ where: { ...where, createdAt: { gte: startOfCurrentMonth } } }),
-      prisma.lead.count({ where: { ...where, status: "CONVERTED" } }),
-      prisma.vehicle.count({ where: { ...where, status: "AVAILABLE" } }),
-      prisma.vehicle.count({ where: { ...where, status: "SOLD" } }),
+      prisma.technician.count({ where: { ...baseWhere, status: "WORKING" } }),
+      prisma.customer.count({ where: baseWhere }),
+      prisma.customer.count({ where: { ...baseWhere, createdAt: { gte: startRange, lte: endRange } } }),
+      prisma.lead.count({ where: { ...baseWhere, createdAt: { gte: startRange, lte: endRange } } }),
+      prisma.lead.count({ where: { ...baseWhere, status: "CONVERTED", updatedAt: { gte: startRange, lte: endRange } } }),
+      prisma.vehicle.count({ where: { ...baseWhere, status: "AVAILABLE" } }),
+      prisma.vehicle.count({ where: { ...baseWhere, status: "SOLD", updatedAt: { gte: startRange, lte: endRange } } }),
     ]);
 
     // --- Workshop revenue (from completed repair orders) ---
     const completedOrders = await prisma.repairOrder.findMany({
-      where: { ...where, status: { in: ["DONE", "DELIVERED"] } },
+      where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] } },
       select: { totalAmount: true, createdAt: true },
     });
 
     const totalWorkshopRevenue = completedOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
 
-    // Revenue last month for comparison
-    const lastMonthOrders = completedOrders.filter((ro) => {
+    const currentPeriodOrders = completedOrders.filter((ro) => {
       const d = new Date(ro.createdAt);
-      return d >= startOfLastMonth && d <= endOfLastMonth;
+      return d >= startRange && d <= endRange;
     });
-    const lastMonthRevenue = lastMonthOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
-    const currentMonthOrders = completedOrders.filter((ro) => new Date(ro.createdAt) >= startOfCurrentMonth);
-    const currentMonthRevenue = currentMonthOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+    const currentMonthRevenue = currentPeriodOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+
+    const prevPeriodOrders = completedOrders.filter((ro) => {
+      const d = new Date(ro.createdAt);
+      return d >= prevStart && d <= prevEnd;
+    });
+    const lastMonthRevenue = prevPeriodOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+
     const revenueGrowth = lastMonthRevenue > 0
       ? Math.round(((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
       : null;
 
-    // --- Repair orders last month vs current month ---
-    const lastMonthROCount = await prisma.repairOrder.count({
-      where: { ...where, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
-    });
-    const currentMonthROCount = await prisma.repairOrder.count({
-      where: { ...where, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: startOfCurrentMonth } },
-    });
+    const currentMonthROCount = currentPeriodOrders.length;
+    const lastMonthROCount = prevPeriodOrders.length;
     const roGrowth = lastMonthROCount > 0
       ? Math.round(((currentMonthROCount - lastMonthROCount) / lastMonthROCount) * 100)
       : null;
 
-    // --- Monthly revenue chart (last 6 months) ---
+    const completedRepairOrders = currentPeriodOrders.length;
+
+    // --- Monthly revenue chart (6 months ending at endRange) ---
     const monthlyRevenue: { month: string; revenue: number }[] = [];
+    const chartEnd = endRange;
     for (let i = 5; i >= 0; i--) {
-      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+      const start = new Date(chartEnd.getFullYear(), chartEnd.getMonth() - i, 1);
+      const end = new Date(chartEnd.getFullYear(), chartEnd.getMonth() - i + 1, 0, 23, 59, 59);
       const monthLabel = start.toLocaleDateString("vi-VN", { month: "short", year: "numeric" });
-      const orders = await prisma.repairOrder.findMany({
-        where: { ...where, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: start, lte: end } },
-        select: { totalAmount: true },
+      const orders = completedOrders.filter((ro) => {
+        const d = new Date(ro.createdAt);
+        return d >= start && d <= end;
       });
       const revenue = orders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
       monthlyRevenue.push({ month: monthLabel, revenue });
     }
 
-    // --- Top selling products (from OrderItems) ---
+    // --- Top selling products (from OrderItems in current period) ---
     const orderItemGroups = await prisma.orderItem.groupBy({
       by: ["productId"],
       _sum: { quantity: true, totalPrice: true },
       orderBy: { _sum: { totalPrice: "desc" } },
       take: 5,
-      where: branchId
-        ? { repairOrder: { branchId } }
-        : {},
+      where: {
+        ...(branchId ? { repairOrder: { branchId } } : {}),
+        repairOrder: {
+          createdAt: { gte: startRange, lte: endRange }
+        }
+      },
     });
 
     const topProductIds = orderItemGroups.map((g) => g.productId);
@@ -109,9 +139,13 @@ export async function GET() {
       };
     });
 
-    // --- Recent completed repair orders ---
+    // --- Recent completed repair orders in current period ---
     const recentOrders = await prisma.repairOrder.findMany({
-      where: { ...where, status: { in: ["DONE", "DELIVERED"] } },
+      where: {
+        ...baseWhere,
+        status: { in: ["DONE", "DELIVERED"] },
+        createdAt: { gte: startRange, lte: endRange }
+      },
       orderBy: { updatedAt: "desc" },
       take: 5,
       include: { customer: { select: { name: true } }, technician: { select: { name: true } } },
@@ -121,7 +155,10 @@ export async function GET() {
     const leadsStatusRaw = await prisma.lead.groupBy({
       by: ["status"],
       _count: true,
-      where,
+      where: {
+        ...baseWhere,
+        createdAt: { gte: startRange, lte: endRange }
+      },
     });
     const leadsBreakdown = leadsStatusRaw.reduce((acc: Record<string, number>, l) => {
       acc[l.status] = l._count;
@@ -132,7 +169,10 @@ export async function GET() {
     const customerSourceRaw = await prisma.customer.groupBy({
       by: ["source"],
       _count: true,
-      where,
+      where: {
+        ...baseWhere,
+        createdAt: { gte: startRange, lte: endRange }
+      },
     });
     const customerSources = customerSourceRaw.reduce((acc: Record<string, number>, c) => {
       acc[c.source] = c._count;

@@ -12,11 +12,17 @@ export async function GET(req: NextRequest) {
     let endDate: Date | undefined = undefined;
 
     if (startDateStr) {
-      startDate = new Date(startDateStr);
+      const parsed = new Date(startDateStr);
+      if (!isNaN(parsed.getTime())) {
+        startDate = parsed;
+      }
     }
     if (endDateStr) {
-      endDate = new Date(endDateStr);
-      endDate.setHours(23, 59, 59, 999);
+      const parsed = new Date(endDateStr);
+      if (!isNaN(parsed.getTime())) {
+        endDate = parsed;
+        endDate.setHours(23, 59, 59, 999);
+      }
     }
 
     const branchId = getActiveBranchId();

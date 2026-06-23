@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import {
   BarChart3, TrendingUp, TrendingDown, Users, DollarSign, Wrench,
-  Car, Package, Loader2, Download, Printer, Minus, RefreshCw
+  Car, Package, Loader2, Download, Printer, Minus, RefreshCw, X, Calendar
 } from "lucide-react";
 import { formatCurrency, exportToCsv } from "@/lib/utils";
 
@@ -65,8 +65,8 @@ const SOURCE_LABELS: Record<string, string> = {
 
 function GrowthBadge({ value }: { value: number | null }) {
   if (value === null) return <span className="text-[10px] text-muted-foreground">Chưa đủ dữ liệu</span>;
-  if (value > 0) return <div className="text-[10px] text-green-600 font-semibold flex items-center gap-1"><TrendingUp size={10} />+{value}% so với tháng trước</div>;
-  if (value < 0) return <div className="text-[10px] text-red-500 font-semibold flex items-center gap-1"><TrendingDown size={10} />{value}% so với tháng trước</div>;
+  if (value > 0) return <div className="text-[10px] text-green-600 font-semibold flex items-center gap-1"><TrendingUp size={10} />+{value}% so với kỳ trước</div>;
+  if (value < 0) return <div className="text-[10px] text-red-500 font-semibold flex items-center gap-1"><TrendingDown size={10} />{value}% so với kỳ trước</div>;
   return <div className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1"><Minus size={10} />Không thay đổi</div>;
 }
 
@@ -74,12 +74,18 @@ export default function ReportsPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/reports");
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+
+      const res = await fetch(`/api/reports?${params}`);
       if (!res.ok) throw new Error("Không thể tải báo cáo");
       const json = await res.json();
       setData(json);
@@ -90,17 +96,17 @@ export default function ReportsPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [startDate, endDate]);
 
   const handleExportExcel = () => {
     if (!data) return;
     const headers = ["Danh mục báo cáo", "Chỉ số / Giá trị", "Đánh giá chi tiết"];
     const rows: string[][] = [
-      ["Doanh thu xưởng (tháng này)", formatCurrency(data.summary.currentMonthRevenue), data.summary.revenueGrowth !== null ? `${data.summary.revenueGrowth > 0 ? "+" : ""}${data.summary.revenueGrowth}% so với tháng trước` : "—"],
-      ["Lệnh sửa chữa hoàn thành", `${data.summary.completedRepairOrders} lệnh`, `Tháng này: ${data.summary.currentMonthROCount}`],
+      ["Doanh thu xưởng (kỳ này)", formatCurrency(data.summary.currentMonthRevenue), data.summary.revenueGrowth !== null ? `${data.summary.revenueGrowth > 0 ? "+" : ""}${data.summary.revenueGrowth}% so với kỳ trước` : "—"],
+      ["Lệnh sửa chữa hoàn thành", `${data.summary.completedRepairOrders} lệnh`, `Kỳ này: ${data.summary.currentMonthROCount}`],
       ["KTV đang hoạt động", `${data.summary.activeKtv} KTV`, ""],
-      ["Tổng khách hàng", `${data.summary.totalCustomers}`, `Mới tháng này: ${data.summary.newCustomersThisMonth}`],
-      ["Leads mới tháng này", `${data.summary.newLeadsThisMonth}`, `Đã chuyển đổi: ${data.summary.convertedLeads}`],
+      ["Tổng khách hàng", `${data.summary.totalCustomers}`, `Mới trong kỳ: ${data.summary.newCustomersThisMonth}`],
+      ["Leads mới trong kỳ", `${data.summary.newLeadsThisMonth}`, `Đã chuyển đổi: ${data.summary.convertedLeads}`],
       ["Xe sẵn có / Đã bán", `${data.summary.totalVehiclesAvailable} / ${data.summary.totalVehiclesSold}`, ""],
       ["", "", ""],
       ["PHỤ TÙNG BÁN CHẠY NHẤT", "SỐ LƯỢNG", "DOANH THU"],
@@ -136,24 +142,52 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6 stagger">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-5 border-b border-border">
         <div>
           <h2 className="text-2xl font-bold">Báo cáo & Phân tích ERP</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Báo cáo doanh số bán xe, doanh thu sửa chữa dịch vụ xưởng, và hiệu suất chăm sóc khách hàng
-            {!data.branchId && <span className="ml-1 text-amber-500 font-semibold">(Tổng hợp tất cả cơ sở)</span>}
-          </p>
+       
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={fetchData} className="bg-card border border-border hover:bg-secondary text-foreground px-3 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all">
-            <RefreshCw size={15} /> Làm mới
-          </button>
-          <button onClick={handlePrint} className="bg-card border border-border hover:bg-secondary text-foreground px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all w-fit">
-            <Printer size={16} /> In báo cáo (PDF)
-          </button>
-          <button onClick={handleExportExcel} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all w-fit">
-            <Download size={16} /> Xuất Excel
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {/* Time Filter Group */}
+          <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl px-3 py-1.5 shadow-sm text-xs font-semibold">
+            <span className="text-muted-foreground">Từ ngày:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
+            />
+            <span className="text-muted-foreground border-l border-border pl-2">Đến:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
+            />
+            {(startDate || endDate) && (
+              <button
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="text-muted-foreground hover:text-destructive transition-colors ml-1"
+                title="Xóa bộ lọc"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={fetchData} className="bg-card border border-border hover:bg-secondary text-foreground p-2.5 rounded-xl text-sm font-semibold flex items-center justify-center transition-all" title="Làm mới">
+              <RefreshCw size={15} />
+            </button>
+            <button onClick={handlePrint} className="bg-card border border-border hover:bg-secondary text-foreground px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all w-fit">
+              <Printer size={16} /> In báo cáo (PDF)
+            </button>
+            <button onClick={handleExportExcel} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all w-fit">
+              <Download size={16} /> Xuất Excel
+            </button>
+          </div>
         </div>
       </div>
 
@@ -161,7 +195,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="glass-card rounded-xl p-5 space-y-2">
           <div className="flex justify-between items-center text-muted-foreground">
-            <span className="text-xs font-semibold uppercase">Doanh thu xưởng (tháng này)</span>
+            <span className="text-xs font-semibold uppercase">Doanh thu xưởng {startDate || endDate ? "(kỳ chọn)" : "(tháng này)"}</span>
             <DollarSign size={18} className="text-primary" />
           </div>
           <p className="text-2xl font-black">{formatCurrency(data.summary.currentMonthRevenue)}</p>
@@ -174,7 +208,7 @@ export default function ReportsPage() {
             <Wrench size={18} className="text-primary" />
           </div>
           <p className="text-2xl font-black">{data.summary.completedRepairOrders} lệnh</p>
-          <div className="text-[10px] text-muted-foreground">Tháng này: {data.summary.currentMonthROCount} lệnh</div>
+          <div className="text-[10px] text-muted-foreground">{startDate || endDate ? "Kỳ chọn:" : "Tháng này:"} {data.summary.currentMonthROCount} lệnh</div>
         </div>
 
         <div className="glass-card rounded-xl p-5 space-y-2">
@@ -183,7 +217,7 @@ export default function ReportsPage() {
             <Users size={18} className="text-primary" />
           </div>
           <p className="text-2xl font-black">{data.summary.totalCustomers.toLocaleString("vi-VN")}</p>
-          <div className="text-[10px] text-green-600 font-semibold">+{data.summary.newCustomersThisMonth} mới tháng này</div>
+          <div className="text-[10px] text-green-600 font-semibold">+{data.summary.newCustomersThisMonth} mới {startDate || endDate ? "trong kỳ" : "tháng này"}</div>
         </div>
 
         <div className="glass-card rounded-xl p-5 space-y-2">
@@ -200,7 +234,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Revenue Bar Chart */}
         <div className="glass-card rounded-xl p-6 space-y-4">
-          <h3 className="font-bold">Biểu đồ doanh thu xưởng 6 tháng gần nhất</h3>
+          <h3 className="font-bold">Biểu đồ doanh thu xưởng 6 tháng {startDate || endDate ? "(tính đến kỳ lọc)" : "gần nhất"}</h3>
           {data.monthlyRevenue.every((m) => m.revenue === 0) ? (
             <div className="h-64 flex items-center justify-center text-muted-foreground text-sm italic">Chưa có dữ liệu doanh thu</div>
           ) : (

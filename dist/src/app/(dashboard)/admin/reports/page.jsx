@@ -23,7 +23,6 @@ function ReportsPage() {
     return (<div className="space-y-6 stagger">
       <div>
         <h2 className="text-2xl font-bold">Báo cáo & Phân tích ERP</h2>
-        <p className="text-muted-foreground text-sm mt-1">Báo cáo doanh số bán xe, doanh thu sửa chữa dịch vụ xưởng, và hiệu suất chăm sóc khách hàng</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
