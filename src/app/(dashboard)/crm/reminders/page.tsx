@@ -183,6 +183,7 @@ export default function RemindersPage() {
         fetchData();
       } else {
         alert("Lỗi khi gửi tin ZNS: " + res.error);
+        console.error("Lỗi khi gửi tin ZNS: ", res.error);
       }
     } catch (e: any) {
       console.error(e);

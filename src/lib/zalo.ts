@@ -196,6 +196,9 @@ export async function sendZaloZns(
   console.log(`[ZNS] 🏷️  Tracking ID: ${trackingId}`);
 
   const makeRequest = async (token: string) => {
+    console.log(`[ZNS] 🚀 Gửi yêu cầu POST đến https://business.openapi.zalo.me/message/template`);
+    console.log(`[ZNS] 🚀 Headers: { access_token: "${token.substring(0, 10)}...", Content-Type: "application/json" }`);
+    console.log(`[ZNS] 🚀 Payload gửi đi:`, JSON.stringify(payload, null, 2));
     return fetch("https://business.openapi.zalo.me/message/template", {
       method: "POST",
       headers: {
@@ -210,7 +213,9 @@ export async function sendZaloZns(
     let response = await makeRequest(accessToken);
     let resData = await response.json();
 
+    console.log(`[ZNS] 📨 Zalo API HTTP Status: ${response.status}`);
     console.log(`[ZNS] 📨 Phản hồi từ Zalo: error=${resData.error}, message=${resData.message}`);
+    console.log(`[ZNS] 📨 Chi tiết phản hồi:`, JSON.stringify(resData, null, 2));
 
     // Auto-refresh khi token hết hạn hoặc không hợp lệ (-124, -216, -301)
     if (resData.error === -124 || resData.error === -216 || resData.error === -301) {
@@ -221,6 +226,7 @@ export async function sendZaloZns(
         response = await makeRequest(newAccessToken);
         resData = await response.json();
         console.log(`[ZNS] 📨 Phản hồi sau khi dùng token mới: error=${resData.error}, message=${resData.message}`);
+        console.log(`[ZNS] 📨 Chi tiết phản hồi sau refresh:`, JSON.stringify(resData, null, 2));
       } catch (refreshErr: any) {
         console.warn(`⚠️ [ZNS] Lấy token mới thất bại: ${refreshErr.message}`);
       }
@@ -231,21 +237,23 @@ export async function sendZaloZns(
       console.warn("⚠️ DB token failed. Attempting fallback with process.env.ZALO_OA_ACCESS_TOKEN...");
       try {
         const envToken = process.env.ZALO_OA_ACCESS_TOKEN;
+        console.log(`[ZNS] 🚀 Thử gửi lại với token env (10 ký tự đầu): ${envToken.substring(0, 10)}...`);
         const envResponse = await makeRequest(envToken);
         const envResData = await envResponse.json();
+        console.log(`[ZNS] 📨 Phản hồi từ token env:`, JSON.stringify(envResData, null, 2));
         
         if (envResData.error === 0) {
-          console.log("✅ Fallback with process.env token succeeded! Syncing new tokens to DB...");
+          console.log("✅ Fallback với token env thành công! Đồng bộ token mới vào DB...");
           await updateZaloCredentials({
             ZALO_OA_ACCESS_TOKEN: envToken,
             ZALO_REFRESH_TOKEN: process.env.ZALO_REFRESH_TOKEN || "",
           });
           resData = envResData;
         } else {
-          console.warn("⚠️ Fallback token in process.env also failed:", envResData);
+          console.warn("⚠️ Fallback token env cũng thất bại:", envResData);
         }
       } catch (fallbackErr: any) {
-        console.error("❌ Fallback token attempt errored:", fallbackErr.message);
+        console.error("❌ Fallback token env lỗi:", fallbackErr.message);
       }
     }
 
@@ -254,12 +262,26 @@ export async function sendZaloZns(
       console.log("[ZNS] ====== KẾT THÚC GỬI ZNS ======");
       return { success: true, data: resData };
     } else {
-      console.error(`[ZNS] ❌ GỬI THẤT BẠI đến ${formattedPhone} | Lỗi ${resData.error}: ${resData.message}`);
+      const detailedError = `Lỗi Zalo API [Mã ${resData.error}]: ${resData.message} | Phản hồi đầy đủ: ${JSON.stringify(resData)}`;
+      console.error(`[ZNS] ❌ GỬI THẤT BẠI đến ${formattedPhone} | ${detailedError}`);
       console.log("[ZNS] ====== KẾT THÚC GỬI ZNS ======");
-      return { success: false, error: resData.message || `Error code: ${resData.error}` };
+      return { success: false, error: detailedError };
     }
   } catch (error: any) {
-    console.error(`❌ Network error while sending ZNS to ${formattedPhone}:`, error.message);
-    return { success: false, error: error.message };
+    const networkError = `Lỗi kết nối mạng khi gửi ZNS đến ${formattedPhone}: ${error.message}`;
+    console.error(`❌ ${networkError}`, error);
+    return { success: false, error: networkError };
   }
 }
+
+// Format date strictly to DD/MM/YYYY for Zalo ZNS API parameters
+export function formatDateForZalo(dateInput: Date | string | number | null | undefined): string {
+  if (!dateInput) return "";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+

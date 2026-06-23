@@ -341,19 +341,18 @@ export async function updateROStatus(data: {
     });
     const totalPoint = updatedCustomer?.loyaltyPoints ?? points;
 
-    const templateData = {
-      customer_name: updatedRo.customer.name,
-      order_date: new Date().toLocaleDateString("vi-VN"),
-      note: updatedRo.vehicleModel || updatedRo.plateNumber || "Dịch vụ sửa chữa xe",
-      point: String(points),
-      total_point: String(totalPoint),
-    };
-
     let znsStatus = "SUCCESS";
     let znsError: string | null = null;
 
     try {
-      const { sendZaloZns } = await import("@/lib/zalo");
+      const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
+      const templateData = {
+        customer_name: updatedRo.customer.name,
+        order_date: formatDateForZalo(new Date()),
+        note: updatedRo.vehicleModel || updatedRo.plateNumber || "Dịch vụ sửa chữa xe",
+        point: String(points),
+        total_point: String(totalPoint),
+      };
       const result = await sendZaloZns(updatedRo.customer.phone, "CRM_THANK_YOU_001", templateData);
       if (!result.success) {
         znsStatus = "FAILED";
@@ -530,9 +529,10 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
     throw new Error("Khách hàng không thuộc chi nhánh hiện tại");
   }
 
+  const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
   const nextServiceDate = new Date();
   nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
-  const nextServiceText = `Thay dầu (${nextServiceDate.toLocaleDateString("vi-VN")})`;
+  const nextServiceText = `Thay dầu (${formatDateForZalo(nextServiceDate)})`;
 
   const templateData = {
     customerName: customer.name,
@@ -540,7 +540,6 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
     nextService: nextServiceText
   };
 
-  const { sendZaloZns } = await import("@/lib/zalo");
   const result = await sendZaloZns(data.phone, "CRM_OIL_REMIND_002", templateData);
 
   let status = "SUCCESS";
@@ -893,19 +892,19 @@ export async function sendCustomZnsAction(data: {
       ? Number(lastRo.totalAmount).toLocaleString("vi-VN") + "đ"
       : Number(customer.totalSpent).toLocaleString("vi-VN") + "đ";
 
+    const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
     const nextServiceDate = new Date();
     nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
-    const nextServiceText = `${data.messageType === "GENERAL_INSPECT" ? "Kiểm tra" : "Thay dầu"} (${nextServiceDate.toLocaleDateString("vi-VN")})`;
+    const nextServiceText = `${data.messageType === "GENERAL_INSPECT" ? "Kiểm tra" : "Thay dầu"} (${formatDateForZalo(nextServiceDate)})`;
 
     const templateData = {
       customer_name: customer.name,
-      order_date: new Date().toLocaleDateString("vi-VN"),
+      order_date: formatDateForZalo(new Date()),
       note: `Nhắc dịch vụ cho xe ${plate} (${nextServiceText})`,
       point: "0",
       total_point: String(customer.loyaltyPoints || 0),
     };
 
-    const { sendZaloZns } = await import("@/lib/zalo");
     const result = await sendZaloZns(data.phone, data.templateId, templateData);
 
     if (!result.success) {
