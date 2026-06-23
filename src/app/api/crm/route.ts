@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
       const lastVehicle = c.vehicles && c.vehicles[0];
       const purchaseDate = lastVehicle ? new Date(lastVehicle.createdAt) : new Date(c.createdAt);
       const vehicleDueDate = new Date(purchaseDate);
-      vehicleDueDate.setMonth(vehicleDueDate.getMonth() + 6);
+      vehicleDueDate.setMonth(vehicleDueDate.getMonth() + 3);
       const vehicleDiff = Math.ceil((vehicleDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       
       const hasRecentVehicleZns = c.znsLogs.some(log => 
@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
       // 2. Repair Order Reminder (Dịch vụ sửa chữa)
       const repairDate = lastRo?.completedAt ? new Date(lastRo.completedAt) : (c.lastVisit ? new Date(c.lastVisit) : new Date(c.createdAt));
       const repairDueDate = new Date(repairDate);
-      repairDueDate.setMonth(repairDueDate.getMonth() + 6);
+      repairDueDate.setMonth(repairDueDate.getMonth() + 3);
       const repairDiff = Math.ceil((repairDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
       const hasRecentRepairZns = c.znsLogs.some(log => 
