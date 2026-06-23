@@ -27,9 +27,9 @@ export default function NewRepairOrderPage() {
   const [customerName, setCustomerName] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
-  const [kmIn, setKmIn] = useState(0);
+  const [kmIn, setKmIn] = useState<number | "">("");
   const [technicianId, setTechnicianId] = useState("");
-  const [laborCost, setLaborCost] = useState(0);
+  const [laborCost, setLaborCost] = useState<number | "">("");
   const [symptoms, setSymptoms] = useState("");
   const [carCondition, setCarCondition] = useState("");
 
@@ -137,7 +137,7 @@ export default function NewRepairOrderPage() {
 
   // Calculations
   const partsCostTotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const totalAmount = laborCost + partsCostTotal;
+  const totalAmount = (Number(laborCost) || 0) + partsCostTotal;
   const vatEstimate = totalAmount * 0.1;
 
   const totalPartsQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -355,10 +355,15 @@ export default function NewRepairOrderPage() {
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số KM khi vào</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
                   value={kmIn}
-                  onChange={(e) => setKmIn(parseInt(e.target.value) || 0)}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, "");
+                    setKmIn(cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                  }}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   placeholder="VD: 45000"
                 />
@@ -387,10 +392,15 @@ export default function NewRepairOrderPage() {
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền công thợ dự kiến</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
                   value={laborCost}
-                  onChange={(e) => setLaborCost(parseInt(e.target.value) || 0)}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, "");
+                    setLaborCost(cleanVal === "" ? "" : parseInt(cleanVal, 10));
+                  }}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   placeholder="VD: 150000"
                 />
@@ -533,19 +543,27 @@ export default function NewRepairOrderPage() {
                           </td>
                           <td className="p-2">
                             <input
-                              type="number"
-                              min="1"
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={item.quantity}
-                              onChange={(e) => handleItemQuantityChange(index, parseInt(e.target.value) || 1)}
+                              onChange={(e) => {
+                                const cleanVal = e.target.value.replace(/\D/g, "");
+                                handleItemQuantityChange(index, cleanVal === "" ? 1 : parseInt(cleanVal, 10));
+                              }}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-center outline-none"
                             />
                           </td>
                           <td className="p-2">
                             <input
-                              type="number"
-                              min="0"
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={item.unitPrice}
-                              onChange={(e) => handleItemPriceChange(index, parseInt(e.target.value) || 0)}
+                              onChange={(e) => {
+                                const cleanVal = e.target.value.replace(/\D/g, "");
+                                handleItemPriceChange(index, cleanVal === "" ? 0 : parseInt(cleanVal, 10));
+                              }}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-primary outline-none"
                             />
                           </td>
@@ -583,7 +601,7 @@ export default function NewRepairOrderPage() {
               <div className="space-y-3.5 pt-4 border-t border-border/40">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Tiền công thợ:</span>
-                  <span className="text-sm font-semibold">{formatCurrency(laborCost)}</span>
+                  <span className="text-sm font-semibold">{formatCurrency(Number(laborCost) || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Tiền phụ tùng:</span>
