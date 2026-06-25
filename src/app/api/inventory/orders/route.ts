@@ -10,10 +10,12 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const search = searchParams.get("search") || "";
+    const customerId = searchParams.get("customerId");
     const branchId = getActiveBranchId();
 
     const where: any = {};
     if (branchId) where.branchId = branchId;
+    if (customerId) where.customerId = parseInt(customerId);
     
     if (search) {
       where.OR = [

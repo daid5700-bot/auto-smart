@@ -80,7 +80,7 @@ export default function InventoryOrdersPage() {
         </Link>
       </div>
 
-      <div className="bg-card border border-border p-4 rounded-xl shadow-sm flex items-center gap-4">
+      <div className="flex items-center gap-4 mb-2">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
@@ -88,7 +88,7 @@ export default function InventoryOrdersPage() {
             placeholder="Tìm theo mã đơn, tên hoặc SĐT khách..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-secondary/20 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"
           />
         </div>
       </div>
@@ -201,12 +201,15 @@ export default function InventoryOrdersPage() {
                   Khách trả thêm
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9.]*"
                   required
-                  min="1"
-                  max={selectedOrder.debtAmount}
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  value={paymentAmount === "" ? "" : Number(paymentAmount).toLocaleString("vi-VN")}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setPaymentAmount(val === "" ? "" : Number(val).toString());
+                  }}
                   className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

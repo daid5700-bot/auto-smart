@@ -130,6 +130,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const parsedListPrice = Number(listPrice) || 0;
+    const parsedPlateCost = plateCost !== undefined ? Number(plateCost) : 0;
+    const accessories = JSON.parse(accessoriesJson || "[]");
+    const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
+    const initialDebtAmount = parsedListPrice + parsedPlateCost + accCost;
+
     const vehicle = await prisma.vehicle.create({
       data: {
         vin,
@@ -138,13 +144,14 @@ export async function POST(req: NextRequest) {
         color: color || null,
         year: Number(year) || new Date().getFullYear(),
         status: status || "AVAILABLE",
-        listPrice: Number(listPrice) || 0,
+        listPrice: parsedListPrice,
         floorPrice: Number(floorPrice) || 0,
         image: image || null,
         bankStatus: bankStatus || "NONE",
         plateStatus: plateStatus || "PENDING",
-        plateCost: plateCost !== undefined ? Number(plateCost) : 0,
+        plateCost: parsedPlateCost,
         accessoriesJson: accessoriesJson || "[]",
+        debtAmount: initialDebtAmount,
         notes: notes || null,
         customerId,
         branchId,

@@ -167,7 +167,7 @@ export default function DocumentsPage() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
+      <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
@@ -175,7 +175,7 @@ export default function DocumentsPage() {
             placeholder="Tìm theo số khung (VIN), dòng xe, tên hoặc SĐT khách hàng..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-secondary/20 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/30 outline-none shadow-sm"
           />
         </div>
         
@@ -184,7 +184,7 @@ export default function DocumentsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-secondary/30 border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+            className="px-3 py-2.5 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm"
           >
             <option value="ALL">Tất cả xe thủ tục</option>
             <option value="RESERVED">Đã Đặt Cọc</option>
@@ -470,18 +470,12 @@ export default function DocumentsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-bold text-muted-foreground">Phụ tùng / Dịch vụ mua kèm</p>
-                    {!selectedVehicle.accessoriesDeducted ? (
-                      <button 
-                        onClick={() => handleExportAccessories(selectedVehicle.id)}
-                        className="text-[10px] bg-primary text-white font-bold px-2 py-1 rounded hover:bg-primary/90 transition-colors"
-                      >
-                        Xuất Kho Phụ Kiện
-                      </button>
-                    ) : (
-                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-1 rounded border border-emerald-500/20">
-                        Đã Xuất Kho
-                      </span>
-                    )}
+                    <button 
+                      onClick={() => handleExportAccessories(selectedVehicle.id)}
+                      className="text-[10px] bg-primary text-white font-bold px-2 py-1 rounded hover:bg-primary/90 transition-colors"
+                    >
+                      Xuất Kho Phụ Kiện
+                    </button>
                   </div>
                   <div className="bg-secondary/10 border border-border rounded-xl p-3">
                     <ul className="space-y-2 text-sm">

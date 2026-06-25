@@ -404,15 +404,10 @@ export default function SalesPage() {
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Năm sản xuất</label>
                   <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                    type="number"
                     required
-                    value={formData.year === "" ? "" : Number(formData.year).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, year: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    value={formData.year}
+                    onChange={(e) => setFormData({ ...formData, year: e.target.value === "" ? "" : parseInt(e.target.value, 10) })}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>

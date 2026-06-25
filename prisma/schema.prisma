@@ -237,7 +237,6 @@ model Vehicle {
   plateStatus     String?
   plateCost       Decimal?  @default(0)
   accessoriesJson String?   @default("[]")
-  accessoriesDeducted Boolean @default(false)
   notes           String?
   branchId        Int?
   branch          Branch?   @relation(fields: [branchId], references: [id])

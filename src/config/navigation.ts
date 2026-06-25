@@ -19,6 +19,7 @@ const NAV: NavSection[] = [
     { title: "Lệnh xuất/nhập kho", href: "/inventory/movements", icon: Warehouse, perm: "inventory.manage" },
     { title: "Lịch sử phiếu kho", href: "/inventory/history", icon: ClipboardList, perm: "inventory.manage" },
     { title: "Duyệt yêu cầu xuất", href: "/inventory/requisitions", icon: ClipboardList, perm: "inventory.manage" },
+    { title: "Khách hàng (Công nợ)", href: "/inventory/customers", icon: Users, perm: "inventory.manage" },
   ]},
   { title: "Xưởng dịch vụ", items: [
     { title: "Thống kê dịch vụ", href: "/workshop/stats", icon: TrendingUp, perm: "workshop.view" },

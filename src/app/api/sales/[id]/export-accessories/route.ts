@@ -24,6 +24,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, "");
     const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
     const code = `PKX-${dateStr}-${randomStr}`; // Phụ Kiện Xe
+    
+    // Check if already exported
+    const existingOrder = await prisma.inventoryOrder.findFirst({
+      where: { reason: `Xuất phụ kiện bán kèm xe VIN: ${vehicle.vin}` }
+    });
+    if (existingOrder) {
+      return NextResponse.json({ error: "Phụ kiện của xe này đã được xuất kho trước đó!" }, { status: 400 });
+    }
 
     const userRole = req.cookies.get("user_role")?.value || "Hệ thống";
     

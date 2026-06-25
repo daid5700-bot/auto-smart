@@ -864,12 +864,15 @@ export default function MovementsPage() {
                   Khách trả thêm
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9.]*"
                   required
-                  min="1"
-                  max={selectedOrderForPayment.debtAmount}
-                  value={paymentInput}
-                  onChange={(e) => setPaymentInput(e.target.value)}
+                  value={paymentInput === "" ? "" : Number(paymentInput).toLocaleString("vi-VN")}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setPaymentInput(val);
+                  }}
                   className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Loader2, DollarSign, X, Edit3, Eye } from "lucide-react";
+import { Loader2, DollarSign, X, Edit3, Eye, Search } from "lucide-react";
 
 export default function InventoryHistoryPage() {
   const [history, setHistory] = useState<any[]>([]);
@@ -10,6 +10,18 @@ export default function InventoryHistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("ALL");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   // Payment update modal
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -68,7 +80,7 @@ export default function InventoryHistoryPage() {
   const fetchMovements = async (p: number) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/inventory/movements?page=${p}&limit=50`);
+      const res = await fetch(`/api/inventory/movements?page=${p}&limit=50&search=${encodeURIComponent(debouncedSearch)}`);
       const data = await res.json();
       setHistory(data.movements || []);
       if (data.pagination) {
@@ -83,9 +95,18 @@ export default function InventoryHistoryPage() {
 
   useEffect(() => {
     fetchMovements(currentPage);
-  }, [currentPage]);
+  }, [currentPage, debouncedSearch]);
 
   const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
+
+  const filteredReceipts = useMemo(() => {
+    if (activeTab === "ALL") return groupedReceipts;
+    return groupedReceipts.filter(r => r.type === activeTab);
+  }, [groupedReceipts, activeTab]);
+
+  const importCount = groupedReceipts.filter(r => r.type === "IMPORT").length;
+  const exportCount = groupedReceipts.filter(r => r.type === "EXPORT").length;
+  const allCount = groupedReceipts.length;
 
   const submitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,9 +139,40 @@ export default function InventoryHistoryPage() {
           PHÒNG PHỤ TÙNG
         </p>
         <h2 className="text-3xl font-black tracking-tight">Lịch sử phiếu kho</h2>
-        <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
-          Danh sách toàn bộ các phiếu xuất, nhập, kiểm kê và lịch sử công nợ của kho.
-        </p>
+      </div>
+
+      <div className="flex overflow-x-auto no-scrollbar border-b border-border mb-4 mt-2">
+        <button 
+          onClick={() => setActiveTab("ALL")} 
+          className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "ALL" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          Tất cả <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "ALL" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{allCount}</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab("IMPORT")} 
+          className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "IMPORT" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          Phiếu Nhập <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "IMPORT" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{importCount}</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab("EXPORT")} 
+          className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "EXPORT" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          Phiếu Xuất <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "EXPORT" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{exportCount}</span>
+        </button>
+      </div>
+
+      <div className="flex items-center gap-4 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+          <input
+            type="text"
+            placeholder="Tìm theo khách hàng, SĐT, ghi chú..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"
+          />
+        </div>
       </div>
 
       <div className="border border-border bg-card overflow-hidden rounded-xl">
@@ -128,13 +180,13 @@ export default function InventoryHistoryPage() {
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-secondary/30 border-b border-border">
               <tr>
-                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Mã phiếu</th>
+                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Khách hàng</th>
+                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">SĐT</th>
                 <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Thời gian</th>
                 <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Loại phiếu</th>
                 <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Người lập</th>
-                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Số mặt hàng</th>
                 <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Tổng tiền</th>
-                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Thanh toán & Công nợ</th>
+                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Nợ</th>
                 <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Ghi chú</th>
                 <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">Hành động</th>
               </tr>
@@ -146,14 +198,14 @@ export default function InventoryHistoryPage() {
                     <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
                   </td>
                 </tr>
-              ) : groupedReceipts.length === 0 ? (
+              ) : filteredReceipts.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="text-center py-8 text-muted-foreground text-sm">
                     Chưa có lịch sử giao dịch nào.
                   </td>
                 </tr>
               ) : (
-                groupedReceipts.map((r: any) => {
+                filteredReceipts.map((r: any) => {
                   const receiptCode = getReceiptCode(r.type, r.createdAt);
                   return (
                     <tr 
@@ -161,9 +213,25 @@ export default function InventoryHistoryPage() {
                       onClick={() => setSelectedReceipt(r)}
                       className="hover:bg-primary/[0.02] cursor-pointer transition-colors"
                     >
-                      <td className="px-4 py-3 font-mono font-bold text-primary text-xs">{receiptCode}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {r.inventoryOrder?.customer ? (
+                          <span className="font-bold text-primary truncate block max-w-[150px]">{r.inventoryOrder.customer.name}</span>
+                        ) : r.inventoryOrder ? (
+                          <span className="italic text-muted-foreground">Khách vô danh</span>
+                        ) : (
+                          <span className="text-muted-foreground italic">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {r.inventoryOrder?.customer ? (
+                          <span className="font-mono">{r.inventoryOrder.customer.phone}</span>
+                        ) : (
+                          <span className="text-muted-foreground italic">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {formatDate(r.createdAt)} {new Date(r.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })}
+                        <div className="font-semibold text-foreground">{formatDate(r.createdAt)}</div>
+                        <div className="text-[10px]">{new Date(r.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-[10px] font-bold px-2 py-1 uppercase rounded-md ${
@@ -175,39 +243,22 @@ export default function InventoryHistoryPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs font-medium">{r.createdBy}</td>
-                      <td className="px-4 py-3 text-xs font-semibold">{r.items.length} mặt hàng</td>
                       <td className="px-4 py-3 text-xs font-bold text-foreground">
                         {r.inventoryOrder ? formatCurrency(r.inventoryOrder.totalAmount) : formatCurrency(r.totalAmount)}
                       </td>
                       <td className="px-4 py-3 text-xs">
                         {r.inventoryOrder ? (
                           <div className="space-y-0.5">
-                            {r.inventoryOrder.customer ? (
-                              <div className="font-bold text-primary truncate max-w-[150px]">{r.inventoryOrder.customer.name}</div>
-                            ) : <div className="italic text-muted-foreground">Khách vô danh</div>}
                             <div className="text-emerald-600 font-semibold">Đã trả: {formatCurrency(Number(r.inventoryOrder.paidAmount))}</div>
                             <div className="text-rose-600 font-semibold">Còn nợ: {formatCurrency(Number(r.inventoryOrder.debtAmount))}</div>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground italic">Không có nợ</span>
+                          <span className="text-muted-foreground italic">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground truncate max-w-[150px]">{r.reason || "—"}</td>
                       <td className="px-4 py-3 text-xs text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex items-center gap-1.5">
-                          {r.inventoryOrder && (
-                            <button
-                              onClick={() => {
-                                setSelectedOrderForPayment(r.inventoryOrder);
-                                setPaymentInput(r.inventoryOrder.paidAmount);
-                                setPaymentModalOpen(true);
-                              }}
-                              className="p-1.5 hover:bg-emerald-500/10 rounded-lg text-emerald-500 transition-colors"
-                              title="Sửa thanh toán"
-                            >
-                              <Edit3 size={14} />
-                            </button>
-                          )}
                           <button
                             onClick={() => setSelectedReceipt(r)}
                             className="p-1.5 hover:bg-secondary rounded-lg text-primary transition-colors"
@@ -443,12 +494,15 @@ export default function InventoryHistoryPage() {
                   </button>
                 </div>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9.]*"
                   required
-                  min="0"
-                  max={selectedOrderForPayment.totalAmount}
-                  value={paymentInput}
-                  onChange={(e) => setPaymentInput(e.target.value)}
+                  value={paymentInput === "" ? "" : Number(paymentInput).toLocaleString("vi-VN")}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setPaymentInput(val);
+                  }}
                   className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

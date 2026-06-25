@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
     const type = searchParams.get("type") || undefined;
+    const search = searchParams.get("search") || "";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const branchId = getActiveBranchId();
@@ -15,6 +16,16 @@ export async function GET(req: NextRequest) {
     if (type) where.type = type;
     if (branchId) {
       where.product = { branchId };
+    }
+
+    if (search) {
+      where.OR = [
+        { reason: { contains: search, mode: "insensitive" } },
+        { createdBy: { contains: search, mode: "insensitive" } },
+        { inventoryOrder: { customer: { name: { contains: search, mode: "insensitive" } } } },
+        { inventoryOrder: { customer: { phone: { contains: search } } } },
+        { inventoryOrder: { code: { contains: search, mode: "insensitive" } } }
+      ];
     }
 
     const total = await prisma.stockMovement.count({ where });
