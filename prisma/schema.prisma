@@ -55,6 +55,7 @@ model Branch {
   znsLogs      ZnsLog[]
   loyaltyTx    LoyaltyTransaction[]
   partsRequisitions PartsRequisition[]
+  inventoryOrders InventoryOrder[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -111,10 +112,36 @@ model StockMovement {
   totalCost     Decimal  @default(0)
   reason        String?
   relatedRoId   Int?
+  inventoryOrderId Int?
+  inventoryOrder InventoryOrder? @relation(fields: [inventoryOrderId], references: [id], onDelete: Cascade)
   createdBy     String
   createdAt     DateTime @default(now())
 
   @@index([productId])
+  @@index([createdAt])
+  @@index([inventoryOrderId])
+}
+
+model InventoryOrder {
+  id            Int             @id @default(autoincrement())
+  code          String          @unique
+  customerId    Int?
+  customer      Customer?       @relation(fields: [customerId], references: [id])
+  type          String          // EXPORT_RETAIL, EXPORT_WHOLESALE, INTERNAL
+  totalAmount   Decimal         @default(0)
+  paidAmount    Decimal         @default(0)
+  debtAmount    Decimal         @default(0)
+  status        String          @default("PAID") // PAID, DEBT, CANCELLED
+  reason        String?
+  movements     StockMovement[]
+  branchId      Int?
+  branch        Branch?         @relation(fields: [branchId], references: [id])
+  createdBy     String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([customerId])
+  @@index([branchId])
   @@index([createdAt])
 }
 
@@ -152,6 +179,8 @@ model RepairOrder {
   laborCost     Decimal       @default(0)
   partsCost     Decimal       @default(0)
   totalAmount   Decimal       @default(0)
+  paidAmount    Decimal       @default(0)
+  debtAmount    Decimal       @default(0)
   photos        String[]
   completedAt   DateTime?
   partsRequisitions PartsRequisition[]
@@ -199,6 +228,8 @@ model Vehicle {
   status          String   @default("AVAILABLE") // AVAILABLE, RESERVED, INCOMING, SOLD
   listPrice       Decimal
   floorPrice      Decimal
+  paidAmount      Decimal   @default(0)
+  debtAmount      Decimal   @default(0)
   image           String?
   customerId      Int?
   customer        Customer? @relation(fields: [customerId], references: [id])
@@ -227,11 +258,13 @@ model Customer {
   source         String           @default("WALKIN") // FACEBOOK, WEBSITE, WALKIN, REFERRAL
   loyaltyPoints  Int              @default(0)
   totalSpent     Decimal          @default(0)
+  totalDebt      Decimal          @default(0)
   lastVisit      DateTime?
   birthday       DateTime?
   vehiclePlates  String[]
   tags           String[]
   repairOrders   RepairOrder[]
+  inventoryOrders InventoryOrder[]
   vehicles       Vehicle[]
   leads          Lead[]
   znsLogs        ZnsLog[]

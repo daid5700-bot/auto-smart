@@ -276,7 +276,7 @@ export async function createManualAdjust(data: {
     }
 
     return { movements: movementsCreated };
-  });
+  }, { timeout: 15000, maxWait: 15000 });
 
   return { success: true, movements: results.movements };
 }
@@ -680,7 +680,7 @@ export async function createManualExport(data: {
     }
 
     return { movements: movementsCreated, items: orderItemsCreated };
-  });
+  }, { timeout: 10000, maxWait: 10000 });
 
   // Recalculate bill if REPAIR
   if (data.exportType === "REPAIR" && data.repairOrderId) {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { 
   Loader2, FileText, Plus, Edit, Trash2, Search, User, 
-  Sparkles, Wrench, Check, Car
+  Sparkles, Wrench, Check, Car, DollarSign, X, Eye
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -21,6 +21,48 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, RESERVED, SOLD
+
+  // Payment & Detail Modal State
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+  const [paymentAmount, setPaymentAmount] = useState<string>("");
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  const openDetailModal = (v: any) => {
+    setSelectedVehicle(v);
+    setDetailModalOpen(true);
+  };
+
+  const openPaymentModal = (v: any) => {
+    setSelectedVehicle(v);
+    setPaymentAmount(v.paidAmount?.toString() || "0");
+    setPaymentModalOpen(true);
+  };
+
+  const submitPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVehicle || !paymentAmount) return;
+    try {
+      setSubmittingPayment(true);
+      const res = await fetch(`/api/sales/vehicles/${selectedVehicle.id}/payment`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: Number(paymentAmount) }),
+      });
+      if (res.ok) {
+        setPaymentModalOpen(false);
+        fetchData();
+      } else {
+        const err = await res.json();
+        alert("Lỗi: " + err.error);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -41,7 +83,8 @@ export default function DocumentsPage() {
 
   const parseAccessories = (jsonStr: string): Accessory[] => {
     try {
-      return JSON.parse(jsonStr || "[]");
+      if (!jsonStr) return [];
+      return JSON.parse(jsonStr);
     } catch (e) {
       return [];
     }
@@ -140,8 +183,7 @@ export default function DocumentsPage() {
               <th className="p-4">Dòng xe & Phiên bản</th>
               <th className="p-4">Khách hàng mua</th>
               <th className="p-4">Tiến độ Ngân hàng (Trả góp)</th>
-              <th className="p-4">Thủ tục biển số</th>
-              <th className="p-4">Dịch vụ & Ghi chú</th>
+              <th className="p-4">Thanh toán & Công nợ</th>
               <th className="p-4 text-center">Thao tác</th>
             </tr>
           </thead>
@@ -156,7 +198,18 @@ export default function DocumentsPage() {
                     {v.vin}
                   </td>
                   <td className="p-4">
-                    <div className="font-bold text-foreground">{v.model}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold text-foreground">{v.model}</div>
+                      {v.status === "SOLD" ? (
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold uppercase">
+                          Đã Bán
+                        </span>
+                      ) : (
+                        <span className="text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold uppercase">
+                          Đã Cọc
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] text-muted-foreground font-medium mt-0.5">
                       {v.variant} • {v.color || "Khác"} • {v.year}
                     </div>
@@ -200,51 +253,30 @@ export default function DocumentsPage() {
                   </td>
                   <td className="p-4">
                     <div className="space-y-1">
-                      {v.plateStatus === "PENDING" ? (
-                        <span className="badge bg-rose-500/10 text-rose-600 border border-rose-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
-                          Đợi biển / Chờ nộp thuế
-                        </span>
-                      ) : v.plateStatus === "TAX_PAID" ? (
-                        <span className="badge bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
-                          Đã nộp thuế trước bạ
-                        </span>
-                      ) : (
-                        <span className="badge bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
-                          Đã có biển & Bàn giao
-                        </span>
-                      )}
-                      {plateCostVal > 0 && (
-                        <div className="text-[10px] text-muted-foreground font-semibold">
-                          Phí làm biển: <span className="text-foreground font-bold">{formatCurrency(plateCostVal)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-4 max-w-[220px]">
-                    <div className="space-y-1">
-                      {accessoriesList.length > 0 && (
-                        <div className="text-[10px]">
-                          <span className="text-primary font-bold">Phụ tùng mua kèm:</span>
-                          <div className="flex flex-wrap gap-1 mt-0.5">
-                            {accessoriesList.map(a => (
-                              <span key={a.id} className="bg-secondary/40 px-1.5 py-0.5 rounded text-[9px] font-semibold border border-border text-foreground">
-                                {a.name} x{a.quantity}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {notesText ? (
-                        <div className="text-muted-foreground italic text-[10px] line-clamp-2 mt-1" title={notesText}>
-                          "{notesText}"
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground italic text-[10px]">Không có ghi chú.</span>
-                      )}
+                      <div className="text-[10px] text-muted-foreground font-semibold">
+                        Đã trả: <span className="text-emerald-600 font-bold">{formatCurrency(Number(v.paidAmount || 0))}</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-semibold">
+                        Còn nợ: <span className="text-rose-600 font-bold">{formatCurrency(Number(v.debtAmount || 0))}</span>
+                      </div>
                     </div>
                   </td>
                   <td className="p-4 text-center">
                     <div className="inline-flex items-center gap-1.5">
+                      <button
+                        onClick={() => openDetailModal(v)}
+                        className="p-1.5 hover:bg-blue-500/10 rounded-lg text-blue-500 transition-colors"
+                        title="Xem chi tiết"
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <button
+                        onClick={() => openPaymentModal(v)}
+                        className="p-1.5 hover:bg-emerald-500/10 rounded-lg text-emerald-500 transition-colors"
+                        title="Cập nhật thanh toán"
+                      >
+                        <DollarSign size={14} />
+                      </button>
                       <Link
                         href={`/sales/documents/edit/${v.id}`}
                         className="p-1.5 hover:bg-secondary rounded-lg text-primary transition-colors"
@@ -266,7 +298,7 @@ export default function DocumentsPage() {
             })}
             {filteredVehicles.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-12 text-center text-muted-foreground italic">
+                <td colSpan={8} className="p-12 text-center text-muted-foreground italic">
                   {loading ? (
                     <div className="flex items-center justify-center gap-2 text-primary font-bold">
                       <Loader2 className="w-5 h-5 animate-spin" /> Đang tải danh sách hồ sơ xe...
@@ -280,6 +312,194 @@ export default function DocumentsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Payment Modal */}
+      {paymentModalOpen && selectedVehicle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h3 className="text-lg font-bold">Cập nhật thanh toán</h3>
+              <button onClick={() => setPaymentModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={submitPayment} className="p-6 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-1">Khách hàng</p>
+                <p className="font-bold">{selectedVehicle.customer?.name} ({selectedVehicle.customer?.phone})</p>
+              </div>
+              <div className="flex justify-between items-center bg-secondary/20 p-3 rounded-xl border border-border">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground">Tổng tiền xe</p>
+                  <p className="font-bold text-foreground">{formatCurrency(Number(selectedVehicle.paidAmount || 0) + Number(selectedVehicle.debtAmount || 0))}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-semibold text-muted-foreground">Còn nợ</p>
+                  <p className="font-bold text-rose-600">{formatCurrency(Number(selectedVehicle.debtAmount || 0))}</p>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase">
+                    Tổng số tiền khách ĐÃ TRẢ
+                  </label>
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentAmount((Number(selectedVehicle.paidAmount || 0) + Number(selectedVehicle.debtAmount || 0)).toString())}
+                    className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
+                  >
+                    Trả toàn bộ
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9.]*"
+                  required
+                  value={paymentAmount === "" ? "" : Number(paymentAmount).toLocaleString("vi-VN")}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, "");
+                    setPaymentAmount(cleanVal);
+                  }}
+                  className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                />
+              </div>
+              <div className="flex gap-3 justify-end pt-4 border-t border-border mt-4">
+                <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
+                <button disabled={submittingPayment} type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                  {submittingPayment ? "Đang xử lý..." : "Cập nhật"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {detailModalOpen && selectedVehicle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-2xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/10">
+              <div className="flex items-center gap-2">
+                <FileText size={18} className="text-primary" />
+                <h3 className="text-lg font-bold">Chi tiết Hồ sơ & Thủ tục</h3>
+              </div>
+              <button onClick={() => setDetailModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-6">
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-secondary/20 p-4 rounded-xl border border-border space-y-2">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Thông tin Xe</p>
+                  <div>
+                    <p className="font-bold text-primary">{selectedVehicle.model} {selectedVehicle.variant ? `(${selectedVehicle.variant})` : ""}</p>
+                    <p className="text-xs text-muted-foreground font-mono">VIN: {selectedVehicle.vin}</p>
+                    <p className="text-xs mt-1">Màu: <b>{selectedVehicle.color || "Khác"}</b> • Đời: <b>{selectedVehicle.year}</b></p>
+                  </div>
+                  <div className="pt-2">
+                    <span className="text-xs font-semibold mr-2">Trạng thái:</span>
+                    {selectedVehicle.status === "SOLD" ? (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded font-bold uppercase">Đã Bán</span>
+                    ) : (
+                      <span className="text-[10px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-2 py-0.5 rounded font-bold uppercase">Đã Cọc</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-secondary/20 p-4 rounded-xl border border-border space-y-2">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Khách hàng</p>
+                  {selectedVehicle.customer ? (
+                    <div>
+                      <p className="font-bold text-foreground">{selectedVehicle.customer.name}</p>
+                      <p className="text-xs font-medium text-muted-foreground mt-0.5">SĐT: {selectedVehicle.customer.phone}</p>
+                      {selectedVehicle.customer.birthday && (
+                        <p className="text-xs italic text-muted-foreground mt-1">SN: {formatDate(selectedVehicle.customer.birthday)}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs italic text-muted-foreground">Chưa có thông tin khách hàng</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-muted-foreground">Tiến độ Ngân hàng</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {selectedVehicle.bankStatus === "NONE" ? "Mua thẳng (Không vay)" :
+                     selectedVehicle.bankStatus === "PENDING_APPROVAL" ? "Chờ phê duyệt hồ sơ vay" :
+                     selectedVehicle.bankStatus === "APPROVED" ? "Đã phê duyệt vay" : "Đã giải ngân tiền"}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-muted-foreground">Thủ tục Bấm biển</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {selectedVehicle.plateStatus === "PENDING" ? "Đợi biển / Chờ nộp thuế" :
+                     selectedVehicle.plateStatus === "TAX_PAID" ? "Đã nộp thuế trước bạ" : "Đã có biển & Bàn giao"}
+                  </p>
+                  {Number(selectedVehicle.plateCost || 0) > 0 && (
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Phí làm biển: <span className="text-foreground font-bold">{formatCurrency(Number(selectedVehicle.plateCost))}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {parseAccessories(selectedVehicle.accessoriesJson).length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground mb-2">Phụ tùng / Dịch vụ mua kèm</p>
+                  <div className="bg-secondary/10 border border-border rounded-xl p-3">
+                    <ul className="space-y-2 text-sm">
+                      {parseAccessories(selectedVehicle.accessoriesJson).map((a: any) => (
+                        <li key={a.id} className="flex items-center justify-between">
+                          <span className="font-semibold text-foreground">{a.name}</span>
+                          <span className="text-muted-foreground text-xs">x{a.quantity} ({formatCurrency(Number(a.price))}/cái)</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-bold text-muted-foreground mb-1">Ghi chú thủ tục</p>
+                {selectedVehicle.notes ? (
+                  <div className="bg-amber-500/5 border border-amber-500/20 text-amber-700 dark:text-amber-400 p-3 rounded-xl text-sm italic whitespace-pre-wrap">
+                    {selectedVehicle.notes}
+                  </div>
+                ) : (
+                  <p className="text-sm italic text-muted-foreground">Không có ghi chú.</p>
+                )}
+              </div>
+
+              <div className="flex justify-between items-center bg-primary/5 p-4 rounded-xl border border-primary/20">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground">Tổng tiền xe</p>
+                  <p className="font-black text-primary text-lg">{formatCurrency(Number(selectedVehicle.paidAmount || 0) + Number(selectedVehicle.debtAmount || 0))}</p>
+                </div>
+                <div className="text-right flex gap-6">
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Đã trả</p>
+                    <p className="font-bold text-emerald-600">{formatCurrency(Number(selectedVehicle.paidAmount || 0))}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Còn nợ</p>
+                    <p className="font-bold text-rose-600">{formatCurrency(Number(selectedVehicle.debtAmount || 0))}</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div className="px-6 py-4 border-t border-border bg-secondary/5 flex justify-end">
+              <button onClick={() => setDetailModalOpen(false)} className="px-5 py-2 border border-border bg-card rounded-xl text-sm font-semibold hover:bg-secondary transition-colors">
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

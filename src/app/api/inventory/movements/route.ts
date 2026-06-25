@@ -20,7 +20,12 @@ export async function GET(req: NextRequest) {
 
     const movements = await prisma.stockMovement.findMany({
       where,
-      include: { product: true },
+      include: { 
+        product: true,
+        inventoryOrder: {
+          include: { customer: true }
+        }
+      },
       orderBy: { createdAt: "desc" },
       skip: limit > 0 ? (page - 1) * limit : undefined,
       take: limit > 0 ? limit : undefined,

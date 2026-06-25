@@ -110,12 +110,37 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Explicitly set customerId if it was resolved
     updateData.customerId = customerId;
 
-    const vehicle = await prisma.vehicle.update({
-      where: { id },
-      data: updateData,
-      include: { customer: true }
-    });
+    // Calculate new total amount and debt
+    const finalListPrice = updateData.listPrice ?? currentVehicle.listPrice.toNumber();
+    const finalPlateCost = updateData.plateCost ?? (currentVehicle.plateCost ? currentVehicle.plateCost.toNumber() : 0);
+    const finalAcc = updateData.accessoriesJson ?? currentVehicle.accessoriesJson ?? "[]";
+    const accessories = JSON.parse(finalAcc);
+    const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
     
+    const newTotalAmount = finalListPrice + finalPlateCost + accCost;
+    const paid = currentVehicle.paidAmount.toNumber();
+    const newDebtAmount = newTotalAmount - paid;
+    const oldDebtAmount = currentVehicle.debtAmount.toNumber();
+    const debtDelta = newDebtAmount - oldDebtAmount;
+
+    updateData.debtAmount = newDebtAmount;
+
+    const vehicle = await prisma.$transaction(async (tx) => {
+      const v = await tx.vehicle.update({
+        where: { id },
+        data: updateData,
+        include: { customer: true }
+      });
+
+      if (customerId && debtDelta !== 0 && ["RESERVED", "SOLD"].includes(v.status)) {
+        await tx.customer.update({
+          where: { id: customerId },
+          data: { totalDebt: { increment: debtDelta } }
+        });
+      }
+
+      return v;
+    });    
     return NextResponse.json(vehicle);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
