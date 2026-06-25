@@ -67,7 +67,7 @@ export default function DocumentsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/sales?limit=100");
+      const res = await fetch("/api/sales?status=RESERVED,SOLD&limit=100");
       const data = await res.json();
       setVehicles(data.vehicles || []);
     } catch (e) {
@@ -87,6 +87,23 @@ export default function DocumentsPage() {
       return JSON.parse(jsonStr);
     } catch (e) {
       return [];
+    }
+  };
+
+  const handleExportAccessories = async (id: number) => {
+    if (!confirm("Hệ thống sẽ tạo Phiếu Xuất Kho cho các phụ kiện này và trừ tồn kho. Bạn có chắc chắn?")) return;
+    try {
+      const res = await fetch(`/api/sales/${id}/export-accessories`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Thành công: " + data.message + " - Mã phiếu: " + data.orderCode);
+        fetchData();
+        setSelectedVehicle((prev: any) => prev ? { ...prev, accessoriesDeducted: true } : prev);
+      } else {
+        alert("Lỗi: " + data.error);
+      }
+    } catch (e) {
+      alert("Đã xảy ra lỗi kết nối");
     }
   };
 
@@ -451,7 +468,21 @@ export default function DocumentsPage() {
 
               {parseAccessories(selectedVehicle.accessoriesJson).length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-muted-foreground mb-2">Phụ tùng / Dịch vụ mua kèm</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-muted-foreground">Phụ tùng / Dịch vụ mua kèm</p>
+                    {!selectedVehicle.accessoriesDeducted ? (
+                      <button 
+                        onClick={() => handleExportAccessories(selectedVehicle.id)}
+                        className="text-[10px] bg-primary text-white font-bold px-2 py-1 rounded hover:bg-primary/90 transition-colors"
+                      >
+                        Xuất Kho Phụ Kiện
+                      </button>
+                    ) : (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-1 rounded border border-emerald-500/20">
+                        Đã Xuất Kho
+                      </span>
+                    )}
+                  </div>
                   <div className="bg-secondary/10 border border-border rounded-xl p-3">
                     <ul className="space-y-2 text-sm">
                       {parseAccessories(selectedVehicle.accessoriesJson).map((a: any) => (

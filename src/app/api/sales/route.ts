@@ -58,7 +58,15 @@ export async function GET(req: NextRequest) {
       { vin: { contains: search, mode: "insensitive" } },
     ];
   }
-  if (status) where.status = status;
+  if (status) {
+    if (status.includes(",")) {
+      where.status = { in: status.split(",") };
+    } else {
+      where.status = status;
+    }
+  } else {
+    where.status = { not: "CANCELLED" };
+  }
 
   // Run heavy queries in parallel
   const [vehicles, total, countAvailable, countReserved, countIncoming, countSold, remainingStats] = await Promise.all([

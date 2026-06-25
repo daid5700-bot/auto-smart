@@ -3,11 +3,11 @@ import type { NextRequest } from "next/server";
 
 // Role-to-allowed-paths mapping for RBAC middleware
 const ROLE_PATHS: Record<string, string[]> = {
-  ADMIN: ["/admin", "/inventory", "/workshop", "/sales", "/crm"],
-  WAREHOUSE: ["/inventory"],
-  WORKSHOP: ["/workshop", "/inventory"], // can view inventory
-  SALES: ["/sales", "/crm"],
-  CRM: ["/crm"],
+  ADMIN: ["/admin", "/inventory", "/workshop", "/sales", "/crm", "/api"],
+  WAREHOUSE: ["/inventory", "/api/inventory", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
+  WORKSHOP: ["/workshop", "/inventory", "/api/workshop", "/api/inventory", "/api/stats", "/api/technicians", "/api/dashboard", "/api/search", "/api/config"],
+  SALES: ["/sales", "/crm", "/api/sales", "/api/crm", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
+  CRM: ["/crm", "/api/crm", "/api/dashboard", "/api/search", "/api/config"],
 };
 
 export function middleware(request: NextRequest) {
@@ -38,15 +38,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Role checking for pages (non-API)
-  if (!pathname.startsWith("/api")) {
-    const allowed = ROLE_PATHS[userRole] || [];
-    const isAllowed = allowed.some((p) => pathname.startsWith(p));
+  // Role checking for ALL paths (including APIs)
+  const allowed = ROLE_PATHS[userRole] || [];
+  const isAllowed = allowed.some((p) => pathname.startsWith(p));
 
-    if (!isAllowed) {
-      const defaultRedirect = allowed[0] || "/login";
-      return NextResponse.redirect(new URL(defaultRedirect, request.url));
+  if (!isAllowed) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Access denied. Insufficient permissions." }, { status: 403 });
     }
+    const defaultRedirect = allowed[0] || "/login";
+    return NextResponse.redirect(new URL(defaultRedirect, request.url));
   }
 
   return NextResponse.next();

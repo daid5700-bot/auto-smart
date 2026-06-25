@@ -164,8 +164,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ error: "Thông tin xe không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
     }
 
-    await prisma.vehicle.delete({ where: { id } });
-    return NextResponse.json({ success: true, message: "Xóa thông tin xe thành công" });
+    await prisma.vehicle.update({ 
+      where: { id },
+      data: { status: "CANCELLED" }
+    });
+    return NextResponse.json({ success: true, message: "Đã hủy (xóa mềm) hồ sơ xe thành công" });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
