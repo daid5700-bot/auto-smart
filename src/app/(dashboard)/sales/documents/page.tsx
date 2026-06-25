@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { 
   Loader2, FileText, Plus, Edit, Trash2, Search, User, 
@@ -108,20 +108,22 @@ export default function DocumentsPage() {
   };
 
   // Filtered lists
-  const filteredVehicles = vehicles.filter((v: any) => {
-    const isReservedOrSold = v.status === "RESERVED" || v.status === "SOLD";
-    if (!isReservedOrSold) return false;
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter((v: any) => {
+      const isReservedOrSold = v.status === "RESERVED" || v.status === "SOLD";
+      if (!isReservedOrSold) return false;
 
-    const matchesSearch = 
-      (v.vin || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.model || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.customer?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.customer?.phone || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = 
+        (v.vin || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (v.model || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (v.customer?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (v.customer?.phone || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = statusFilter === "ALL" || v.status === statusFilter;
+      const matchesStatus = statusFilter === "ALL" || v.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
-  });
+      return matchesSearch && matchesStatus;
+    });
+  }, [vehicles, searchQuery, statusFilter]);
 
   return (
     <div className="space-y-6 stagger">
