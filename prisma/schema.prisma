@@ -46,7 +46,7 @@ model Branch {
   address      String?
   phone        String?
   users        UserBranch[]
-  products     Product[]
+  productBranches ProductBranch[]
   repairOrders RepairOrder[]
   leads        Lead[]
   vehicles     Vehicle[]
@@ -56,6 +56,7 @@ model Branch {
   loyaltyTx    LoyaltyTransaction[]
   partsRequisitions PartsRequisition[]
   inventoryOrders InventoryOrder[]
+  isDeleted    Boolean       @default(false)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -72,23 +73,36 @@ model Product {
   unit             String        // Chai, Cái, Bộ...
   conversionUnit   String?       // Thùng, Thanh...
   conversionFactor Int           @default(1)
-  stockCount       Float         @default(0)
-  stockMin         Float         @default(0)
-  stockMax         Float         @default(100)
-  lastImportDate   DateTime?
   status           String        @default("ACTIVE")
   prices           Price[]
   stockMovements   StockMovement[]
   orderItems       OrderItem[]
   partsRequisitionItems PartsRequisitionItem[]
-  branchId         Int?
-  branch           Branch?       @relation(fields: [branchId], references: [id])
+  productBranches  ProductBranch[]
+  isDeleted        Boolean       @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
   @@index([sku])
   @@index([parentId])
   @@index([category])
+}
+
+model ProductBranch {
+  id               Int       @id @default(autoincrement())
+  productId        Int
+  product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId         Int
+  branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  stockCount       Float     @default(0)
+  reservedStock    Float     @default(0)
+  stockMin         Float     @default(0)
+  stockMax         Float     @default(100)
+  movingAvgCost    Decimal   @default(0)
+  lastImportDate   DateTime?
+
+  @@unique([productId, branchId])
+  @@index([productId])
   @@index([branchId])
 }
 
@@ -186,6 +200,7 @@ model RepairOrder {
   partsRequisitions PartsRequisition[]
   branchId      Int?
   branch        Branch?       @relation(fields: [branchId], references: [id])
+  isDeleted     Boolean       @default(false)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 

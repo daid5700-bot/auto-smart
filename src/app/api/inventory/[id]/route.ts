@@ -14,12 +14,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const currentProduct = await prisma.product.findFirst({
       where: {
         id,
-        ...((branchId && !isAdmin) ? { branchId } : {}),
+        ...((branchId && !isAdmin) ? { productBranches: { some: { branchId } } } : {}),
       },
     });
     if (!currentProduct) return NextResponse.json({ error: "Phụ tùng không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
-    // Update product + upsert prices
+    // Update product 
     const product = await prisma.product.update({
       where: { id },
       data: {
@@ -29,12 +29,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         unit: body.unit,
         conversionUnit: body.conversionUnit,
         conversionFactor: body.conversionFactor,
-        stockCount: body.stockCount,
-        stockMin: body.stockMin,
-        stockMax: body.stockMax,
         parentId: body.parentId ? parseInt(body.parentId) : null,
       },
     });
+
+    // Update product branch
+    const targetBranchId = body.branchId ? Number(body.branchId) : branchId;
+    if (targetBranchId && (body.stockCount !== undefined || body.stockMin !== undefined || body.stockMax !== undefined)) {
+       await prisma.productBranch.upsert({
+         where: { productId_branchId: { productId: id, branchId: targetBranchId } },
+         update: { 
+            ...(body.stockCount !== undefined ? { stockCount: body.stockCount } : {}),
+            ...(body.stockMin !== undefined ? { stockMin: body.stockMin } : {}),
+            ...(body.stockMax !== undefined ? { stockMax: body.stockMax } : {}),
+         },
+         create: {
+            productId: id,
+            branchId: targetBranchId,
+            stockCount: body.stockCount || 0,
+            stockMin: body.stockMin || 0,
+            stockMax: body.stockMax || 100,
+         }
+       })
+    }
 
     if (body.prices && Array.isArray(body.prices)) {
       for (const p of body.prices) {
@@ -65,7 +82,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const currentProduct = await prisma.product.findFirst({
       where: {
         id,
-        ...((branchId && !isAdmin) ? { branchId } : {}),
+        ...((branchId && !isAdmin) ? { productBranches: { some: { branchId } } } : {}),
       },
     });
     if (!currentProduct) return NextResponse.json({ error: "Phụ tùng không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });

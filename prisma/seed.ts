@@ -128,11 +128,17 @@ async function main() {
       name: "Lọc gió",
       category: "Lọc",
       unit: "Cái",
-      stockCount: 45,
-      stockMin: 10,
-      stockMax: 100,
-      lastImportDate: new Date("2026-05-20"),
-      branchId: branchQ1.id,
+      productBranches: {
+        create: [
+          {
+            branchId: branchQ1.id,
+            stockCount: 45,
+            stockMin: 10,
+            stockMax: 100,
+            lastImportDate: new Date("2026-05-20"),
+          }
+        ]
+      },
       prices: {
         create: [
           { type: "RETAIL", amount: 150000 },
@@ -149,11 +155,17 @@ async function main() {
       parentId: locGio.id,
       category: "Lọc",
       unit: "Cái",
-      stockCount: 30,
-      stockMin: 5,
-      stockMax: 50,
-      lastImportDate: new Date("2026-05-20"),
-      branchId: branchQ1.id,
+      productBranches: {
+        create: [
+          {
+            branchId: branchQ1.id,
+            stockCount: 30,
+            stockMin: 5,
+            stockMax: 50,
+            lastImportDate: new Date("2026-05-20"),
+          }
+        ]
+      },
       prices: {
         create: [
           { type: "RETAIL", amount: 120000 },
@@ -169,11 +181,17 @@ async function main() {
       parentId: locGio.id,
       category: "Lọc",
       unit: "Cái",
-      stockCount: 15,
-      stockMin: 5,
-      stockMax: 50,
-      lastImportDate: new Date("2026-05-15"),
-      branchId: branchQ1.id,
+      productBranches: {
+        create: [
+          {
+            branchId: branchQ1.id,
+            stockCount: 15,
+            stockMin: 5,
+            stockMax: 50,
+            lastImportDate: new Date("2026-05-15"),
+          }
+        ]
+      },
       prices: {
         create: [
           { type: "RETAIL", amount: 250000 },
@@ -190,11 +208,17 @@ async function main() {
       unit: "Chai",
       conversionUnit: "Thùng",
       conversionFactor: 24,
-      stockCount: 120,
-      stockMin: 24,
-      stockMax: 240,
-      lastImportDate: new Date("2026-06-01"),
-      branchId: branchQ1.id,
+      productBranches: {
+        create: [
+          {
+            branchId: branchQ1.id,
+            stockCount: 120,
+            stockMin: 24,
+            stockMax: 240,
+            lastImportDate: new Date("2026-06-01"),
+          }
+        ]
+      },
       prices: {
         create: [
           { type: "RETAIL", amount: 250000 },
@@ -209,11 +233,17 @@ async function main() {
       name: "Má phanh trước",
       category: "Phanh",
       unit: "Bộ",
-      stockCount: 8,
-      stockMin: 10,
-      stockMax: 40,
-      lastImportDate: new Date("2026-04-10"),
-      branchId: branchQ1.id,
+      productBranches: {
+        create: [
+          {
+            branchId: branchQ1.id,
+            stockCount: 8,
+            stockMin: 10,
+            stockMax: 40,
+            lastImportDate: new Date("2026-04-10"),
+          }
+        ]
+      },
       prices: {
         create: [
           { type: "RETAIL", amount: 850000 },
@@ -230,11 +260,17 @@ async function main() {
       name: "Bình ắc quy 12V",
       category: "Điện",
       unit: "Cái",
-      stockCount: 5,
-      stockMin: 3,
-      stockMax: 20,
-      lastImportDate: new Date("2026-06-05"),
-      branchId: branchQ7.id,
+      productBranches: {
+        create: [
+          {
+            branchId: branchQ7.id,
+            stockCount: 5,
+            stockMin: 3,
+            stockMax: 20,
+            lastImportDate: new Date("2026-06-05"),
+          }
+        ]
+      },
       prices: {
         create: [
           { type: "RETAIL", amount: 2500000 },
@@ -248,11 +284,17 @@ async function main() {
       name: "Lọc dầu",
       category: "Lọc",
       unit: "Cái",
-      stockCount: 50,
-      stockMin: 10,
-      stockMax: 80,
-      lastImportDate: new Date("2026-06-10"),
-      branchId: branchQ7.id,
+      productBranches: {
+        create: [
+          {
+            branchId: branchQ7.id,
+            stockCount: 50,
+            stockMin: 10,
+            stockMax: 80,
+            lastImportDate: new Date("2026-06-10"),
+          }
+        ]
+      },
       prices: {
         create: [
           { type: "RETAIL", amount: 120000 },
@@ -267,11 +309,17 @@ async function main() {
       name: "Bóng đèn LED H4",
       category: "Đèn",
       unit: "Cặp",
-      stockCount: 2,
-      stockMin: 5,
-      stockMax: 30,
-      lastImportDate: new Date("2026-03-01"),
-      branchId: branchQ7.id,
+      productBranches: {
+        create: [
+          {
+            branchId: branchQ7.id,
+            stockCount: 2,
+            stockMin: 5,
+            stockMax: 30,
+            lastImportDate: new Date("2026-03-01"),
+          }
+        ]
+      },
       prices: {
         create: [
           { type: "RETAIL", amount: 450000 },

@@ -24,32 +24,47 @@ export async function importStock(data: {
   const product = await prisma.product.findUnique({ where: { id: data.productId } });
   if (!product) throw new Error("Sản phẩm không tồn tại");
   const branchId = getActiveBranchId();
-  if (branchId && product.branchId !== branchId) {
-    throw new Error("Sản phẩm không thuộc chi nhánh hiện tại");
-  }
+  const targetBranchId = branchId || 1;
 
-  const newStock = product.stockCount + actualQty;
+  const result = await prisma.$transaction(async (tx) => {
+    const pb = await tx.productBranch.upsert({
+      where: { productId_branchId: { productId: data.productId, branchId: targetBranchId } },
+      update: {},
+      create: { productId: data.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+    });
 
-  const updatedProduct = await prisma.product.update({
-    where: { id: data.productId },
-    data: {
-      stockCount: newStock,
-      lastImportDate: new Date(),
-    },
+    const oldStock = pb.stockCount;
+    const oldMac = Number(pb.movingAvgCost || 0);
+    const newStock = oldStock + actualQty;
+
+    let newMac = oldMac;
+    if (newStock > 0) {
+       newMac = ((oldStock * oldMac) + (actualQty * avgCost)) / newStock;
+    }
+
+    const updatedPb = await tx.productBranch.update({
+      where: { id: pb.id },
+      data: {
+        stockCount: newStock,
+        movingAvgCost: newMac
+      },
+    });
+
+    await tx.stockMovement.create({
+      data: {
+        productId: data.productId,
+        type: "IMPORT",
+        quantity: actualQty,
+        unitCost: avgCost,
+        totalCost: data.unitCost * data.quantity,
+        createdBy: "system",
+      },
+    });
+    
+    return updatedPb;
   });
 
-  await prisma.stockMovement.create({
-    data: {
-      productId: data.productId,
-      type: "IMPORT",
-      quantity: actualQty,
-      unitCost: avgCost,
-      totalCost: data.unitCost * data.quantity,
-      createdBy: "system",
-    },
-  });
-
-  return { success: true, actualQty, avgCost, updatedProduct };
+  return { success: true, actualQty, avgCost, updatedProduct: result };
 }
 
 export async function createManualImport(data: {
@@ -63,6 +78,7 @@ export async function createManualImport(data: {
   createdBy: string;
 }) {
   const branchId = getActiveBranchId();
+  const targetBranchId = branchId || 1;
 
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách nhập kho không được trống");
@@ -82,17 +98,27 @@ export async function createManualImport(data: {
 
       const product = await tx.product.findUnique({ where: { id: item.productId } });
       if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
-      if (branchId && product.branchId !== branchId) {
-        throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
+
+      const pb = await tx.productBranch.upsert({
+        where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
+        update: {},
+        create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+      });
+
+      const oldStock = pb.stockCount;
+      const oldMac = Number(pb.movingAvgCost || 0);
+      const newStock = oldStock + actualQty;
+
+      let newMac = oldMac;
+      if (newStock > 0) {
+         newMac = ((oldStock * oldMac) + (actualQty * avgCost)) / newStock;
       }
 
-      const newStock = product.stockCount + actualQty;
-
-      await tx.product.update({
-        where: { id: item.productId },
+      await tx.productBranch.update({
+        where: { id: pb.id },
         data: {
           stockCount: newStock,
-          lastImportDate: new Date(),
+          movingAvgCost: newMac
         },
       });
 
@@ -129,14 +155,14 @@ export async function sellItem(productId: number, quantity: number) {
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) throw new Error("Sản phẩm không tồn tại");
   const branchId = getActiveBranchId();
-  if (branchId && product.branchId !== branchId) {
-    throw new Error("Sản phẩm không thuộc chi nhánh hiện tại");
-  }
-  if (product.stockCount < quantity) throw new Error("Không đủ hàng tồn kho");
+  const targetBranchId = branchId || 1;
 
-  const updated = await prisma.product.update({
-    where: { id: productId },
-    data: { stockCount: product.stockCount - quantity },
+  const pb = await prisma.productBranch.findUnique({ where: { productId_branchId: { productId, branchId: targetBranchId } } });
+  if (!pb || pb.stockCount < quantity) throw new Error("Không đủ hàng tồn kho");
+
+  const updated = await prisma.productBranch.update({
+    where: { id: pb.id },
+    data: { stockCount: pb.stockCount - quantity },
   });
 
   return updated;
@@ -166,6 +192,17 @@ export async function createDirectExport(data: {
   const results = await prisma.$transaction(async (tx) => {
     const movementsCreated = [];
 
+    const targetBranchId = branchId || 1;
+    const productIds = Array.from(new Set(data.items.map(i => i.productId)));
+
+    const [products, branches] = await Promise.all([
+      tx.product.findMany({ where: { id: { in: productIds } }, include: { prices: true } }),
+      tx.productBranch.findMany({ where: { productId: { in: productIds }, branchId: targetBranchId } })
+    ]);
+
+    const productMap = new Map(products.map(p => [p.id, p]));
+    const branchMap = new Map(branches.map(b => [b.productId, b]));
+
     for (const item of data.items) {
       if (item.conversionFactor !== undefined && item.conversionFactor <= 0) {
         throw new Error("Hệ số quy đổi phải lớn hơn 0");
@@ -174,24 +211,23 @@ export async function createDirectExport(data: {
       const factor = item.conversionFactor || 1;
       const actualQty = item.quantity * factor;
 
-      const product = await tx.product.findUnique({
-        where: { id: item.productId },
-        include: { prices: true }
-      });
+      const product = productMap.get(item.productId);
       if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
-      if (branchId && product.branchId !== branchId) {
-        throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
-      }
-      if (product.stockCount < actualQty) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho (hiện tại: ${product.stockCount}, cần: ${actualQty})`);
+
+      const pb = branchMap.get(item.productId);
+
+      if (!pb || pb.stockCount < actualQty) {
+        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho (hiện tại: ${pb?.stockCount || 0}, cần: ${actualQty})`);
       }
 
-      const newStock = product.stockCount - actualQty;
+      const newStock = pb.stockCount - actualQty;
 
-      await tx.product.update({
-        where: { id: item.productId },
+      await tx.productBranch.update({
+        where: { id: pb.id },
         data: { stockCount: newStock },
       });
+
+      const cogsUnit = Number(pb.movingAvgCost || 0);
 
       // Find the price based on export type
       const priceObj = product.prices.find((p) => p.type === exportType) ||
@@ -208,10 +244,10 @@ export async function createDirectExport(data: {
           productId: item.productId,
           type: "EXPORT",
           quantity: actualQty,
-          unitCost: unitPrice,
-          totalCost: unitPrice * actualQty,
-          createdBy: data.createdBy,
+          unitCost: cogsUnit,
+          totalCost: cogsUnit * actualQty,
           reason: finalReason,
+          createdBy: data.createdBy,
         },
       });
       movementsCreated.push(movement);
@@ -249,24 +285,42 @@ export async function createManualAdjust(data: {
     for (const item of data.items) {
       const product = await tx.product.findUnique({ where: { id: item.productId } });
       if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
-      if (branchId && product.branchId !== branchId) {
-        throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
-      }
+      const targetBranchId = branchId || 1;
 
-      const diff = item.actualStock - product.stockCount;
+      const pb = await tx.productBranch.upsert({
+        where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
+        update: {},
+        create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+      });
+
+      const diff = item.actualStock - pb.stockCount;
       if (diff !== 0) {
-        await tx.product.update({
-          where: { id: item.productId },
+        await tx.productBranch.update({
+          where: { id: pb.id },
           data: { stockCount: item.actualStock },
         });
+
+        // Nếu tăng tồn, tính toán lại MAC
+        if (diff > 0) {
+           const oldStock = pb.stockCount;
+           const oldMac = Number(pb.movingAvgCost || 0);
+           const avgCost = 0; // Điều chỉnh thì giá vốn hàng nhập thường là 0 nếu không biết
+           const newMac = item.actualStock > 0 ? ((oldStock * oldMac) + (diff * avgCost)) / item.actualStock : oldMac;
+           await tx.productBranch.update({
+             where: { id: pb.id },
+             data: { movingAvgCost: newMac }
+           });
+        }
+
+        const unitCost = Number(pb.movingAvgCost || 0);
 
         const movement = await tx.stockMovement.create({
           data: {
             productId: item.productId,
             type: "ADJUST",
             quantity: Math.abs(diff),
-            unitCost: 0,
-            totalCost: 0,
+            unitCost: unitCost,
+            totalCost: unitCost * Math.abs(diff),
             createdBy: data.createdBy,
             reason: item.note || `Kiểm kê lệch ${diff > 0 ? "+" : ""}${diff}`,
           },
@@ -403,9 +457,11 @@ export async function exportStockForRO(data: {
 
   if (!product) throw new Error("Sản phẩm không tồn tại");
   const branchId = getActiveBranchId();
-  if (branchId && product.branchId !== branchId) {
-    throw new Error("Sản phẩm không thuộc chi nhánh hiện tại");
-  }
+  const targetBranchId = branchId || 1;
+
+  const pb = await prisma.productBranch.findUnique({
+    where: { productId_branchId: { productId: data.productId, branchId: targetBranchId } }
+  });
 
   const ro = await prisma.repairOrder.findUnique({ where: { id: data.repairOrderId } });
   if (!ro) throw new Error("Lệnh sửa chữa không tồn tại");
@@ -413,7 +469,7 @@ export async function exportStockForRO(data: {
     throw new Error("Lệnh sửa chữa không thuộc chi nhánh hiện tại");
   }
 
-  if (product.stockCount < data.quantity) {
+  if (!pb || pb.stockCount < data.quantity) {
     throw new Error("Không đủ số lượng trong kho");
   }
 
@@ -422,11 +478,12 @@ export async function exportStockForRO(data: {
 
   const unitPrice = Number(selectedPrice.amount);
   const totalPrice = unitPrice * data.quantity;
+  const cogsUnit = Number(pb.movingAvgCost || 0);
 
   // Transaction to update inventory, create order item & create stock movement
   const [, item] = await prisma.$transaction([
-    prisma.product.update({
-      where: { id: data.productId },
+    prisma.productBranch.update({
+      where: { id: pb.id },
       data: { stockCount: { decrement: data.quantity } },
     }),
     prisma.orderItem.create({
@@ -443,8 +500,8 @@ export async function exportStockForRO(data: {
         productId: data.productId,
         type: "EXPORT",
         quantity: data.quantity,
-        unitCost: unitPrice,
-        totalCost: totalPrice,
+        unitCost: cogsUnit,
+        totalCost: cogsUnit * data.quantity,
         reason: "Xuất kho sửa chữa",
         relatedRoId: data.repairOrderId,
         createdBy: "system",
@@ -609,18 +666,25 @@ export async function createManualExport(data: {
     const movementsCreated = [];
     const orderItemsCreated = [];
 
-    for (const item of data.items) {
-      const product = await tx.product.findUnique({
-        where: { id: item.productId },
-        include: { prices: true },
-      });
+    const targetBranchId = branchId || 1;
+    const productIds = Array.from(new Set(data.items.map(i => i.productId)));
 
+    const [products, branches] = await Promise.all([
+      tx.product.findMany({ where: { id: { in: productIds } }, include: { prices: true } }),
+      tx.productBranch.findMany({ where: { productId: { in: productIds }, branchId: targetBranchId } })
+    ]);
+
+    const productMap = new Map(products.map(p => [p.id, p]));
+    const branchMap = new Map(branches.map(b => [b.productId, b]));
+
+    for (const item of data.items) {
+      const product = productMap.get(item.productId);
       if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
-      if (branchId && product.branchId !== branchId) {
-        throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
-      }
-      if (product.stockCount < item.quantity) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${product.stockCount}, Yêu cầu: ${item.quantity})`);
+
+      const pb = branchMap.get(item.productId);
+
+      if (!pb || pb.stockCount < item.quantity) {
+        throw new Error(`Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${pb?.stockCount || 0}, Yêu cầu: ${item.quantity})`);
       }
 
       // Determine selling price
@@ -634,10 +698,11 @@ export async function createManualExport(data: {
       }
 
       const totalPrice = unitPrice * item.quantity;
+      const cogsUnit = Number(pb.movingAvgCost || 0);
 
       // Update stock
-      await tx.product.update({
-        where: { id: item.productId },
+      await tx.productBranch.update({
+        where: { id: pb.id },
         data: { stockCount: { decrement: item.quantity } },
       });
 
@@ -647,8 +712,8 @@ export async function createManualExport(data: {
           productId: item.productId,
           type: "EXPORT",
           quantity: item.quantity,
-          unitCost: unitPrice,
-          totalCost: totalPrice,
+          unitCost: cogsUnit,
+          totalCost: cogsUnit * item.quantity,
           reason: reasonText,
           relatedRoId: data.exportType === "REPAIR" ? data.repairOrderId : null,
           createdBy: data.createdBy,
@@ -784,17 +849,17 @@ export async function createPartsRequisition(data: {
         throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
       }
 
-      if (product.branchId !== activeBranchId) {
-        throw new Error(`Sản phẩm "${product.name}" không thuộc chi nhánh hiện tại`);
-      }
+      const pb = await tx.productBranch.findUnique({
+        where: { productId_branchId: { productId: item.productId, branchId: activeBranchId } }
+      });
 
-      if (product.stockCount < item.quantity) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${product.stockCount}, Yêu cầu: ${item.quantity})`);
+      if (!pb || pb.stockCount < item.quantity) {
+        throw new Error(`Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${pb?.stockCount || 0}, Yêu cầu: ${item.quantity})`);
       }
 
       // Decrement stock
-      await tx.product.update({
-        where: { id: item.productId },
+      await tx.productBranch.update({
+        where: { id: pb.id },
         data: { stockCount: { decrement: item.quantity } },
       });
 
@@ -821,6 +886,7 @@ export async function createPartsRequisition(data: {
       }
 
       const totalPrice = unitPrice * item.quantity;
+      const cogsUnit = Number(pb.movingAvgCost || 0);
 
       // Create OrderItem
       const orderItem = await tx.orderItem.create({
@@ -840,8 +906,8 @@ export async function createPartsRequisition(data: {
           productId: item.productId,
           type: "EXPORT",
           quantity: item.quantity,
-          unitCost: unitPrice,
-          totalCost: totalPrice,
+          unitCost: cogsUnit,
+          totalCost: cogsUnit * item.quantity,
           reason: data.reason || `Xuất kho xin phụ tùng cho RO #${data.repairOrderId}`,
           relatedRoId: data.repairOrderId,
           createdBy: data.createdBy,

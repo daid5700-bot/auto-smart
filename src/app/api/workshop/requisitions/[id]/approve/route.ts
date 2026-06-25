@@ -36,14 +36,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // 2. Process stock deduction and stock movement for each item
       for (const item of requisition.items) {
         const product = item.product;
+        const productBranch = await tx.productBranch.findUnique({
+          where: { productId_branchId: { productId: product.id, branchId: requisition.branchId } },
+          include: { product: true }
+        });
 
-        if (product.stockCount < item.quantity) {
-          throw new Error(`Phụ tùng [${product.sku}] ${product.name} không đủ tồn kho (Cần ${item.quantity}, hiện có ${product.stockCount})`);
+        if (!productBranch) {
+          throw new Error(`Phụ tùng [${product.sku}] ${product.name} chưa cấu hình kho cho chi nhánh.`);
+        }
+
+        if (productBranch.stockCount < item.quantity) {
+          throw new Error(`Phụ tùng [${product.sku}] ${product.name} không đủ tồn kho (Cần ${item.quantity}, hiện có ${productBranch.stockCount})`);
         }
 
         // Decrement product stock
-        await tx.product.update({
-          where: { id: product.id },
+        await tx.productBranch.update({
+          where: { id: productBranch.id },
           data: { stockCount: { decrement: item.quantity } }
         });
 

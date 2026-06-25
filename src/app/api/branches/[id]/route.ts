@@ -39,7 +39,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     // Safety checks: check if branch has related data
     const [productsCount, ordersCount, leadsCount, vehiclesCount, usersCount] = await Promise.all([
-      prisma.product.count({ where: { branchId: id } }),
+      prisma.productBranch.count({ where: { branchId: id } }),
       prisma.repairOrder.count({ where: { branchId: id } }),
       prisma.lead.count({ where: { branchId: id } }),
       prisma.vehicle.count({ where: { branchId: id } }),

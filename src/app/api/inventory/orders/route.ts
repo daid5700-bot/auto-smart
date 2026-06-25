@@ -113,19 +113,30 @@ export async function POST(req: NextRequest) {
       });
 
       // Update product stocks with constraints
+      const targetBranchId = branchId || 1;
       for (const item of items) {
-        const product = await tx.product.findUnique({
-          where: { id: item.productId }
+        const productBranch = await tx.productBranch.findUnique({
+          where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
+          include: { product: true }
         });
-        if (!product) {
+        
+        if (!productBranch) {
+          // If product branch entry doesn't exist, try to find the product to show a better error
+          const product = await tx.product.findUnique({ where: { id: item.productId } });
+          if (product) {
+            throw new Error(`Sản phẩm [${product.sku}] ${product.name} chưa được cấu hình tồn kho cho chi nhánh này.`);
+          }
           throw new Error(`Sản phẩm không tồn tại (ID: ${item.productId})`);
         }
-        if (product.stockCount < item.quantity) {
-          throw new Error(`Sản phẩm [${product.sku}] ${product.name} không đủ tồn kho (Cần ${item.quantity}, Hiện có ${product.stockCount}). Vui lòng nhập thêm hàng.`);
+        
+        if (productBranch.stockCount < item.quantity) {
+          throw new Error(`Sản phẩm [${productBranch.product.sku}] ${productBranch.product.name} không đủ tồn kho (Cần ${item.quantity}, Hiện có ${productBranch.stockCount}). Vui lòng nhập thêm hàng.`);
         }
 
-        await tx.product.update({
-          where: { id: item.productId },
+        const cogsUnit = Number(productBranch.movingAvgCost || 0);
+
+        await tx.productBranch.update({
+          where: { id: productBranch.id },
           data: { stockCount: { decrement: item.quantity } }
         });
       }

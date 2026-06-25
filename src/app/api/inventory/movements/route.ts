@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const where: any = {};
     if (type) where.type = type;
     if (branchId) {
-      where.product = { branchId };
+      where.product = { productBranches: { some: { branchId } } };
     }
 
     if (search) {

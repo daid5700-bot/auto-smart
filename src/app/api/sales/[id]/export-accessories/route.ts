@@ -41,8 +41,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (!product) {
         return NextResponse.json({ error: `Phụ tùng ID ${acc.productId} không tồn tại` }, { status: 400 });
       }
-      if (product.stockCount < acc.quantity) {
-        return NextResponse.json({ error: `Sản phẩm [${product.sku}] ${product.name} không đủ tồn kho (Cần ${acc.quantity}, Hiện có ${product.stockCount})` }, { status: 400 });
+      const productBranch = await prisma.productBranch.findUnique({
+        where: { productId_branchId: { productId: acc.productId, branchId: vehicle.branchId || 1 } }
+      });
+      if (!productBranch) {
+        return NextResponse.json({ error: `Sản phẩm [${product.sku}] ${product.name} chưa cấu hình kho.` }, { status: 400 });
+      }
+      if (productBranch.stockCount < acc.quantity) {
+        return NextResponse.json({ error: `Sản phẩm [${product.sku}] ${product.name} không đủ tồn kho (Cần ${acc.quantity}, Hiện có ${productBranch.stockCount})` }, { status: 400 });
       }
     }
 
@@ -70,24 +76,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (!product) continue;
 
         const quantity = Number(item.quantity);
-        const unitPrice = Number(item.price);
-        const totalCost = quantity * unitPrice;
+        
+        const pb = await tx.productBranch.findUnique({
+          where: { productId_branchId: { productId: item.productId, branchId: vehicle.branchId || 1 } }
+        });
+        const cogsUnit = Number(pb?.movingAvgCost || 0);
 
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
             type: "EXPORT",
             quantity,
-            unitCost: unitPrice,
-            totalCost,
+            unitCost: cogsUnit,
+            totalCost: cogsUnit * quantity,
             reason: `Xuất theo hồ sơ xe ${vehicle.vin}`,
             inventoryOrderId: invOrder.id,
             createdBy: "Hệ thống (Bán Xe)"
           }
         });
 
-        await tx.product.update({
-          where: { id: item.productId },
+        await tx.productBranch.update({
+          where: { productId_branchId: { productId: item.productId, branchId: vehicle.branchId || 1 } },
           data: { stockCount: { decrement: quantity } }
         });
       }

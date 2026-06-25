@@ -21,7 +21,7 @@ export async function GET() {
       roTodayCount,
       totalTechnicians,
     ] = await Promise.all([
-      prisma.product.count({ where: branchId ? { branchId } : {} }),
+      prisma.product.count({ where: branchId ? { productBranches: { some: { branchId } } } : {} }),
       prisma.customer.count({ where: branchId ? { branchId } : {} }),
       prisma.lead.count({ where: branchId ? { branchId } : {} }),
       prisma.lead.count({ where: { status: "NEW", ...(branchId ? { branchId } : {}) } }),
@@ -39,11 +39,17 @@ export async function GET() {
     try {
       if (branchId) {
         lowStockParts = await prisma.$queryRaw<Array<{id: number, name: string, sku: string, stockCount: number, stockMin: number}>>`
-          SELECT id, name, sku, "stockCount", "stockMin" FROM "Product" WHERE "stockCount" <= "stockMin" AND status = 'ACTIVE' AND "branchId" = ${branchId}
+          SELECT p.id, p.name, p.sku, pb."stockCount", pb."stockMin" 
+          FROM "Product" p
+          JOIN "ProductBranch" pb ON p.id = pb."productId"
+          WHERE pb."stockCount" <= pb."stockMin" AND p.status = 'ACTIVE' AND pb."branchId" = ${branchId}
         `;
       } else {
         lowStockParts = await prisma.$queryRaw<Array<{id: number, name: string, sku: string, stockCount: number, stockMin: number}>>`
-          SELECT id, name, sku, "stockCount", "stockMin" FROM "Product" WHERE "stockCount" <= "stockMin" AND status = 'ACTIVE'
+          SELECT p.id, p.name, p.sku, pb."stockCount", pb."stockMin" 
+          FROM "Product" p
+          JOIN "ProductBranch" pb ON p.id = pb."productId"
+          WHERE pb."stockCount" <= pb."stockMin" AND p.status = 'ACTIVE'
         `;
       }
       lowStockProducts = lowStockParts.length;

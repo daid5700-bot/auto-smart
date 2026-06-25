@@ -33,27 +33,44 @@ export async function GET(req: NextRequest) {
       prisma.product.count({
         where: {
           status: "ACTIVE",
-          ...(branchId ? { branchId } : {}),
+          ...(branchId ? { productBranches: { some: { branchId } } } : {}),
         },
       }),
       prisma.product.count({
         where: {
           status: "ACTIVE",
-          stockCount: { lte: prisma.product.fields.stockMin },
-          ...(branchId ? { branchId } : {}),
+          productBranches: {
+             some: {
+                ...(branchId ? { branchId } : {}),
+                stockCount: { lte: prisma.productBranch.fields.stockMin }
+             }
+          }
         },
       }),
     ]);
 
     // 2. Fetch products for detailed calculations (total stock, total valuation)
-    const products = await prisma.product.findMany({
+    const rawProducts = await prisma.product.findMany({
       where: {
         status: "ACTIVE",
-        ...(branchId ? { branchId } : {}),
+        ...(branchId ? { productBranches: { some: { branchId } } } : {}),
       },
       include: {
         prices: true,
+        productBranches: {
+          where: branchId ? { branchId } : undefined
+        }
       },
+    });
+
+    const products = rawProducts.map(p => {
+       const pb = p.productBranches?.[0];
+       return {
+         ...p,
+         stockCount: pb?.stockCount || 0,
+         stockMin: pb?.stockMin || 0,
+         stockMax: pb?.stockMax || 100,
+       };
     });
 
     let totalStock = 0;
@@ -105,7 +122,7 @@ export async function GET(req: NextRequest) {
     // 5. Recent stock movements
     const movementWhere: any = {
       product: {
-        ...(branchId ? { branchId } : {}),
+        ...(branchId ? { productBranches: { some: { branchId } } } : {}),
       },
     };
     if (startDate || endDate) {
@@ -128,7 +145,7 @@ export async function GET(req: NextRequest) {
     // 6. Sales metrics within the date range
     const exportWhere: any = { type: "EXPORT" };
     if (branchId) {
-      exportWhere.product = { branchId };
+      exportWhere.product = { productBranches: { some: { branchId } } };
     }
     if (startDate || endDate) {
       exportWhere.createdAt = {};
