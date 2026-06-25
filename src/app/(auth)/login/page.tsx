@@ -2,20 +2,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/store";
-import { getDefaultPath, roleName, roleColor, type UserRole } from "@/config/rbac";
+import { getDefaultPath } from "@/config/rbac";
 import { Car, Lock, Mail, Eye, EyeOff, Zap, Shield, BarChart3, Wrench } from "lucide-react";
 
-const ROLES: { role: UserRole; icon: React.ReactNode; label: string }[] = [
-  { role: "ADMIN", icon: <Shield size={16} />, label: "Admin" },
-  { role: "WAREHOUSE", icon: <BarChart3 size={16} />, label: "Kho" },
-  { role: "WORKSHOP", icon: <Wrench size={16} />, label: "Xưởng" },
-  { role: "SALES", icon: <Car size={16} />, label: "Sales" },
-  { role: "CRM", icon: <Zap size={16} />, label: "CSKH" },
-];
+// Roles used for initial routing inside getDefaultPath
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loginAs } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -42,19 +36,7 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  const quickLogin = async (role: UserRole) => {
-    await loginAs(role);
-    const state = useAuth.getState();
-    const u = state.user;
-    const branches = state.branches;
-    if (u) {
-      if (branches.length > 1) {
-        router.push("/select-branch");
-      } else {
-        router.push(getDefaultPath(u.role));
-      }
-    }
-  };
+
 
   return (
     <div className="min-h-screen flex bg-background bg-grid-pattern">
@@ -120,17 +102,7 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <div className="mt-6">
-            <p className="text-xs text-muted-foreground text-center mb-3">⚡ Đăng nhập nhanh (Demo)</p>
-            <div className="grid grid-cols-5 gap-2">
-              {ROLES.map(({ role, icon, label }) => (
-                <button key={role} onClick={() => quickLogin(role)} className="group flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/50 hover:border-primary/30 bg-card/50 hover:bg-card transition-all">
-                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${roleColor(role)} flex items-center justify-center text-white group-hover:scale-110 transition-transform`}>{icon}</div>
-                  <span className="text-[10px] text-muted-foreground group-hover:text-foreground font-medium">{label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+
         </div>
       </div>
     </div>
