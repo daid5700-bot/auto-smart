@@ -110,8 +110,18 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // Update product stocks
+      // Update product stocks with constraints
       for (const item of items) {
+        const product = await tx.product.findUnique({
+          where: { id: item.productId }
+        });
+        if (!product) {
+          throw new Error(`Sản phẩm không tồn tại (ID: ${item.productId})`);
+        }
+        if (product.stockCount < item.quantity) {
+          throw new Error(`Sản phẩm [${product.sku}] ${product.name} không đủ tồn kho (Cần ${item.quantity}, Hiện có ${product.stockCount}). Vui lòng nhập thêm hàng.`);
+        }
+
         await tx.product.update({
           where: { id: item.productId },
           data: { stockCount: { decrement: item.quantity } }

@@ -320,21 +320,21 @@ export default function InventoryStatsPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Mã phụ tùng</th>
-                  <th>Tên phụ tùng</th>
-                  <th className="text-right">Tồn kho</th>
-                  <th className="text-right">Tối thiểu</th>
-                  <th className="text-right">Đơn giá</th>
+                  <th className="!text-center">Mã phụ tùng</th>
+                  <th className="!text-center">Tên phụ tùng</th>
+                  <th className="!text-center">Tồn kho</th>
+                  <th className="!text-center">Tối thiểu</th>
+                  <th className="!text-center">Đơn giá</th>
                 </tr>
               </thead>
               <tbody>
                 {data.lowStockItems.map((item: any) => (
                   <tr key={item.id}>
-                    <td><span className="font-mono text-xs font-semibold">{item.sku}</span></td>
-                    <td className="font-medium">{item.name}</td>
-                    <td className="text-right text-rose-600 font-bold">{item.stockCount} {item.unit}</td>
-                    <td className="text-right text-muted-foreground">{item.stockMin} {item.unit}</td>
-                    <td className="text-right font-semibold">{formatCurrency(item.price)}</td>
+                    <td className="text-center"><span className="font-mono text-xs font-semibold">{item.sku}</span></td>
+                    <td className="font-medium text-center">{item.name}</td>
+                    <td className="text-center text-rose-600 font-bold">{item.stockCount} {item.unit}</td>
+                    <td className="text-center text-muted-foreground">{item.stockMin} {item.unit}</td>
+                    <td className="text-center font-semibold">{formatCurrency(item.price)}</td>
                   </tr>
                 ))}
                 {data.lowStockItems.length === 0 && (
@@ -361,18 +361,19 @@ export default function InventoryStatsPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Loại giao dịch</th>
-                <th>Mã phụ tùng</th>
-                <th>Tên phụ tùng</th>
-                <th className="text-right">Số lượng</th>
-                <th className="text-right">Đơn giá</th>
-                <th>Đơn vị tính</th>
+                <th className="!text-center">Loại giao dịch</th>
+                <th className="!text-center">Mã phụ tùng</th>
+                <th className="!text-center">Tên phụ tùng</th>
+                <th className="!text-center">Số lượng</th>
+                <th className="!text-center">Đơn vị tính</th>
+                <th className="!text-center">Đơn giá</th>
+                <th className="!text-center">Thành tiền</th>
               </tr>
             </thead>
             <tbody>
               {data.recentMovements.map((mov: any) => (
                 <tr key={mov.id}>
-                  <td>
+                  <td className="text-center">
                     {mov.type === "IMPORT" ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                         <ArrowDownLeft size={10} /> Nhập kho
@@ -383,11 +384,12 @@ export default function InventoryStatsPage() {
                       </span>
                     )}
                   </td>
-                  <td><span className="font-mono text-xs">{mov.product?.sku}</span></td>
-                  <td className="font-medium text-xs max-w-sm truncate">{mov.product?.name}</td>
-                  <td className="text-right font-bold">{mov.quantity}</td>
-                  <td className="text-right font-medium">{formatCurrency(Number(mov.unitCost))}</td>
-                  <td><span className="text-muted-foreground text-xs">{mov.product?.unit}</span></td>
+                  <td className="text-center"><span className="font-mono text-xs">{mov.product?.sku}</span></td>
+                  <td className="font-medium text-xs max-w-sm truncate text-center">{mov.product?.name}</td>
+                  <td className="text-center font-bold">{mov.quantity}</td>
+                  <td className="text-center"><span className="text-muted-foreground text-xs">{mov.product?.unit}</span></td>
+                  <td className="text-center font-medium text-muted-foreground">{formatCurrency(Number(mov.unitCost))}</td>
+                  <td className="text-center font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(Number(mov.unitCost) * mov.quantity)}</td>
                 </tr>
               ))}
               {data.recentMovements.length === 0 && (
