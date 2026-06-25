@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const branchId = getActiveBranchId();
 
     const where: any = {
+      isDeleted: false,
       inventoryOrders: { some: {} } // Only customers with inventory orders
     };
 

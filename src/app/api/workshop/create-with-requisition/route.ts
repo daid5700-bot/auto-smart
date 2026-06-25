@@ -135,6 +135,12 @@ export async function POST(req: NextRequest) {
               totalPrice: Number(item.unitPrice) * Number(item.quantity),
             },
           });
+          
+          // Tăng reservedStock (giữ chỗ)
+          await tx.productBranch.update({
+             where: { productId_branchId: { productId: Number(item.productId), branchId } },
+             data: { reservedStock: { increment: Number(item.quantity) } }
+          });
         }
       }
 

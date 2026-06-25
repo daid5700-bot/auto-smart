@@ -45,14 +45,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           throw new Error(`Phụ tùng [${product.sku}] ${product.name} chưa cấu hình kho cho chi nhánh.`);
         }
 
-        if (productBranch.stockCount < item.quantity) {
+        if ((productBranch.stockCount) < item.quantity) {
           throw new Error(`Phụ tùng [${product.sku}] ${product.name} không đủ tồn kho (Cần ${item.quantity}, hiện có ${productBranch.stockCount})`);
         }
 
-        // Decrement product stock
+        // Decrement product stock AND decrement the reservedStock since it's now fulfilled
         await tx.productBranch.update({
           where: { id: productBranch.id },
-          data: { stockCount: { decrement: item.quantity } }
+          data: { 
+            stockCount: { decrement: item.quantity },
+            reservedStock: { decrement: item.quantity }
+          }
         });
 
         const retailPrice = Number(product.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);

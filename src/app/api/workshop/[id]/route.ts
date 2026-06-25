@@ -38,6 +38,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!currentRo) return NextResponse.json({ error: "Lệnh sửa chữa không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
+    const newTotalAmount = (body.laborCost ?? Number(currentRo.laborCost)) + (body.partsCost ?? Number(currentRo.partsCost));
+    const paidAmount = Number(currentRo.paidAmount || 0);
+    const newDebtAmount = newTotalAmount - paidAmount;
+    const debtDelta = newDebtAmount - Number(currentRo.debtAmount || 0);
+
     const data: any = {
       plateNumber: body.plateNumber,
       vehicleModel: body.vehicleModel,
@@ -47,7 +52,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       technicianId: body.technicianId,
       laborCost: body.laborCost,
       partsCost: body.partsCost,
-      totalAmount: (body.laborCost ?? Number(currentRo.laborCost)) + (body.partsCost ?? Number(currentRo.partsCost)),
+      totalAmount: newTotalAmount,
+      debtAmount: newDebtAmount,
       photos: body.photos,
     };
 
@@ -55,10 +61,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data.completedAt = new Date();
     }
 
-    const ro = await prisma.repairOrder.update({
-      where: { id },
-      data,
-      include: { customer: true, technician: true },
+    const ro = await prisma.$transaction(async (tx) => {
+      const updatedRo = await tx.repairOrder.update({
+        where: { id },
+        data,
+        include: { customer: true, technician: true },
+      });
+
+      if (debtDelta !== 0 && currentRo.customerId) {
+        await tx.customer.update({
+          where: { id: currentRo.customerId },
+          data: { totalDebt: { increment: debtDelta } }
+        });
+      }
+
+      return updatedRo;
     });
 
     // Handle completion logic (points, technician status, ZNS)
@@ -95,47 +112,55 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         },
       });
 
-      // Send Zalo ZNS Live
-      let znsStatus = "SUCCESS";
-      let znsError: string | null = null;
-      try {
-        const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
-        const updatedCustomer = await prisma.customer.findUnique({
-          where: { id: ro.customerId },
-          select: { loyaltyPoints: true },
-        });
-        const totalPoint = updatedCustomer?.loyaltyPoints ?? (ro.customer.loyaltyPoints + points);
-        
-        const custName = ro.customer.name;
-        const noteVal = ro.vehicleModel || ro.plateNumber || "Dịch vụ sửa chữa xe";
-        const templateData = {
-          customer_name: custName.length > 49 ? custName.substring(0, 49) : custName,
-          order_date: formatDateForZalo(new Date()),
-          note: noteVal.length > 29 ? noteVal.substring(0, 29) : noteVal,
-          point: String(points),
-          total_point: String(totalPoint),
-        };
-        const result = await sendZaloZns(ro.customer.phone, "CRM_THANK_YOU_001", templateData);
-        if (!result.success) {
-          znsStatus = "FAILED";
-          znsError = result.error || "Lỗi không xác định";
+      // Send Zalo ZNS Live in Background (Asynchronous, Fire-and-Forget)
+      Promise.resolve().then(async () => {
+        try {
+          const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
+          const updatedCustomer = await prisma.customer.findUnique({
+            where: { id: ro.customerId },
+            select: { loyaltyPoints: true },
+          });
+          const totalPoint = updatedCustomer?.loyaltyPoints ?? (ro.customer.loyaltyPoints + points);
+          
+          const custName = ro.customer.name;
+          const noteVal = ro.vehicleModel || ro.plateNumber || "Dịch vụ sửa chữa xe";
+          const templateData = {
+            customer_name: custName.length > 49 ? custName.substring(0, 49) : custName,
+            order_date: formatDateForZalo(new Date()),
+            note: noteVal.length > 29 ? noteVal.substring(0, 29) : noteVal,
+            point: String(points),
+            total_point: String(totalPoint),
+          };
+          
+          const result = await sendZaloZns(ro.customer.phone, "CRM_THANK_YOU_001", templateData);
+          
+          await prisma.znsLog.create({
+            data: {
+              customerId: ro.customerId,
+              phone: ro.customer.phone,
+              messageType: "THANK_YOU",
+              templateId: "CRM_THANK_YOU_001",
+              content: `Cảm ơn khách hàng ${ro.customer.name} đã sửa chữa xe ${ro.vehicleModel || ro.plateNumber}. Quý khách tích được +${points} điểm!`,
+              status: result.success ? "SUCCESS" : "FAILED",
+              error: result.error || null,
+              branchId: ro.branchId,
+            },
+          });
+        } catch (e: any) {
+          console.error("ZNS Background Task Error:", e);
+          await prisma.znsLog.create({
+            data: {
+              customerId: ro.customerId,
+              phone: ro.customer.phone,
+              messageType: "THANK_YOU",
+              templateId: "CRM_THANK_YOU_001",
+              content: `Lỗi khi chuẩn bị gửi ZNS cho RO-${ro.id}`,
+              status: "FAILED",
+              error: e.message,
+              branchId: ro.branchId,
+            },
+          });
         }
-      } catch (e: any) {
-        znsStatus = "FAILED";
-        znsError = e.message;
-      }
-
-      await prisma.znsLog.create({
-        data: {
-          customerId: ro.customerId,
-          phone: ro.customer.phone,
-          messageType: "THANK_YOU",
-          templateId: "CRM_THANK_YOU_001",
-          content: `Cảm ơn khách hàng ${ro.customer.name} đã sửa chữa xe ${ro.vehicleModel || ro.plateNumber}. Quý khách tích được +${points} điểm!`,
-          status: znsStatus === "SUCCESS" ? "SUCCESS" : "FAILED",
-          error: znsError,
-          branchId: ro.branchId,
-        },
       });
     }
 
@@ -158,8 +183,56 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     });
     if (!currentRo) return NextResponse.json({ error: "Lệnh sửa chữa không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
-    await prisma.repairOrder.delete({ where: { id } });
-    return NextResponse.json({ success: true, message: "Xóa lệnh sửa chữa thành công" });
+    await prisma.$transaction(async (tx) => {
+      // 1. Restore stock for all parts
+      const items = await tx.orderItem.findMany({ where: { repairOrderId: id } });
+      for (const item of items) {
+        if (item.productId) {
+          const pb = await tx.productBranch.findUnique({
+            where: { productId_branchId: { productId: item.productId, branchId: currentRo.branchId || 1 } }
+          });
+          if (pb) {
+            await tx.productBranch.update({
+              where: { id: pb.id },
+              data: { stockCount: { increment: item.quantity } }
+            });
+            // Create reversing movement
+            await tx.stockMovement.create({
+              data: {
+                productId: item.productId,
+                type: "IMPORT",
+                quantity: item.quantity,
+                unitCost: item.unitPrice,
+                totalCost: Number(item.quantity) * Number(item.unitPrice),
+                reason: `Hoàn kho do hủy lệnh sửa chữa RO-${id}`,
+                createdBy: "system",
+              }
+            });
+          }
+        }
+      }
+
+      // 2. Revert customer debt and spent
+      if (currentRo.customerId) {
+        const debtAmount = Number(currentRo.debtAmount || 0);
+        const totalAmount = Number(currentRo.totalAmount || 0);
+        await tx.customer.update({
+          where: { id: currentRo.customerId },
+          data: {
+            totalDebt: { decrement: debtAmount },
+            totalSpent: { decrement: totalAmount }
+          }
+        });
+      }
+
+      // 3. Soft Delete
+      await tx.repairOrder.update({
+        where: { id },
+        data: { isDeleted: true, status: "CANCELLED" }
+      });
+    });
+
+    return NextResponse.json({ success: true, message: "Hủy lệnh sửa chữa thành công và hoàn lại tồn kho" });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

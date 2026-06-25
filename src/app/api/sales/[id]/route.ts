@@ -164,9 +164,27 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ error: "Thông tin xe không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
     }
 
-    await prisma.vehicle.update({ 
-      where: { id },
-      data: { status: "CANCELLED" }
+    await prisma.$transaction(async (tx) => {
+      // Revert customer debt and spent if it was sold/reserved
+      if (currentVehicle.customerId && ["RESERVED", "SOLD"].includes(currentVehicle.status)) {
+        const accessories = JSON.parse(currentVehicle.accessoriesJson || "[]");
+        const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
+        const totalAmount = currentVehicle.listPrice.toNumber() + (currentVehicle.plateCost ? currentVehicle.plateCost.toNumber() : 0) + accCost;
+        const debtAmount = currentVehicle.debtAmount.toNumber();
+
+        await tx.customer.update({
+          where: { id: currentVehicle.customerId },
+          data: {
+            totalDebt: { decrement: debtAmount },
+            totalSpent: { decrement: totalAmount }
+          }
+        });
+      }
+
+      await tx.vehicle.update({ 
+        where: { id },
+        data: { status: "CANCELLED" }
+      });
     });
     return NextResponse.json({ success: true, message: "Đã hủy (xóa mềm) hồ sơ xe thành công" });
   } catch (error: any) {

@@ -26,7 +26,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         throw new Error("Phiếu yêu cầu này đã được xử lý (APPROVED hoặc REJECTED)");
       }
 
-      // 2. Update status of requisition to REJECTED
+      // 2. Fetch items to release reservedStock
+      const items = await tx.partsRequisitionItem.findMany({
+        where: { requisitionId }
+      });
+      for (const item of items) {
+        await tx.productBranch.update({
+          where: { productId_branchId: { productId: item.productId, branchId: requisition.branchId } },
+          data: { reservedStock: { decrement: item.quantity } }
+        });
+      }
+
+      // 3. Update status of requisition to REJECTED
       await tx.partsRequisition.update({
         where: { id: requisitionId },
         data: { status: "REJECTED" }

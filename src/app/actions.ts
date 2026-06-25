@@ -105,8 +105,14 @@ export async function createManualImport(data: {
         create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
       });
 
-      const oldStock = pb.stockCount;
-      const oldMac = Number(pb.movingAvgCost || 0);
+      // Lấy data mới nhất và khóa dòng để chống Race Condition (Đụng độ dữ liệu)
+      const lockedRows: any[] = await tx.$queryRaw`
+        SELECT "stockCount", "movingAvgCost" FROM "ProductBranch" 
+        WHERE "id" = ${pb.id} FOR UPDATE
+      `;
+      
+      const oldStock = Number(lockedRows[0]?.stockCount || 0);
+      const oldMac = Number(lockedRows[0]?.movingAvgCost || 0);
       const newStock = oldStock + actualQty;
 
       let newMac = oldMac;
@@ -836,7 +842,6 @@ export async function createPartsRequisition(data: {
 
     const requisitionItemsCreated = [];
     const orderItemsCreated = [];
-    const movementsCreated = [];
 
     // B. Process each item
     for (const item of data.items) {
@@ -853,14 +858,14 @@ export async function createPartsRequisition(data: {
         where: { productId_branchId: { productId: item.productId, branchId: activeBranchId } }
       });
 
-      if (!pb || pb.stockCount < item.quantity) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${pb?.stockCount || 0}, Yêu cầu: ${item.quantity})`);
+      if (!pb || (pb.stockCount - pb.reservedStock) < item.quantity) {
+        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho khả dụng (Tồn: ${pb?.stockCount || 0}, Đang giữ chỗ: ${pb?.reservedStock || 0}, Yêu cầu: ${item.quantity})`);
       }
 
-      // Decrement stock
+      // Increment reservedStock (Do NOT decrement stockCount yet)
       await tx.productBranch.update({
         where: { id: pb.id },
-        data: { stockCount: { decrement: item.quantity } },
+        data: { reservedStock: { increment: item.quantity } },
       });
 
       // Create PartsRequisitionItem
@@ -886,7 +891,6 @@ export async function createPartsRequisition(data: {
       }
 
       const totalPrice = unitPrice * item.quantity;
-      const cogsUnit = Number(pb.movingAvgCost || 0);
 
       // Create OrderItem
       const orderItem = await tx.orderItem.create({
@@ -900,23 +904,10 @@ export async function createPartsRequisition(data: {
       });
       orderItemsCreated.push(orderItem);
 
-      // Create StockMovement (EXPORT)
-      const movement = await tx.stockMovement.create({
-        data: {
-          productId: item.productId,
-          type: "EXPORT",
-          quantity: item.quantity,
-          unitCost: cogsUnit,
-          totalCost: cogsUnit * item.quantity,
-          reason: data.reason || `Xuất kho xin phụ tùng cho RO #${data.repairOrderId}`,
-          relatedRoId: data.repairOrderId,
-          createdBy: data.createdBy,
-        },
-      });
-      movementsCreated.push(movement);
+      // NOTE: StockMovement EXPORT will be created in the approve API
     }
 
-    return { requisition, requisitionItemsCreated, orderItemsCreated, movementsCreated };
+    return { requisition, requisitionItemsCreated, orderItemsCreated };
   });
 
   // 3. Recalculate bill for the RO

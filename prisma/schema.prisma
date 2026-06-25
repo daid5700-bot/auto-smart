@@ -56,6 +56,7 @@ model Branch {
   loyaltyTx    LoyaltyTransaction[]
   partsRequisitions PartsRequisition[]
   inventoryOrders InventoryOrder[]
+  paymentTransactions PaymentTransaction[]
   isDeleted    Boolean       @default(false)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -197,10 +198,10 @@ model RepairOrder {
   debtAmount    Decimal       @default(0)
   photos        String[]
   completedAt   DateTime?
+  isDeleted     Boolean       @default(false)
   partsRequisitions PartsRequisition[]
   branchId      Int?
   branch        Branch?       @relation(fields: [branchId], references: [id])
-  isDeleted     Boolean       @default(false)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -286,6 +287,7 @@ model Customer {
   loyaltyTx      LoyaltyTransaction[]
   branchId       Int?
   branch         Branch?          @relation(fields: [branchId], references: [id])
+  isDeleted      Boolean          @default(false)
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -381,4 +383,26 @@ model SystemConfig {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ========== CASHFLOW ==========
+model PaymentTransaction {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  amount        Decimal
+  method        String   // CASH, BANK_TRANSFER
+  type          String   // INCOME, EXPENSE
+  referenceId   Int?     // RO ID, INVENTORY ORDER ID, VEHICLE ID
+  referenceType String?  // REPAIR_ORDER, INVENTORY_ORDER, VEHICLE_SALE
+  note          String?
+  branchId      Int?
+  branch        Branch?  @relation(fields: [branchId], references: [id])
+  isDeleted     Boolean  @default(false)
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([createdAt])
+  @@index([referenceId, referenceType])
 }

@@ -6,34 +6,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const id = parseInt(params.id);
     const { amount } = await req.json();
     
-    // Allow setting absolute paidAmount, just like inventory orders
     const targetPaidAmount = Number(amount);
     if (isNaN(targetPaidAmount) || targetPaidAmount < 0) {
       return NextResponse.json({ error: "Số tiền không hợp lệ" }, { status: 400 });
     }
 
-    const vehicle = await prisma.vehicle.findUnique({
+    const ro = await prisma.repairOrder.findUnique({
       where: { id },
       include: { customer: true }
     });
 
-    if (!vehicle) return NextResponse.json({ error: "Không tìm thấy xe" }, { status: 404 });
+    if (!ro) return NextResponse.json({ error: "Không tìm thấy lệnh sửa chữa" }, { status: 404 });
 
-    // Calculate total bill for the vehicle
-    const accessories = JSON.parse(vehicle.accessoriesJson || "[]");
-    const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
-    const totalAmount = vehicle.listPrice.toNumber() + (vehicle.plateCost ? vehicle.plateCost.toNumber() : 0) + accCost;
-
+    const totalAmount = ro.totalAmount.toNumber();
     const newPaidAmount = Math.min(targetPaidAmount, totalAmount);
     const newDebtAmount = totalAmount - newPaidAmount;
 
     // Delta debt to adjust customer's totalDebt
-    const oldDebtAmount = vehicle.debtAmount.toNumber();
-    const debtDelta = newDebtAmount - oldDebtAmount; // If debt increases, delta > 0. If debt decreases, delta < 0.
+    const oldDebtAmount = ro.debtAmount.toNumber();
+    const debtDelta = newDebtAmount - oldDebtAmount;
 
-    const updatedVehicle = await prisma.$transaction(async (tx) => {
-      // update vehicle
-      const v = await tx.vehicle.update({
+    const updatedRo = await prisma.$transaction(async (tx) => {
+      // update repair order
+      const updated = await tx.repairOrder.update({
         where: { id },
         data: {
           paidAmount: newPaidAmount,
@@ -41,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         }
       });
 
-      const oldPaidAmount = vehicle.paidAmount.toNumber();
+      const oldPaidAmount = ro.paidAmount.toNumber();
       const diffPaid = newPaidAmount - oldPaidAmount;
       
       if (diffPaid !== 0) {
@@ -53,29 +48,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             amount: txAmount,
             method: "CASH", 
             type: pType,
-            referenceId: vehicle.id,
-            referenceType: "VEHICLE_SALE",
-            note: pType === "INCOME" ? `Thu tiền hồ sơ bán xe ${vehicle.vin}` : `Hoàn tiền hồ sơ bán xe ${vehicle.vin}`,
-            branchId: vehicle.branchId,
+            referenceId: ro.id,
+            referenceType: "REPAIR_ORDER",
+            note: pType === "INCOME" ? `Thu tiền lệnh sửa chữa RO-${ro.id}` : `Hoàn tiền lệnh sửa chữa RO-${ro.id}`,
+            branchId: ro.branchId,
             createdBy: "system"
           }
         });
       }
 
       // update customer debt
-      if (vehicle.customerId && debtDelta !== 0) {
+      if (ro.customerId && debtDelta !== 0) {
         await tx.customer.update({
-          where: { id: vehicle.customerId },
+          where: { id: ro.customerId },
           data: {
             totalDebt: { increment: debtDelta }
           }
         });
       }
 
-      return v;
+      return updated;
     });
 
-    return NextResponse.json(updatedVehicle);
+    return NextResponse.json(updatedRo);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

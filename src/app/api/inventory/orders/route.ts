@@ -141,6 +141,22 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      if (Number(paidAmount) > 0) {
+        await tx.paymentTransaction.create({
+          data: {
+            code: `PT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            amount: Number(paidAmount),
+            method: "CASH",
+            type: "INCOME",
+            referenceId: newOrder.id,
+            referenceType: "INVENTORY_ORDER",
+            note: `Thu tiền ngay khi tạo đơn kho ${newOrder.code}`,
+            branchId: targetBranchId,
+            createdBy: userName || "system"
+          }
+        });
+      }
+
       // Update customer debt and spent if customer exists
       if (finalCustomerId) {
         await tx.customer.update({

@@ -36,6 +36,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         }
       });
 
+      const oldPaidAmount = order.paidAmount.toNumber();
+      const diffPaid = actualPaid - oldPaidAmount;
+      
+      if (diffPaid !== 0) {
+        const pType = diffPaid > 0 ? "INCOME" : "EXPENSE";
+        const txAmount = Math.abs(diffPaid);
+        await tx.paymentTransaction.create({
+          data: {
+            code: `PT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            amount: txAmount,
+            method: "CASH", 
+            type: pType,
+            referenceId: order.id,
+            referenceType: "INVENTORY_ORDER",
+            note: pType === "INCOME" ? `Thu tiền đơn hàng kho ${order.code}` : `Hoàn tiền đơn hàng kho ${order.code}`,
+            branchId: order.branchId,
+            createdBy: "system"
+          }
+        });
+      }
+
       // update customer debt
       if (order.customerId && debtDelta !== 0) {
         await tx.customer.update({

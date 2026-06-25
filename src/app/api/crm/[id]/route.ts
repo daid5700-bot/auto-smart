@@ -69,13 +69,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       });
       if (!currentCust) return NextResponse.json({ error: "Khách hàng không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
-      // Cascade delete related records first to prevent foreign key errors (or let schema cascading deal with it)
-      await prisma.loyaltyTransaction.deleteMany({ where: { customerId: id } });
-      await prisma.znsLog.deleteMany({ where: { customerId: id } });
-      await prisma.repairOrder.deleteMany({ where: { customerId: id } });
-      await prisma.vehicle.updateMany({ where: { customerId: id }, data: { customerId: null } });
-      await prisma.customer.delete({ where: { id } });
-      return NextResponse.json({ success: true, message: "Xóa Khách hàng thành công" });
+      // Soft delete: keep all financial and repair history intact, just hide the customer from UI
+      await prisma.customer.update({ 
+        where: { id },
+        data: { isDeleted: true }
+      });
+      return NextResponse.json({ success: true, message: "Xóa Khách hàng thành công (ẩn khỏi hệ thống)" });
     } else {
       const currentLead = await prisma.lead.findFirst({
         where: {
