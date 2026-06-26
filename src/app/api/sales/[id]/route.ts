@@ -121,23 +121,82 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const newTotalAmount = finalListPrice + finalPlateCost + accCost;
     const paid = currentVehicle.paidAmount.toNumber();
     const newDebtAmount = newTotalAmount - paid;
-    const oldDebtAmount = currentVehicle.debtAmount.toNumber();
-    const debtDelta = newDebtAmount - oldDebtAmount;
 
     updateData.debtAmount = newDebtAmount;
 
     const vehicle = await prisma.$transaction(async (tx) => {
+      // 1. Calculate old amounts
+      const oldAccessories = JSON.parse(currentVehicle.accessoriesJson || "[]");
+      const oldAccCost = oldAccessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
+      const oldTotalAmount = currentVehicle.listPrice.toNumber() + (currentVehicle.plateCost ? currentVehicle.plateCost.toNumber() : 0) + oldAccCost;
+      const oldDebtAmount = currentVehicle.debtAmount.toNumber();
+
+      // 2. Determine statuses
+      const oldStatus = currentVehicle.status;
+      const newStatus = updateData.status || oldStatus;
+      
+      const wasActive = ["RESERVED", "SOLD"].includes(oldStatus);
+      const isNowActive = ["RESERVED", "SOLD"].includes(newStatus);
+
+      // 3. Update the vehicle
       const v = await tx.vehicle.update({
         where: { id },
         data: updateData,
         include: { customer: true }
       });
 
-      if (customerId && debtDelta !== 0 && ["RESERVED", "SOLD"].includes(v.status)) {
-        await tx.customer.update({
-          where: { id: customerId },
-          data: { totalDebt: { increment: debtDelta } }
-        });
+      // 4. Handle customer debt and spent adjustments
+      const oldCustomerId = currentVehicle.customerId;
+      const newCustomerId = v.customerId;
+
+      if (oldCustomerId !== newCustomerId) {
+        // Customer changed: Revert from old customer (if was active), apply to new customer (if now active)
+        if (oldCustomerId && wasActive) {
+          await tx.customer.update({
+            where: { id: oldCustomerId },
+            data: {
+              totalDebt: { decrement: oldDebtAmount },
+              totalSpent: { decrement: oldTotalAmount }
+            }
+          });
+        }
+        if (newCustomerId && isNowActive) {
+          await tx.customer.update({
+            where: { id: newCustomerId },
+            data: {
+              totalDebt: { increment: newDebtAmount },
+              totalSpent: { increment: newTotalAmount }
+            }
+          });
+        }
+      } else if (newCustomerId) {
+        // Same customer: Calculate delta based on status transition and price changes
+        let debtChange = 0;
+        let spentChange = 0;
+        
+        if (!wasActive && isNowActive) {
+          // Transition to SOLD/RESERVED
+          debtChange = newDebtAmount;
+          spentChange = newTotalAmount;
+        } else if (wasActive && !isNowActive) {
+          // Transition out of SOLD/RESERVED
+          debtChange = -oldDebtAmount;
+          spentChange = -oldTotalAmount;
+        } else if (wasActive && isNowActive) {
+          // Kept SOLD/RESERVED, but prices might have changed
+          debtChange = newDebtAmount - oldDebtAmount;
+          spentChange = newTotalAmount - oldTotalAmount;
+        }
+
+        if (debtChange !== 0 || spentChange !== 0) {
+          await tx.customer.update({
+            where: { id: newCustomerId },
+            data: { 
+              totalDebt: { increment: debtChange },
+              totalSpent: { increment: spentChange }
+            }
+          });
+        }
       }
 
       return v;

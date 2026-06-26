@@ -136,27 +136,40 @@ export async function POST(req: NextRequest) {
     const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
     const initialDebtAmount = parsedListPrice + parsedPlateCost + accCost;
 
-    const vehicle = await prisma.vehicle.create({
-      data: {
-        vin,
-        model,
-        variant: variant || null,
-        color: color || null,
-        year: Number(year) || new Date().getFullYear(),
-        status: status || "AVAILABLE",
-        listPrice: parsedListPrice,
-        floorPrice: Number(floorPrice) || 0,
-        image: image || null,
-        bankStatus: bankStatus || "NONE",
-        plateStatus: plateStatus || "PENDING",
-        plateCost: parsedPlateCost,
-        accessoriesJson: accessoriesJson || "[]",
-        debtAmount: initialDebtAmount,
-        notes: notes || null,
-        customerId,
-        branchId,
-      },
-      include: { customer: true }
+    const vehicle = await prisma.$transaction(async (tx) => {
+      const v = await tx.vehicle.create({
+        data: {
+          vin,
+          model,
+          variant: variant || null,
+          color: color || null,
+          year: Number(year) || new Date().getFullYear(),
+          status: status || "AVAILABLE",
+          listPrice: parsedListPrice,
+          floorPrice: Number(floorPrice) || 0,
+          image: image || null,
+          bankStatus: bankStatus || "NONE",
+          plateStatus: plateStatus || "PENDING",
+          plateCost: parsedPlateCost,
+          accessoriesJson: accessoriesJson || "[]",
+          debtAmount: initialDebtAmount,
+          notes: notes || null,
+          customerId,
+          branchId,
+        },
+        include: { customer: true }
+      });
+      
+      if (customerId && ["RESERVED", "SOLD"].includes(v.status)) {
+        await tx.customer.update({
+          where: { id: customerId },
+          data: {
+            totalDebt: { increment: initialDebtAmount },
+            totalSpent: { increment: initialDebtAmount }
+          }
+        });
+      }
+      return v;
     });
     
     return NextResponse.json(vehicle, { status: 201 });
