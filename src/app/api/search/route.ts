@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
           { email: { contains: cleanQuery, mode: "insensitive" } },
         ],
       },
-      take: 5,
+      take: 20,
     });
 
     // Search Vehicles (Sales)

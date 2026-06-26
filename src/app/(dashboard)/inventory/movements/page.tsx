@@ -36,7 +36,7 @@ export default function MovementsPage() {
   const [phone, setPhone] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
-  const [paidAmount, setPaidAmount] = useState<number | "">("");
+  const [address, setAddress] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
 
@@ -213,16 +213,18 @@ export default function MovementsPage() {
     setActiveDropdownIdx(null);
   };
 
-  const handlePhoneChange = (val: string) => {
+  const handlePhoneChange = async (val: string) => {
     setPhone(val);
     setCustomerId("");
     if (val.trim().length > 1) {
-      const filtered = customers.filter((c) =>
-        c.phone.toLowerCase().includes(val.toLowerCase()) ||
-        c.name.toLowerCase().includes(val.toLowerCase())
-      );
-      setSuggestions(filtered);
-      setShowSuggestions(true);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
+        const data = await res.json();
+        setSuggestions(data.customers || []);
+        setShowSuggestions(true);
+      } catch (e) {
+        console.error(e);
+      }
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -233,6 +235,7 @@ export default function MovementsPage() {
     setPhone(c.phone);
     setCustomerName(c.name);
     setCustomerId(c.id.toString());
+    if (c.address) setAddress(c.address);
     setShowSuggestions(false);
   };
 
@@ -305,7 +308,7 @@ export default function MovementsPage() {
           customerName: customerName.trim(),
           type: exportType === "WHOLESALE" ? "EXPORT_WHOLESALE" : "EXPORT_RETAIL",
           reason: items[0]?.note || "Bán xuất kho",
-          paidAmount: Number(paidAmount || 0),
+          address: address.trim(),
           items: items.map((i) => ({
             productId: parseInt(i.productId),
             quantity: Number(i.quantity),
@@ -324,6 +327,12 @@ export default function MovementsPage() {
       }
       
       resetItems();
+      if (activeTab === "EXPORT") {
+        setPhone("");
+        setCustomerName("");
+        setCustomerId("");
+        setAddress("");
+      }
       await fetchData();
       alert("Thao tác thành công!");
     } catch (err: any) {
@@ -453,17 +462,13 @@ export default function MovementsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền khách trả trước</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Địa chỉ</label>
                 <input
                   type="text"
-                  inputMode="numeric"
-                  value={paidAmount === "" ? "" : Number(paidAmount).toLocaleString("vi-VN")}
-                  onChange={(e) => {
-                    const cleanVal = e.target.value.replace(/\D/g, "");
-                    setPaidAmount(cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                  }}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm font-bold text-emerald-600 outline-none"
-                  placeholder="VD: 500,000 (Để trống nếu nợ cả)"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm outline-none"
+                  placeholder="Nhập địa chỉ..."
                 />
               </div>
             </div>

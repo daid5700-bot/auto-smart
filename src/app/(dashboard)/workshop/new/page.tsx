@@ -64,15 +64,17 @@ export default function NewRepairOrderPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handlePhoneChange = (val: string) => {
+  const handlePhoneChange = async (val: string) => {
     setPhone(val);
     if (val.trim().length > 1) {
-      const filtered = customers.filter((c) =>
-        c.phone.toLowerCase().includes(val.toLowerCase()) ||
-        c.name.toLowerCase().includes(val.toLowerCase())
-      );
-      setSuggestions(filtered);
-      setShowSuggestions(true);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
+        const data = await res.json();
+        setSuggestions(data.customers || []);
+        setShowSuggestions(true);
+      } catch (e) {
+        console.error(e);
+      }
     } else {
       setSuggestions([]);
       setShowSuggestions(false);

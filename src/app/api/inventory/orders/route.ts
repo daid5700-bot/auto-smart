@@ -61,12 +61,13 @@ export async function POST(req: NextRequest) {
     const userName = req.cookies.get("user_name")?.value || "System";
 
     // Build the inventory order
-    const { customerId, type, items, paidAmount, reason } = body;
+    const { customerId, type, items, address, reason } = body;
     
     // Calculate total amount
     const totalAmount = items.reduce((sum: number, item: any) => sum + (Number(item.quantity) * Number(item.unitPrice)), 0);
-    const debtAmount = Math.max(0, totalAmount - Number(paidAmount || 0));
-    const status = debtAmount > 0 ? "DEBT" : "PAID";
+    const paidAmount = 0; // Removed from UI
+    const debtAmount = totalAmount;
+    const status = "DEBT";
 
     // Generate code
     const code = `PX-${Date.now().toString().slice(-6)}`;
@@ -74,12 +75,20 @@ export async function POST(req: NextRequest) {
     const order = await prisma.$transaction(async (tx) => {
       let finalCustomerId = customerId ? parseInt(customerId) : null;
       
+      if (finalCustomerId && address) {
+        await tx.customer.update({
+          where: { id: finalCustomerId },
+          data: { address }
+        });
+      }
+      
       // Auto-create customer if phone & name provided but no ID
       if (!finalCustomerId && body.phone && body.customerName) {
         const newCustomer = await tx.customer.create({
           data: {
             phone: body.phone,
             name: body.customerName,
+            address: address || null,
             branchId,
           }
         });
