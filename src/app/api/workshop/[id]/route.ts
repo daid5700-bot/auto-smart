@@ -184,31 +184,60 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     if (!currentRo) return NextResponse.json({ error: "Lệnh sửa chữa không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
     await prisma.$transaction(async (tx) => {
-      // 1. Restore stock for all parts
-      const items = await tx.orderItem.findMany({ where: { repairOrderId: id } });
-      for (const item of items) {
-        if (item.productId) {
-          const pb = await tx.productBranch.findUnique({
-            where: { productId_branchId: { productId: item.productId, branchId: currentRo.branchId || 1 } }
-          });
-          if (pb) {
-            await tx.productBranch.update({
-              where: { id: pb.id },
-              data: { stockCount: { increment: item.quantity } }
-            });
-            // Create reversing movement
-            await tx.stockMovement.create({
-              data: {
-                productId: item.productId,
-                type: "IMPORT",
-                quantity: item.quantity,
-                unitCost: item.unitPrice,
-                totalCost: Number(item.quantity) * Number(item.unitPrice),
-                reason: `Hoàn kho do hủy lệnh sửa chữa RO-${id}`,
-                createdBy: "system",
+      // 1. Handle Parts Inventory Restoration based on Requisition Status
+      const requisitions = await tx.partsRequisition.findMany({
+        where: { repairOrderId: id },
+        include: { items: true }
+      });
+
+      // Assuming 1 RO has at most 1 requisition in this workflow
+      const req = requisitions[0];
+      
+      if (req) {
+        if (req.status === "APPROVED") {
+          // Warehouse already exported the parts. We must return them to stockCount.
+          const orderItems = await tx.orderItem.findMany({ where: { repairOrderId: id } });
+          await Promise.all(orderItems.map(async (item) => {
+            if (item.productId) {
+              const pb = await tx.productBranch.findUnique({
+                where: { productId_branchId: { productId: item.productId, branchId: currentRo.branchId || 1 } }
+              });
+              if (pb) {
+                await tx.productBranch.update({
+                  where: { id: pb.id },
+                  data: { stockCount: { increment: item.quantity } }
+                });
+                await tx.stockMovement.create({
+                  data: {
+                    productId: item.productId,
+                    type: "IMPORT",
+                    quantity: item.quantity,
+                    unitCost: item.unitPrice,
+                    totalCost: Number(item.quantity) * Number(item.unitPrice),
+                    reason: `Hoàn kho do hủy lệnh sửa chữa RO-${id}`,
+                    createdBy: "system",
+                  }
+                });
               }
-            });
-          }
+            }
+          }));
+        } else if (req.status === "PENDING") {
+          // Warehouse has NOT exported parts. They are only in reservedStock.
+          // Clear the reservations.
+          await Promise.all(req.items.map((item) => 
+            tx.productBranch.update({
+              where: { productId_branchId: { productId: item.productId, branchId: currentRo.branchId || 1 } },
+              data: { reservedStock: { decrement: item.quantity } }
+            })
+          ));
+        }
+
+        // Cancel the requisition so warehouse doesn't see it anymore
+        if (req.status === "PENDING") {
+           await tx.partsRequisition.update({
+             where: { id: req.id },
+             data: { status: "REJECTED" } // Mark as rejected/cancelled
+           });
         }
       }
 

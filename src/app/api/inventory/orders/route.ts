@@ -121,34 +121,45 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // Update product stocks with constraints
+      // Fetch all required product branches in a single query
       const targetBranchId = branchId || 1;
+      const productIds = items.map((i: any) => parseInt(i.productId || i.id));
+      const productBranches = await tx.productBranch.findMany({
+        where: {
+          branchId: targetBranchId,
+          productId: { in: productIds }
+        },
+        include: { product: true }
+      });
+
+      // Create a map for O(1) lookups
+      const pbMap = new Map(productBranches.map(pb => [pb.productId, pb]));
+
+      // Validation phase
       for (const item of items) {
-        const productBranch = await tx.productBranch.findUnique({
-          where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
-          include: { product: true }
-        });
+        const pId = parseInt(item.productId || item.id);
+        const pb = pbMap.get(pId);
         
-        if (!productBranch) {
-          // If product branch entry doesn't exist, try to find the product to show a better error
-          const product = await tx.product.findUnique({ where: { id: item.productId } });
-          if (product) {
-            throw new Error(`Sản phẩm [${product.sku}] ${product.name} chưa được cấu hình tồn kho cho chi nhánh này.`);
-          }
-          throw new Error(`Sản phẩm không tồn tại (ID: ${item.productId})`);
+        if (!pb) {
+          throw new Error(`Sản phẩm không tồn tại trong kho (ID: ${pId})`);
         }
         
-        if (productBranch.stockCount < item.quantity) {
-          throw new Error(`Sản phẩm [${productBranch.product.sku}] ${productBranch.product.name} không đủ tồn kho (Cần ${item.quantity}, Hiện có ${productBranch.stockCount}). Vui lòng nhập thêm hàng.`);
+        if (pb.stockCount < item.quantity) {
+          throw new Error(`Sản phẩm [${pb.product.sku}] ${pb.product.name} không đủ tồn (Cần ${item.quantity}, Hiện có ${pb.stockCount}).`);
         }
-
-        const cogsUnit = Number(productBranch.movingAvgCost || 0);
-
-        await tx.productBranch.update({
-          where: { id: productBranch.id },
-          data: { stockCount: { decrement: item.quantity } }
-        });
       }
+
+      // Update phase: execute all updates concurrently
+      await Promise.all(
+        items.map((item: any) => {
+          const pId = parseInt(item.productId || item.id);
+          const pb = pbMap.get(pId)!;
+          return tx.productBranch.update({
+            where: { id: pb.id },
+            data: { stockCount: { decrement: item.quantity } }
+          });
+        })
+      );
 
       if (Number(paidAmount) > 0) {
         await tx.paymentTransaction.create({

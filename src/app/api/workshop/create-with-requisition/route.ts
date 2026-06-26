@@ -115,33 +115,34 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        for (const item of items) {
-          // Create PartsRequisitionItem
-          await tx.partsRequisitionItem.create({
-            data: {
+        // Execute all creations and updates concurrently to avoid N+1 transaction locking
+        await Promise.all([
+          // 1. Bulk create PartsRequisitionItem
+          tx.partsRequisitionItem.createMany({
+            data: items.map((item: any) => ({
               requisitionId: requisition.id,
               productId: Number(item.productId),
               quantity: Number(item.quantity),
-            },
-          });
-
-          // Create OrderItem (as placeholder for invoice estimation, but not final stock movement)
-          await tx.orderItem.create({
-            data: {
+            }))
+          }),
+          // 2. Bulk create OrderItem
+          tx.orderItem.createMany({
+            data: items.map((item: any) => ({
               repairOrderId: ro.id,
               productId: Number(item.productId),
               quantity: Number(item.quantity),
               unitPrice: Number(item.unitPrice),
               totalPrice: Number(item.unitPrice) * Number(item.quantity),
-            },
-          });
-          
-          // Tăng reservedStock (giữ chỗ)
-          await tx.productBranch.update({
-             where: { productId_branchId: { productId: Number(item.productId), branchId } },
-             data: { reservedStock: { increment: Number(item.quantity) } }
-          });
-        }
+            }))
+          }),
+          // 3. Concurrently increment reservedStock
+          ...items.map((item: any) => 
+            tx.productBranch.update({
+              where: { productId_branchId: { productId: Number(item.productId), branchId } },
+              data: { reservedStock: { increment: Number(item.quantity) } }
+            })
+          )
+        ]);
       }
 
       return ro;

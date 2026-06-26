@@ -13,12 +13,16 @@ export async function GET(req: NextRequest) {
 
     const cleanQuery = query.trim();
 
+    // Determine if query is mostly numeric (likely a phone number search)
+    const isNumericSearch = /^\d+$/.test(cleanQuery.replace(/\s+/g, ''));
+
     // Search Customers
     const customers = await prisma.customer.findMany({
       where: {
         OR: [
           { name: { contains: cleanQuery, mode: "insensitive" } },
-          { phone: { contains: cleanQuery } },
+          // If numeric, use startsWith to hit the B-Tree index on phone. Otherwise, contains.
+          { phone: isNumericSearch ? { startsWith: cleanQuery } : { contains: cleanQuery } },
           { email: { contains: cleanQuery, mode: "insensitive" } },
         ],
       },
