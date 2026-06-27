@@ -9,8 +9,8 @@ export default function SalesPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusF, setStatusF] = useState("");
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [statusF, setStatusF] = useState("AVAILABLE");
+  const [view, setView] = useState<"grid" | "list">("list");
   const [uploading, setUploading] = useState(false);
 
   // Modal State
@@ -214,119 +214,140 @@ export default function SalesPage() {
       </div>
 
       {/* Quick Status Filter Buttons */}
-      <div className="space-y-2">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {(["AVAILABLE", "RESERVED", "INCOMING", "SOLD"] as const).map((s) => (
             <div 
               key={s} 
-              className={`glass-card rounded-xl p-4 transition-all duration-200 cursor-pointer border hover:-translate-y-0.5 ${
+              className={`glass-card rounded-xl py-2.5 px-3.5 transition-all duration-200 cursor-pointer border hover:-translate-y-0.5 ${
                 statusF === s 
                   ? "border-primary bg-primary/5 shadow-md shadow-primary/5" 
                   : "border-border/60 hover:border-border"
               }`}
               onClick={() => setStatusF(statusF === s ? "" : s)}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground font-semibold">{statusText(s)}</p>
-                <div className={`w-1.5 h-1.5 rounded-full ${
-                  s === "AVAILABLE" ? "bg-emerald-500" :
-                  s === "RESERVED" ? "bg-amber-500" :
-                  s === "INCOMING" ? "bg-blue-500" : "bg-gray-400"
-                }`} />
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    s === "AVAILABLE" ? "bg-emerald-500" :
+                    s === "RESERVED" ? "bg-amber-500" :
+                    s === "INCOMING" ? "bg-blue-500" : "bg-gray-400"
+                  }`} />
+                  <span className="text-xs text-muted-foreground font-semibold truncate">{statusText(s)}</span>
+                </div>
+                <span className="text-sm font-black text-foreground shrink-0">{counts[s] || 0} xe</span>
               </div>
-              <p className="text-xl font-bold mt-2 text-foreground">{counts[s] || 0} xe</p>
             </div>
           ))}
         </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm theo model hoặc VIN..." className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" /></div>
-        <div className="flex bg-card border border-border rounded-xl overflow-hidden">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            placeholder="Tìm theo model hoặc VIN..." 
+            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" 
+          />
+        </div>
+        <select 
+          value={statusF} 
+          onChange={(e) => setStatusF(e.target.value)} 
+          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/30 min-w-[160px]"
+        >
+          <option value="AVAILABLE">Sẵn sàng (Available)</option>
+          <option value="RESERVED">Đã đặt cọc (Reserved)</option>
+          <option value="INCOMING">Đang về (Incoming)</option>
+          <option value="SOLD">Đã bán (Sold)</option>
+          <option value="">Tất cả xe hoạt động</option>
+        </select>
+        <div className="flex bg-card border border-border rounded-xl overflow-hidden shrink-0">
           <button onClick={() => setView("grid")} className={`px-3 py-2 text-xs ${view === "grid" ? "bg-primary text-white" : ""}`}><Grid3X3 size={14} /></button>
           <button onClick={() => setView("list")} className={`px-3 py-2 text-xs ${view === "list" ? "bg-primary text-white" : ""}`}><List size={14} /></button>
         </div>
       </div>
 
       {view === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           {vehicles.map((v: any) => (
-            <div key={v.id} className="glass-card rounded-2xl overflow-hidden hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 group flex flex-col h-full border border-border/40">
+            <div key={v.id} className="glass-card rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group flex flex-col h-full border border-border/40">
               {/* Image / Thumbnail Section */}
-              <div className="h-48 bg-gradient-to-tr from-slate-100 via-slate-50 to-blue-50/30 flex items-center justify-center relative overflow-hidden border-b border-border/30 shrink-0">
+              <div className="h-32 bg-gradient-to-tr from-slate-100 via-slate-50 to-blue-50/30 flex items-center justify-center relative overflow-hidden border-b border-border/30 shrink-0">
                 {v.image ? (
                   <img src={v.image} alt={v.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10">
-                      <Car size={32} className="text-primary/40" />
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10">
+                      <Car size={20} className="text-primary/40" />
                     </div>
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Chưa cập nhật ảnh</span>
+                    <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">Chưa cập nhật ảnh</span>
                   </div>
                 )}
                 {/* Status Badge */}
-                <span className={`badge ${statusBadge(v.status)} absolute top-3 right-3 shadow-sm backdrop-blur-md`}>
+                <span className={`badge ${statusBadge(v.status)} absolute top-2 right-2 text-[9px] px-1.5 py-0.5 shadow-sm backdrop-blur-md`}>
                   {statusText(v.status)}
                 </span>
                 {/* Year Label */}
-                <span className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-md text-white text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                <span className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-md text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-md">
                   {v.year}
                 </span>
               </div>
 
               {/* Content Section */}
-              <div className="p-5 flex-1 flex flex-col justify-between">
+              <div className="p-3.5 flex-1 flex flex-col justify-between">
                 <div>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">{v.model}</h3>
-                      <p className="text-xs text-muted-foreground font-medium mt-0.5">{v.variant}</p>
+                      <h3 className="text-sm font-bold text-foreground tracking-tight group-hover:text-primary transition-colors line-clamp-1">{v.model}</h3>
+                      <p className="text-[11px] text-muted-foreground font-medium mt-0.5 truncate">{v.variant || "—"}</p>
                     </div>
                   </div>
 
                   {/* Attribute Tags Grid */}
-                  <div className="flex flex-wrap gap-2 mt-4">
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
                     {/* Color Tag */}
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-secondary/50 border border-border/20 rounded-lg text-xs text-muted-foreground">
-                      <div className={`w-2 h-2 rounded-full ${COLOR_DOT[v.color] || "bg-gray-500"}`} />
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-secondary/50 border border-border/20 rounded-md text-[10px] text-muted-foreground">
+                      <div className={`w-1.5 h-1.5 rounded-full ${COLOR_DOT[v.color] || "bg-gray-500"}`} />
                       <span>{v.color}</span>
                     </div>
                     {/* VIN Tag */}
-                    <div className="flex items-center gap-1 px-2.5 py-1 bg-secondary/50 border border-border/20 rounded-lg text-xs">
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">VIN:</span>
-                      <code className="text-foreground font-mono">{v.vin?.slice(-8)}</code>
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-secondary/50 border border-border/20 rounded-md text-[10px]">
+                      <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">VIN:</span>
+                      <code className="text-foreground font-mono font-bold">{v.vin?.slice(-6)}</code>
                     </div>
                   </div>
 
                   {/* Divider */}
-                  <div className="my-4 border-t border-border/40" />
+                  <div className="my-2.5 border-t border-border/40" />
 
                   {/* Pricing Box */}
-                  <div className="flex items-baseline justify-between bg-primary/[0.02] border border-primary/[0.04] p-3 rounded-xl">
+                  <div className="flex items-baseline justify-between bg-primary/[0.02] border border-primary/[0.04] p-2.5 rounded-lg">
                     <div>
-                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Giá niêm yết</p>
-                      <p className="text-lg font-extrabold text-primary tracking-tight mt-0.5">{formatCurrency(Number(v.listPrice))}</p>
+                      <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">Niêm yết</p>
+                      <p className="text-sm font-extrabold text-primary tracking-tight mt-0.5">{formatCurrency(Number(v.listPrice))}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Giá sàn (Floor)</p>
-                      <p className="text-xs font-bold text-foreground/80 mt-0.5">{formatCurrency(Number(v.floorPrice))}</p>
+                      <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">Giá sàn</p>
+                      <p className="text-[11px] font-bold text-foreground/80 mt-0.5">{formatCurrency(Number(v.floorPrice))}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Actions Section */}
-                <div className="mt-5 pt-4 border-t border-border/30 flex gap-2.5">
+                <div className="mt-3 pt-2.5 border-t border-border/30 flex gap-2">
                   <button 
                     onClick={() => handleOpenEdit(v)} 
-                    className="flex-1 py-2 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 border border-primary/15"
+                    className="flex-1 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-semibold hover:bg-primary hover:text-white transition-all duration-200 flex items-center justify-center gap-1 border border-primary/15"
                   >
-                    <Edit size={14} />Sửa
+                    <Edit size={12} />Sửa
                   </button>
                   <button 
                     onClick={() => handleDelete(v.id)} 
-                    className="flex-1 py-2 rounded-xl bg-destructive/5 text-destructive text-xs font-semibold hover:bg-destructive hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 border border-destructive/10"
+                    className="flex-1 py-1.5 rounded-lg bg-destructive/5 text-destructive text-[11px] font-semibold hover:bg-destructive hover:text-white transition-all duration-200 flex items-center justify-center gap-1 border border-destructive/10"
                   >
-                    <Trash2 size={14} />Xóa
+                    <Trash2 size={12} />Xóa
                   </button>
                 </div>
               </div>

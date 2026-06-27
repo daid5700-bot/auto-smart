@@ -113,14 +113,14 @@ export default function DocumentsPage() {
   };
 
   const handleExportAccessories = async (id: number) => {
-    if (!confirm("Hệ thống sẽ tạo Phiếu Xuất Kho cho các phụ kiện này và trừ tồn kho. Bạn có chắc chắn?")) return;
+    if (!confirm("Hệ thống sẽ gửi yêu cầu xuất kho phụ kiện cho nhân viên kho phê duyệt. Bạn có chắc chắn?")) return;
     try {
       const res = await fetch(`/api/sales/${id}/export-accessories`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        alert("Thành công: " + data.message + " - Mã phiếu: " + data.orderCode);
+        alert(data.message + " (Mã phiếu: " + data.orderCode + ")");
         fetchData();
-        setSelectedVehicle((prev: any) => prev ? { ...prev, accessoriesExported: true } : prev);
+        setSelectedVehicle((prev: any) => prev ? { ...prev, accessoriesExported: false, accessoriesExportStatus: "PENDING" } : prev);
       } else {
         alert("Lỗi: " + data.error);
       }
@@ -687,17 +687,28 @@ export default function DocumentsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-bold text-muted-foreground">Phụ tùng / Dịch vụ mua kèm</p>
-                    {selectedVehicle.accessoriesExported ? (
+                    {selectedVehicle.accessoriesExportStatus === "PAID" || selectedVehicle.accessoriesExported ? (
                       <span className="text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
                         Đã xuất kho
                       </span>
+                    ) : selectedVehicle.accessoriesExportStatus === "PENDING" ? (
+                      <span className="text-[10px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                        Đang chờ kho duyệt
+                      </span>
                     ) : (
-                      <button 
-                        onClick={() => handleExportAccessories(selectedVehicle.id)}
-                        className="text-[10px] bg-primary text-white font-bold px-2.5 py-1 rounded hover:bg-primary/90 transition-colors"
-                      >
-                        Xuất Kho Phụ Kiện
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {selectedVehicle.accessoriesExportStatus === "CANCELLED" && (
+                          <span className="text-[10px] bg-rose-500/10 text-rose-600 border border-rose-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                            Bị từ chối
+                          </span>
+                        )}
+                        <button 
+                          onClick={() => handleExportAccessories(selectedVehicle.id)}
+                          className="text-[10px] bg-primary text-white font-bold px-2.5 py-1 rounded hover:bg-primary/90 transition-colors"
+                        >
+                          {selectedVehicle.accessoriesExportStatus === "CANCELLED" ? "Gửi lại yêu cầu" : "Xin Lệnh Xuất Kho"}
+                        </button>
+                      </div>
                     )}
                   </div>
                   <div className="bg-secondary/10 border border-border rounded-xl p-3">

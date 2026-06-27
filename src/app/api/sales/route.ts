@@ -52,6 +52,8 @@ export async function GET(req: NextRequest) {
 
   const where: any = {};
   if (branchId) where.branchId = branchId;
+  const customerId = searchParams.get("customerId");
+  if (customerId) where.customerId = parseInt(customerId);
   if (search) {
     where.OR = [
       { model: { contains: search, mode: "insensitive" } },
@@ -94,27 +96,33 @@ export async function GET(req: NextRequest) {
     })
   ]);
 
-  const vins = vehicles.map(v => v.vin).filter(Boolean);
+  const vins = vehicles.map(v => v.vin).filter(Boolean) as string[];
   const exportedOrders = await prisma.inventoryOrder.findMany({
     where: {
-      reason: {
-        in: vins.map(vin => `Xuất phụ kiện bán kèm xe VIN: ${vin}`)
-      }
+      reason: { in: vins.map((vin: string) => `Xuất phụ kiện bán kèm xe VIN: ${vin}`) },
+      createdBy: "Hệ thống (Bán Xe)"
     },
-    select: { reason: true }
+    select: { reason: true, status: true }
   });
 
-  const exportedVins = new Set(
-    exportedOrders.map(o => {
-      if (!o.reason) return null;
-      const match = o.reason.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
-      return match ? match[1].trim() : null;
-    }).filter(Boolean) as string[]
-  );
+  const exportStatusByVin = new Map<string, string>();
+  exportedOrders.forEach(o => {
+    if (!o.reason) return;
+    const match = o.reason.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
+    if (match) {
+      const vin = match[1].trim();
+      // PAID > PENDING > CANCELLED priority
+      const current = exportStatusByVin.get(vin);
+      if (!current || current === "CANCELLED" || (current === "PENDING" && o.status === "PAID")) {
+        exportStatusByVin.set(vin, o.status);
+      }
+    }
+  });
 
   const vehiclesWithExportStatus = vehicles.map(v => ({
     ...v,
-    accessoriesExported: exportedVins.has(v.vin)
+    accessoriesExported: exportStatusByVin.get(v.vin) === "PAID",
+    accessoriesExportStatus: exportStatusByVin.get(v.vin) || "NONE", // NONE | PENDING | PAID | CANCELLED
   }));
 
   const counts = {
@@ -192,6 +200,29 @@ export async function POST(req: NextRequest) {
           }
         });
       }
+
+      // Automatically request accessory export if there are any accessories
+      if (accessories.length > 0) {
+        const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+        const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const orderCode = `PKX-${dateStr}-${randomStr}`;
+
+        await tx.inventoryOrder.create({
+          data: {
+            code: orderCode,
+            customerId: customerId,
+            type: "EXPORT_RETAIL",
+            totalAmount: accCost,
+            paidAmount: accCost,
+            debtAmount: 0,
+            status: "PENDING",
+            reason: `Xuất phụ kiện bán kèm xe VIN: ${vin}`,
+            branchId: branchId,
+            createdBy: "Hệ thống (Bán Xe)",
+          }
+        });
+      }
+
       return v;
     });
     

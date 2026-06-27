@@ -23,10 +23,17 @@ export default function NewDocumentPage() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
+  const vehDropdownRef = useRef<HTMLDivElement>(null);
+  const [isVehDropdownOpen, setIsVehDropdownOpen] = useState(false);
+  const [vehSearchQuery, setVehSearchQuery] = useState("");
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+      }
+      if (vehDropdownRef.current && !vehDropdownRef.current.contains(event.target as Node)) {
+        setIsVehDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -239,6 +246,13 @@ export default function NewDocumentPage() {
     (cust.phone || "").includes(customerSearchQuery)
   );
 
+  const filteredVehicles = warehouseVehicles.filter(v =>
+    (v.model || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
+    (v.vin || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
+    (v.variant || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
+    (v.color || "").toLowerCase().includes(vehSearchQuery.toLowerCase())
+  );
+
   return (
     <div className="w-full space-y-6 stagger pb-12">
       {/* Page Header */}
@@ -351,14 +365,64 @@ export default function NewDocumentPage() {
           {/* ── RETAIL: single vehicle dropdown + status ── */}
           {saleMode==="RETAIL" && (
             <>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative" ref={vehDropdownRef}>
                 <label className="text-xs font-bold text-muted-foreground">Chọn xe từ Kho hệ thống *</label>
-                <select required value={selectedVehicleId}
-                  onChange={(e)=>{const val=e.target.value;setSelectedVehicleId(val);if(val){const v=warehouseVehicles.find(i=>i.id.toString()===val);if(v){setVin(v.vin||"");setModel(v.model||"");setVariant(v.variant||"");setColor(v.color||"");setYear((v.year||2026).toString());setListPrice(v.listPrice?Number(v.listPrice).toString():"");}}else{setVin("");setModel("");setVariant("");setColor("");setYear("2026");setListPrice("");}}}
-                  className="w-full px-3 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-primary">
-                  <option value="">-- Chọn xe từ kho hệ thống * --</option>
-                  {warehouseVehicles.map((v)=>(<option key={v.id} value={v.id.toString()}>{v.model} {v.variant?`(${v.variant})`:""} - {v.color||"Không màu"} - VIN: {v.vin}</option>))}
-                </select>
+                <button 
+                  type="button" 
+                  onClick={() => setIsVehDropdownOpen(!isVehDropdownOpen)}
+                  className="w-full px-3 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-left flex items-center justify-between transition-all focus:ring-2 focus:ring-primary outline-none"
+                >
+                  <span className="truncate">
+                    {selectedVehicleId 
+                      ? `${model} ${variant ? `(${variant})` : ""} - ${color || "Không màu"} - VIN: ${vin}` 
+                      : "-- Chọn xe từ kho hệ thống * --"}
+                  </span>
+                  <ChevronDown size={14} className={`text-muted-foreground shrink-0 ml-2 transition-transform ${isVehDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {isVehDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
+                    <div className="p-2 border-b border-border bg-secondary/15">
+                      <div className="relative">
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <input 
+                          autoFocus 
+                          type="text" 
+                          placeholder="Tìm xe theo model, variant, màu, hoặc VIN..." 
+                          value={vehSearchQuery} 
+                          onChange={(e) => setVehSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary font-semibold" 
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-52 overflow-y-auto p-1 divide-y divide-border/20">
+                      {filteredVehicles.length === 0 ? (
+                        <div className="px-3 py-3 text-xs text-muted-foreground text-center">Không tìm thấy xe phù hợp</div>
+                      ) : (
+                        filteredVehicles.map((v) => (
+                          <button 
+                            key={v.id} 
+                            type="button" 
+                            onClick={() => {
+                              setSelectedVehicleId(v.id.toString());
+                              setVin(v.vin || "");
+                              setModel(v.model || "");
+                              setVariant(v.variant || "");
+                              setColor(v.color || "");
+                              setYear((v.year || 2026).toString());
+                              setListPrice(v.listPrice ? Number(v.listPrice).toString() : "");
+                              setIsVehDropdownOpen(false);
+                            }} 
+                            className={`w-full px-3 py-2 text-left text-xs font-bold rounded-lg flex flex-col hover:bg-secondary/40 ${selectedVehicleId === v.id.toString() ? "bg-primary/10 text-primary" : "text-foreground"}`}
+                          >
+                            <span className="font-bold">{v.model} {v.variant ? `(${v.variant})` : ""}</span>
+                            <span className="text-[10px] text-muted-foreground font-normal mt-0.5">Màu: {v.color || "N/A"} • VIN: {v.vin}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               {selectedVehicleId&&(<div className="bg-primary/5 border border-primary/20 rounded-xl p-4"><p className="text-xs text-muted-foreground font-semibold mb-1">Xe đã chọn:</p><h3 className="text-sm font-bold text-primary">{model} {variant?`(${variant})`:""} — {color||"N/A"}</h3><div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground"><span><strong>VIN:</strong> {vin}</span><span><strong>Năm:</strong> {year}</span><span><strong>Niêm yết:</strong> {listPrice?Number(listPrice).toLocaleString("vi-VN"):"0"} VNĐ</span></div></div>)}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -15,13 +15,14 @@ export async function GET(req: NextRequest) {
 
     const where: any = {
       isDeleted: false,
-      inventoryOrders: {
+      vehicles: {
         some: {
+          status: { in: ["RESERVED", "SOLD"] },
           ...(branchId ? { branchId } : {})
         }
       }
     };
-    
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -34,8 +35,9 @@ export async function GET(req: NextRequest) {
     const customers = await prisma.customer.findMany({
       where,
       include: {
-        inventoryOrders: {
+        vehicles: {
           where: {
+            status: { in: ["RESERVED", "SOLD"] },
             ...(branchId ? { branchId } : {})
           },
           orderBy: { createdAt: "desc" }
@@ -51,13 +53,25 @@ export async function GET(req: NextRequest) {
       let totalPaid = 0;
       let totalDebt = 0;
       let debtOrdersCount = 0;
-      const latestOrderAmount = customer.inventoryOrders[0]?.totalAmount || 0;
 
-      for (const order of customer.inventoryOrders) {
-        totalAmount += Number(order.totalAmount);
-        totalPaid += Number(order.paidAmount);
-        totalDebt += Number(order.debtAmount);
-        if (Number(order.debtAmount) > 0) {
+      // Find the latest contract price
+      let latestOrderAmount = 0;
+      if (customer.vehicles.length > 0) {
+        const latestVeh = customer.vehicles[0];
+        const accs = JSON.parse(latestVeh.accessoriesJson || "[]");
+        const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
+        latestOrderAmount = latestVeh.listPrice.toNumber() + (latestVeh.plateCost ? latestVeh.plateCost.toNumber() : 0) + accsCost;
+      }
+
+      for (const veh of customer.vehicles) {
+        const accs = JSON.parse(veh.accessoriesJson || "[]");
+        const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
+        const contractTotal = veh.listPrice.toNumber() + (veh.plateCost ? veh.plateCost.toNumber() : 0) + accsCost;
+
+        totalAmount += contractTotal;
+        totalPaid += Number(veh.paidAmount);
+        totalDebt += Number(veh.debtAmount);
+        if (Number(veh.debtAmount) > 0) {
           debtOrdersCount++;
         }
       }
@@ -68,7 +82,7 @@ export async function GET(req: NextRequest) {
         phone: customer.phone,
         address: customer.address,
         totalAmount,
-        latestOrderAmount: Number(latestOrderAmount),
+        latestOrderAmount,
         totalPaid,
         totalDebt,
         debtOrdersCount,

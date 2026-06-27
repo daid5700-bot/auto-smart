@@ -56,12 +56,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     const existingOrder = await prisma.inventoryOrder.findFirst({
-      where: { reason: `Xuất phụ kiện bán kèm xe VIN: ${vehicle.vin}` }
+      where: {
+        reason: `Xuất phụ kiện bán kèm xe VIN: ${vehicle.vin}`,
+        createdBy: "Hệ thống (Bán Xe)"
+      }
     });
 
     return NextResponse.json({
       ...vehicle,
-      accessoriesExported: !!existingOrder
+      accessoriesExported: existingOrder ? existingOrder.status === "PAID" : false,
+      accessoriesExportStatus: existingOrder ? existingOrder.status : "NONE", // NONE, PENDING, PAID, CANCELLED
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
@@ -203,6 +207,62 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               totalDebt: { increment: debtChange },
               totalSpent: { increment: spentChange }
             }
+          });
+        }
+      }
+
+      // Automatically create or update the pending accessory export order
+      if (accessories.length > 0) {
+        const existingOrder = await tx.inventoryOrder.findFirst({
+          where: {
+            reason: `Xuất phụ kiện bán kèm xe VIN: ${v.vin}`,
+            createdBy: "Hệ thống (Bán Xe)"
+          }
+        });
+
+        if (!existingOrder) {
+          const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+          const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+          const orderCode = `PKX-${dateStr}-${randomStr}`;
+
+          await tx.inventoryOrder.create({
+            data: {
+              code: orderCode,
+              customerId: v.customerId,
+              type: "EXPORT_RETAIL",
+              totalAmount: accCost,
+              paidAmount: accCost,
+              debtAmount: 0,
+              status: "PENDING",
+              reason: `Xuất phụ kiện bán kèm xe VIN: ${v.vin}`,
+              branchId: v.branchId || branchId,
+              createdBy: "Hệ thống (Bán Xe)",
+            }
+          });
+        } else if (existingOrder.status !== "PAID") {
+          // If already exists but not paid, update status to PENDING and update totalAmount
+          await tx.inventoryOrder.update({
+            where: { id: existingOrder.id },
+            data: {
+              status: "PENDING",
+              totalAmount: accCost,
+              paidAmount: accCost,
+              customerId: v.customerId,
+            }
+          });
+        }
+      } else {
+        // If they updated the vehicle and removed all accessories, cancel the pending order if any
+        const existingOrder = await tx.inventoryOrder.findFirst({
+          where: {
+            reason: `Xuất phụ kiện bán kèm xe VIN: ${v.vin}`,
+            createdBy: "Hệ thống (Bán Xe)"
+          }
+        });
+        if (existingOrder && existingOrder.status === "PENDING") {
+          await tx.inventoryOrder.update({
+            where: { id: existingOrder.id },
+            data: { status: "CANCELLED", reason: `${existingOrder.reason} | Hủy do xóa hết phụ kiện` }
           });
         }
       }

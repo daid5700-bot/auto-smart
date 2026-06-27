@@ -32,6 +32,7 @@ const NAV: NavSection[] = [
     { title: "Thống kê kinh doanh", href: "/sales/stats", icon: TrendingUp, perm: "sales.view" },
     { title: "Kho xe", href: "/sales", icon: Car, perm: "sales.view" },
     { title: "Hồ sơ & Thủ tục", href: "/sales/documents", icon: FileText, perm: "sales.manage" },
+    { title: "Khách hàng & Công nợ", href: "/sales/customers", icon: Users, perm: "sales.manage" },
   ]},
   { title: "Khách hàng (CRM)", items: [
     { title: "Quản lý Lead", href: "/crm", icon: Users, perm: "crm.view" },

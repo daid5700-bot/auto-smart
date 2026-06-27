@@ -36,7 +36,7 @@ const STATUS_MAP: Record<string, { text: string; badge: string }> = {
   AVAILABLE: { text: "Sẵn sàng", badge: "badge-success" },
   RESERVED: { text: "Đã đặt", badge: "badge-warning" },
   INCOMING: { text: "Đang về", badge: "badge-info" },
-  SOLD: { text: "Đã bán", badge: "badge-purple" },
+  SOLD: { text: "Đã bán", badge: "badge-success" },
   NEW: { text: "Mới", badge: "badge-primary" },
   CONSULTING: { text: "Đang tư vấn", badge: "badge-warning" },
   POTENTIAL: { text: "Tiềm năng", badge: "badge-purple" },

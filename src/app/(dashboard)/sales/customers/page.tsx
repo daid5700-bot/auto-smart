@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Search, MapPin, Phone, User, DollarSign, Receipt, Eye, X, Edit3 } from "lucide-react";
+import { Users, Search, Phone, User, DollarSign, Receipt, Eye, X, Edit3, Car } from "lucide-react";
 
-export default function CustomerDebtsPage() {
+export default function SalesCustomerDebtsPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -13,8 +13,8 @@ export default function CustomerDebtsPage() {
 
   // Modal states
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
-  const [customerOrders, setCustomerOrders] = useState<any[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [customerVehicles, setCustomerVehicles] = useState<any[]>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
 
   // Payment edit states
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
@@ -24,7 +24,7 @@ export default function CustomerDebtsPage() {
   const fetchCustomers = async (p = 1) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/inventory/customers?page=${p}&limit=20&search=${encodeURIComponent(search)}`);
+      const res = await fetch(`/api/sales/customers?page=${p}&limit=20&search=${encodeURIComponent(search)}`);
       const data = await res.json();
       setCustomers(data.customers || []);
       if (data.pagination) setTotalPages(data.pagination.totalPages);
@@ -49,19 +49,25 @@ export default function CustomerDebtsPage() {
     return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(val);
   };
 
+  const getVehicleContractTotal = (v: any) => {
+    const accs = JSON.parse(v.accessoriesJson || "[]");
+    const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
+    return Number(v.listPrice) + Number(v.plateCost || 0) + accsCost;
+  };
+
   const openCustomerModal = async (customer: any) => {
     setSelectedCustomer(customer);
     try {
-      setLoadingOrders(true);
-      const res = await fetch(`/api/inventory/orders?customerId=${customer.id}&limit=100`);
+      setLoadingVehicles(true);
+      const res = await fetch(`/api/sales?customerId=${customer.id}&limit=100&status=RESERVED,SOLD`);
       const data = await res.json();
-      // Lọc ra các đơn hàng có tính tiền (loại trừ nội bộ nếu cần), sắp xếp nợ lên đầu
-      const sortedOrders = (data.orders || []).sort((a: any, b: any) => Number(b.debtAmount) - Number(a.debtAmount));
-      setCustomerOrders(sortedOrders);
+      // Sort vehicles by debt amount descending
+      const sortedVehicles = (data.vehicles || []).sort((a: any, b: any) => Number(b.debtAmount) - Number(a.debtAmount));
+      setCustomerVehicles(sortedVehicles);
     } catch (e) {
       console.error(e);
     } finally {
-      setLoadingOrders(false);
+      setLoadingVehicles(false);
     }
   };
 
@@ -71,17 +77,17 @@ export default function CustomerDebtsPage() {
     
     try {
       setSubmittingPayment(true);
-      const res = await fetch(`/api/inventory/orders/${editingOrder.id}/payment`, {
+      const res = await fetch(`/api/sales/vehicles/${editingOrder.id}/payment`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paidAmount: Number(paymentInput) }),
+        body: JSON.stringify({ amount: Number(paymentInput) }),
       });
       if (res.ok) {
         setEditingOrder(null);
         setPaymentInput("");
-        // Tải lại chi tiết đơn hàng của khách đó
+        // Reload details for this customer
         openCustomerModal(selectedCustomer);
-        // Tải lại danh sách khách hàng để cập nhật số tổng
+        // Reload customer list
         fetchCustomers(page);
       } else {
         alert("Có lỗi xảy ra khi cập nhật thanh toán");
@@ -99,11 +105,11 @@ export default function CustomerDebtsPage() {
       <div className="flex items-center justify-between pb-5 border-b border-border flex-wrap gap-4">
         <div>
           <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Kho phụ tùng
+            Kinh doanh xe
           </p>
           <h1 className="text-3xl font-black text-foreground tracking-tight mt-1 flex items-center gap-3">
             <Users className="text-primary w-8 h-8" />
-            Khách hàng & Công nợ
+            Khách hàng & Công nợ xe
           </h1>
         </div>
       </div>
@@ -128,11 +134,11 @@ export default function CustomerDebtsPage() {
               <tr className="bg-secondary/30 text-muted-foreground text-[10px] uppercase tracking-wider">
                 <th className="px-4 py-3 font-bold w-[250px]">Khách hàng</th>
                 <th className="px-4 py-3 font-bold">Vị trí (Địa chỉ)</th>
-                <th className="px-4 py-3 font-bold text-right">Tổng Mua</th>
-                <th className="px-4 py-3 font-bold text-right">Đơn Gần Nhất</th>
+                <th className="px-4 py-3 font-bold text-right">Tổng Mua Xe</th>
+                <th className="px-4 py-3 font-bold text-right">Hợp Đồng Gần Nhất</th>
                 <th className="px-4 py-3 font-bold text-right">Đã Thanh Toán</th>
                 <th className="px-4 py-3 font-bold text-right">Còn Nợ</th>
-                <th className="px-4 py-3 font-bold text-center">Số Đơn Nợ</th>
+                <th className="px-4 py-3 font-bold text-center">Số Xe Nợ</th>
                 <th className="px-4 py-3 font-bold text-center">Thao tác</th>
               </tr>
             </thead>
@@ -147,7 +153,7 @@ export default function CustomerDebtsPage() {
               ) : customers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-12 text-muted-foreground">
-                    Không tìm thấy khách hàng nào.
+                    Không tìm thấy khách hàng mua xe nào.
                   </td>
                 </tr>
               ) : (
@@ -184,7 +190,7 @@ export default function CustomerDebtsPage() {
                     <td className="px-4 py-3 text-center">
                       {c.debtOrdersCount > 0 ? (
                         <span className="bg-rose-500/10 text-rose-600 text-[10px] font-bold px-2 py-0.5 rounded-md border border-rose-500/20">
-                          {c.debtOrdersCount} đơn
+                          {c.debtOrdersCount} xe nợ
                         </span>
                       ) : (
                         <span className="text-muted-foreground text-[10px] font-semibold">—</span>
@@ -230,7 +236,7 @@ export default function CustomerDebtsPage() {
         )}
       </div>
 
-      {/* Customer Orders Modal */}
+      {/* Customer Vehicles Modal */}
       {selectedCustomer && !editingOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-card w-full max-w-4xl rounded-2xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]">
@@ -259,49 +265,56 @@ export default function CustomerDebtsPage() {
 
             <div className="flex-1 overflow-y-auto p-6">
               <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Receipt size={16} /> Lịch sử đơn hàng
+                <Car size={16} className="text-primary" /> Lịch sử mua xe & công nợ
               </h4>
 
-              {loadingOrders ? (
-                <div className="text-center py-10 text-muted-foreground font-medium">Đang tải đơn hàng...</div>
-              ) : customerOrders.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground font-medium bg-secondary/10 rounded-xl">Khách hàng chưa có đơn hàng nào.</div>
+              {loadingVehicles ? (
+                <div className="text-center py-10 text-muted-foreground font-medium">Đang tải danh sách xe...</div>
+              ) : customerVehicles.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground font-medium bg-secondary/10 rounded-xl">Khách hàng chưa có lịch sử mua xe nào.</div>
               ) : (
                 <div className="space-y-3">
-                  {customerOrders.map(order => (
-                    <div key={order.id} className="border border-border bg-secondary/5 rounded-xl p-4 flex items-center justify-between gap-4">
-                      <div>
-                        <div className="font-bold text-primary font-mono text-sm">{order.code}</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {new Date(order.createdAt).toLocaleString("vi-VN")} • {order.reason || "Không có ghi chú"}
+                  {customerVehicles.map(veh => {
+                    const totalContractVal = getVehicleContractTotal(veh);
+                    return (
+                      <div key={veh.id} className="border border-border bg-secondary/5 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
+                        <div>
+                          <div className="font-bold text-primary text-sm flex items-center gap-1.5">
+                            {veh.model} {veh.variant ? `(${veh.variant})` : ""}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-medium">
+                            <span>VIN: <span className="font-bold text-foreground">{veh.vin}</span></span>
+                            <span>Màu: <span className="font-bold text-foreground">{veh.color || "N/A"}</span></span>
+                            <span>Trạng thái: <span className="font-bold text-foreground">{veh.status === "SOLD" ? "Đã bán" : "Đã cọc"}</span></span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-6 text-right ml-auto shrink-0">
+                          <div>
+                            <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Tổng cộng</div>
+                            <div className="font-bold text-foreground text-sm">{formatCurrency(totalContractVal)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Đã trả</div>
+                            <div className="font-bold text-emerald-600 text-sm">{formatCurrency(Number(veh.paidAmount))}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Còn nợ</div>
+                            <div className="font-black text-rose-600 text-sm">{formatCurrency(Number(veh.debtAmount))}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setEditingOrder(veh);
+                              setPaymentInput(Number(veh.paidAmount));
+                            }}
+                            className={`p-2 rounded-xl border ${Number(veh.debtAmount) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20" : "border-border bg-card text-muted-foreground hover:bg-secondary"} transition-colors`}
+                            title="Cập nhật thanh toán"
+                          >
+                            <Edit3 size={18} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-8 text-right">
-                        <div>
-                          <div className="text-xs font-semibold text-muted-foreground uppercase mb-0.5">Tổng tiền</div>
-                          <div className="font-bold text-foreground text-sm">{formatCurrency(Number(order.totalAmount))}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-semibold text-muted-foreground uppercase mb-0.5">Đã trả</div>
-                          <div className="font-bold text-emerald-600 text-sm">{formatCurrency(Number(order.paidAmount))}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-semibold text-muted-foreground uppercase mb-0.5">Còn nợ</div>
-                          <div className="font-black text-rose-600 text-sm">{formatCurrency(Number(order.debtAmount))}</div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setEditingOrder(order);
-                            setPaymentInput(Number(order.paidAmount));
-                          }}
-                          className={`p-2 rounded-xl border ${Number(order.debtAmount) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20" : "border-border bg-card text-muted-foreground hover:bg-secondary"} transition-colors`}
-                          title="Cập nhật thanh toán"
-                        >
-                          <Edit3 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -315,7 +328,7 @@ export default function CustomerDebtsPage() {
           <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border overflow-hidden">
             <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-secondary/20">
               <h3 className="text-lg font-black text-foreground flex items-center gap-2">
-                <DollarSign className="text-emerald-500" /> Cập nhật thanh toán
+                <DollarSign className="text-emerald-500" /> Cập nhật thanh toán xe
               </h3>
               <button onClick={() => setEditingOrder(null)} className="p-2 hover:bg-secondary rounded-xl transition-colors">
                 <X size={20} />
@@ -325,12 +338,16 @@ export default function CustomerDebtsPage() {
             <form onSubmit={submitPayment} className="p-6">
               <div className="bg-secondary/10 p-4 rounded-xl mb-6 border border-border">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="font-medium text-muted-foreground">Mã phiếu:</span>
-                  <span className="font-mono font-bold text-primary">{editingOrder.code}</span>
+                  <span className="font-medium text-muted-foreground">Xe đã chọn:</span>
+                  <span className="font-bold text-primary">{editingOrder.model}</span>
                 </div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="font-medium text-muted-foreground">Tổng tiền đơn:</span>
-                  <span className="font-bold">{formatCurrency(Number(editingOrder.totalAmount))}</span>
+                  <span className="font-medium text-muted-foreground">Số VIN:</span>
+                  <span className="font-bold font-mono text-xs">{editingOrder.vin}</span>
+                </div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="font-medium text-muted-foreground">Tổng hợp đồng:</span>
+                  <span className="font-bold">{formatCurrency(getVehicleContractTotal(editingOrder))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="font-medium text-muted-foreground">Khách nợ cũ:</span>
@@ -359,12 +376,14 @@ export default function CustomerDebtsPage() {
                   <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => setPaymentInput(Number(editingOrder.totalAmount))}
+                      onClick={() => setPaymentInput(getVehicleContractTotal(editingOrder))}
                       className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-all"
                     >
-                      [ Trả đủ: {formatCurrency(Number(editingOrder.totalAmount))} ]
+                      [ Trả đủ: {formatCurrency(getVehicleContractTotal(editingOrder))} ]
                     </button>
-                   
+                    <p className="text-[10px] text-muted-foreground font-medium">
+                      Phần nợ sẽ được hệ thống tự tính lại.
+                    </p>
                   </div>
                 </div>
                 

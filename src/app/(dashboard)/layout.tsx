@@ -145,7 +145,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     fetchPendingCount();
     const interval = setInterval(fetchPendingCount, 15000);
     return () => clearInterval(interval);
-  }, [isAuth, activeBranch]);
+  }, [isAuth, activeBranch?.id]);
 
   if (!hydrated || !user) {
     return (
