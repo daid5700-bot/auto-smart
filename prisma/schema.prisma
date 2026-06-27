@@ -253,6 +253,7 @@ model Vehicle {
   plateStatus     String?
   plateCost       Decimal?  @default(0)
   accessoriesJson String?   @default("[]")
+  saleType        String    @default("RETAIL") // RETAIL, WHOLESALE
   notes           String?
   branchId        Int?
   branch          Branch?   @relation(fields: [branchId], references: [id])

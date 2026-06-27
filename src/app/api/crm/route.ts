@@ -6,7 +6,8 @@ import { getActiveBranchId } from "@/lib/branch";
 // GET /api/crm — leads, customers, zns logs
 export async function GET(req: NextRequest) {
   const tab = req.nextUrl.searchParams.get("tab") || "leads";
-  const branchId = getActiveBranchId();
+  const allBranches = req.nextUrl.searchParams.get("allBranches") === "true";
+  const branchId = allBranches ? null : getActiveBranchId();
 
   const page = Math.max(1, parseInt(req.nextUrl.searchParams.get("page") || "1"));
   const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") || "50")));

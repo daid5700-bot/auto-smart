@@ -94,6 +94,29 @@ export async function GET(req: NextRequest) {
     })
   ]);
 
+  const vins = vehicles.map(v => v.vin).filter(Boolean);
+  const exportedOrders = await prisma.inventoryOrder.findMany({
+    where: {
+      reason: {
+        in: vins.map(vin => `Xuất phụ kiện bán kèm xe VIN: ${vin}`)
+      }
+    },
+    select: { reason: true }
+  });
+
+  const exportedVins = new Set(
+    exportedOrders.map(o => {
+      if (!o.reason) return null;
+      const match = o.reason.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
+      return match ? match[1].trim() : null;
+    }).filter(Boolean) as string[]
+  );
+
+  const vehiclesWithExportStatus = vehicles.map(v => ({
+    ...v,
+    accessoriesExported: exportedVins.has(v.vin)
+  }));
+
   const counts = {
     AVAILABLE: countAvailable,
     RESERVED: countReserved,
@@ -105,7 +128,7 @@ export async function GET(req: NextRequest) {
   };
 
   return NextResponse.json({ 
-    vehicles, 
+    vehicles: vehiclesWithExportStatus, 
     counts, 
     pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } 
   });

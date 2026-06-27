@@ -82,7 +82,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
       // Fetch products, customers, and the specific vehicle in parallel
       const [productsRes, customersRes, vehicleRes] = await Promise.all([
         fetch("/api/inventory?limit=100"),
-        fetch("/api/crm?tab=customers&limit=200"),
+        fetch("/api/crm?tab=customers&limit=200&allBranches=true"),
         fetch(`/api/sales/${vehicleId}`)
       ]);
 

@@ -55,6 +55,10 @@ export default function NewDocumentPage() {
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [isNewCustomer, setIsNewCustomer] = useState(false);
 
+  // Wholesale suggestions
+  const [showWholesaleSuggestions, setShowWholesaleSuggestions] = useState(false);
+  const [wholesaleSuggestions, setWholesaleSuggestions] = useState<any[]>([]);
+
   // Warehouse vehicle selection
   const [warehouseVehicles, setWarehouseVehicles] = useState<any[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
@@ -86,7 +90,7 @@ export default function NewDocumentPage() {
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch("/api/crm?tab=customers&limit=200");
+      const res = await fetch("/api/crm?tab=customers&limit=200&allBranches=true");
       const data = await res.json();
       setSystemCustomers(data.customers || []);
     } catch (e) {
@@ -138,6 +142,24 @@ export default function NewDocumentPage() {
     );
   };
 
+  const handleWholesalePhoneChange = async (val: string) => {
+    setCustomerPhone(val);
+    setSelectedCustomerId("");
+    if (val.trim().length > 1) {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
+        const data = await res.json();
+        setWholesaleSuggestions(data.customers || []);
+        setShowWholesaleSuggestions(true);
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      setWholesaleSuggestions([]);
+      setShowWholesaleSuggestions(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName || !customerPhone) {
@@ -155,18 +177,23 @@ export default function NewDocumentPage() {
     setIsSubmitting(true);
     try {
       if (saleMode === "WHOLESALE") {
-        await Promise.all(wholesaleVehicles.map(wv =>
-          fetch(`/api/sales/${wv.id}`, {
+        for (const wv of wholesaleVehicles) {
+          const res = await fetch(`/api/sales/${wv.id}`, {
             method: "PATCH",
             headers: {"Content-Type":"application/json"},
             body: JSON.stringify({
               status, bankStatus:"NONE", plateStatus:"PENDING", plateCost:0,
               listPrice: Number(wv.listPrice)||0,
               accessoriesJson: "[]", notes: "Bán buôn",
+              saleType: "WHOLESALE",
               customerName, customerPhone, customerBirthday: customerBirthday||undefined
             })
-          })
-        ));
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || "Gặp lỗi khi xử lý xe: " + wv.vin);
+          }
+        }
         router.push("/sales/documents");
         router.refresh();
         return;
@@ -179,7 +206,8 @@ export default function NewDocumentPage() {
         plateCost: Number(plateCost)||0,
         accessoriesJson: JSON.stringify(selectedAccessories.map(a=>({...a, quantity:Number(a.quantity)||1}))),
         notes: rawNotes, customerName, customerPhone,
-        customerBirthday: customerBirthday||undefined
+        customerBirthday: customerBirthday||undefined,
+        saleType: "RETAIL"
       };
       const res = await fetch(`/api/sales/${selectedVehicleId}`, {
         method: "PATCH",
@@ -240,9 +268,82 @@ export default function NewDocumentPage() {
           <button type="button" onClick={()=>{setSaleMode("WHOLESALE");setSelectedVehicleId("");}} className={`px-8 py-2 rounded-lg text-sm font-bold transition-all ${saleMode==="WHOLESALE"?"bg-card shadow text-blue-600":"text-muted-foreground hover:text-foreground"}`}>BÁN BUÔN</button>
         </div>
 
+        {/* ── WHOLESALE: Customer card ── */}
+        {saleMode==="WHOLESALE" && (
+          <div className="bg-card border border-border shadow-sm rounded-2xl p-4 sm:p-6 space-y-4">
+            <div className="flex items-center gap-2 pb-2">
+              <User size={16} className="text-primary" />
+              <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Thông tin Khách hàng (Giống kho)</h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="relative">
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">SĐT Khách *</label>
+                <input
+                  type="text"
+                  required
+                  value={customerPhone}
+                  onChange={(e) => handleWholesalePhoneChange(e.target.value)}
+                  onFocus={() => {
+                    if (customerPhone.trim().length > 1) {
+                      setShowWholesaleSuggestions(true);
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="Nhập SĐT để tìm..."
+                />
+                
+                {showWholesaleSuggestions && wholesaleSuggestions.length > 0 && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40 cursor-default"
+                      onClick={() => setShowWholesaleSuggestions(false)}
+                    />
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-card border border-border rounded-xl shadow-2xl p-2 max-h-48 overflow-y-auto animate-slide-in-bottom">
+                      {wholesaleSuggestions.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setCustomerPhone(c.phone);
+                            setCustomerName(c.name);
+                            setSelectedCustomerId(c.id.toString());
+                            setShowWholesaleSuggestions(false);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-secondary/80 rounded-lg text-xs transition-colors block border-b border-border/20 last:border-0"
+                        >
+                          <div className="font-semibold text-primary">{c.phone}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{c.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tên khách hàng *</label>
+                <input
+                  type="text"
+                  required
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="Nguyễn Văn A..."
+                />
+              </div>
+            </div>
+            
+            {!selectedCustomerId && customerPhone && customerName && (
+              <div className="bg-primary/10 border border-primary/20 p-3 rounded-xl">
+                <p className="text-xs font-semibold text-primary">Hệ thống sẽ tự động tạo khách hàng mới với tên và SĐT này.</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── CARD 1: Thông tin Xe & Tiến độ (full width) ── */}
-        <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-5">
-          <div className="flex items-center gap-2 border-b border-border pb-2">
+        <div className="bg-card border border-border shadow-sm rounded-2xl p-4 sm:p-6 space-y-5">
+          <div className="flex items-center gap-2 pb-2">
             <Car size={16} className="text-primary" />
             <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">{saleMode==="RETAIL"?"Thông tin Xe & Tiến độ":"Chọn xe Bán Buôn"}</h4>
           </div>
@@ -271,53 +372,68 @@ export default function NewDocumentPage() {
 
           {/* ── WHOLESALE: multi vehicle picker ── */}
           {saleMode==="WHOLESALE" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border border-border rounded-xl p-4 space-y-3 bg-secondary/5">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={13}/>
-                  <input type="text" placeholder="Tìm theo model, VIN..." value={wholesaleSearch} onChange={(e)=>setWholesaleSearch(e.target.value)}
-                    className="w-full pl-8 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary" />
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Cột trái: Kho xe */}
+                <div className="bg-secondary/10 border border-border/50 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kho xe hiện có</p>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={13}/>
+                    <input type="text" placeholder="Tìm theo model, VIN..." value={wholesaleSearch} onChange={(e)=>setWholesaleSearch(e.target.value)}
+                      className="w-full pl-8 pr-2 py-1.5 bg-background border border-border/50 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                  <div className="max-h-[260px] overflow-y-auto space-y-1 pr-1">
+                    {warehouseVehicles.filter(v=>v.model?.toLowerCase().includes(wholesaleSearch.toLowerCase())||v.vin?.toLowerCase().includes(wholesaleSearch.toLowerCase())).map(v=>{
+                      if(wholesaleVehicles.some(wv=>wv.id===v.id))return null;
+                      return(
+                        <div key={v.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-background transition-colors text-xs border border-transparent hover:border-border/50">
+                          <div><p className="font-bold text-foreground">{v.model} {v.variant?`(${v.variant})`:""}</p><p className="text-[10px] text-muted-foreground">VIN: {v.vin} • {v.color||"Không màu"}</p></div>
+                          <button type="button" onClick={()=>setWholesaleVehicles([...wholesaleVehicles,{id:v.id,vin:v.vin,model:v.model,variant:v.variant||"",color:v.color||"",listPrice:v.listPrice?.toString()||""}])}
+                            className="px-3 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors text-[10px] font-bold rounded-lg shrink-0">Thêm</button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="max-h-[220px] overflow-y-auto space-y-1.5 divide-y divide-border/60">
-                  {warehouseVehicles.filter(v=>v.model?.toLowerCase().includes(wholesaleSearch.toLowerCase())||v.vin?.toLowerCase().includes(wholesaleSearch.toLowerCase())).map(v=>{
-                    if(wholesaleVehicles.some(wv=>wv.id===v.id))return null;
-                    return(
-                      <div key={v.id} className="flex items-center justify-between pt-1.5 text-xs">
-                        <div><p className="font-bold">{v.model} {v.variant?`(${v.variant})`:""}</p><p className="text-[10px] text-muted-foreground">VIN: {v.vin} • {v.color||"Không màu"}</p></div>
-                        <button type="button" onClick={()=>setWholesaleVehicles([...wholesaleVehicles,{id:v.id,vin:v.vin,model:v.model,variant:v.variant||"",color:v.color||"",listPrice:v.listPrice?.toString()||""}])}
-                          className="px-2 py-1 bg-primary text-white text-[10px] font-bold rounded-lg">Thêm</button>
+
+                {/* Cột phải: Đã chọn */}
+                <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 flex flex-col">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-bold text-primary uppercase tracking-wider">Xe xuất buôn ({wholesaleVehicles.length})</p>
+                  </div>
+                  <div className="max-h-[260px] overflow-y-auto space-y-2 pr-1 flex-1">
+                    {wholesaleVehicles.map(wv=>(
+                      <div key={wv.id} className="flex items-center justify-between gap-3 text-xs bg-background p-2.5 rounded-lg border border-primary/20 shadow-sm">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-foreground truncate" title={`${wv.model} ${wv.variant?`(${wv.variant})`:""}`}>{wv.model} {wv.variant?`(${wv.variant})`:""}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">VIN: {wv.vin} • {wv.color}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="relative">
+                            <input type="text" inputMode="numeric" pattern="[0-9.]*" placeholder="Giá bán..."
+                              value={wv.listPrice===""?"":Number(wv.listPrice).toLocaleString("vi-VN")}
+                              onChange={(e)=>{const c=e.target.value.replace(/\D/g,"");setWholesaleVehicles(wholesaleVehicles.map(x=>x.id===wv.id?{...x,listPrice:c}:x));}}
+                              className="w-36 px-2 py-1.5 border border-border rounded-lg bg-background text-xs font-bold focus:border-primary outline-none text-emerald-600 text-right pr-6" />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">đ</span>
+                          </div>
+                          <button type="button" onClick={()=>setWholesaleVehicles(wholesaleVehicles.filter(x=>x.id!==wv.id))} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"><Trash2 size={14}/></button>
+                        </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                    {wholesaleVehicles.length===0&&<div className="h-full flex items-center justify-center py-8"><p className="text-xs text-primary/60 italic text-center">Chưa chọn xe nào.</p></div>}
+                  </div>
                 </div>
               </div>
-              <div className="border border-border rounded-xl p-4 space-y-3 bg-secondary/5">
-                <p className="text-xs font-bold text-primary">Xe đã chọn ({wholesaleVehicles.length}):</p>
-                <div className="max-h-[220px] overflow-y-auto space-y-2">
-                  {wholesaleVehicles.map(wv=>(
-                    <div key={wv.id} className="flex items-center justify-between gap-3 text-xs bg-background p-2 rounded-lg border border-border">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold truncate" title={`${wv.model} ${wv.variant?`(${wv.variant})`:""}`}>{wv.model} {wv.variant?`(${wv.variant})`:""}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">VIN: {wv.vin} • {wv.color}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <input type="text" inputMode="numeric" pattern="[0-9.]*" placeholder="Giá bán..."
-                          value={wv.listPrice===""?"":Number(wv.listPrice).toLocaleString("vi-VN")}
-                          onChange={(e)=>{const c=e.target.value.replace(/\D/g,"");setWholesaleVehicles(wholesaleVehicles.map(x=>x.id===wv.id?{...x,listPrice:c}:x));}}
-                          className="w-28 sm:w-32 px-2 py-1.5 border border-border rounded bg-background text-xs font-bold focus:border-primary outline-none text-emerald-600 text-right" />
-                        <button type="button" onClick={()=>setWholesaleVehicles(wholesaleVehicles.filter(x=>x.id!==wv.id))} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded transition-colors"><Trash2 size={14}/></button>
-                      </div>
-                    </div>
-                  ))}
-                  {wholesaleVehicles.length===0&&<p className="text-xs text-muted-foreground italic text-center py-4">Chưa chọn xe nào.</p>}
-                </div>
-                <div className="pt-2 border-t border-border space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground">Tiến độ tổng quan *</label>
-                  <select value={status} onChange={(e)=>setStatus(e.target.value)} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary outline-none">
-                    <option value="RESERVED">ĐÃ CỌC (Reserved)</option>
-                    <option value="SOLD">ĐÃ BÁN (Sold)</option>
-                  </select>
-                </div>
+
+              {/* Status Row */}
+              <div className="flex items-center gap-4 bg-secondary/10 border border-border/50 rounded-xl p-4">
+                <label className="text-xs font-bold text-muted-foreground whitespace-nowrap uppercase tracking-wider">Tiến độ tổng quan *</label>
+                <select value={status} onChange={(e)=>setStatus(e.target.value)} className="w-full max-w-sm px-3 py-2 bg-background border border-border rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary outline-none">
+                  <option value="RESERVED">ĐÃ CỌC (Reserved)</option>
+                  <option value="SOLD">ĐÃ BÁN (Sold)</option>
+                </select>
               </div>
             </div>
           )}
@@ -328,8 +444,8 @@ export default function NewDocumentPage() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
           {/* ── CARD 2: Thông tin Khách hàng ── */}
-          <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-border pb-2">
+          <div className="bg-card border border-border shadow-sm rounded-2xl p-4 sm:p-6 space-y-4">
+            <div className="flex items-center gap-2 pb-2">
               <User size={16} className="text-primary" />
               <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Thông tin Khách hàng</h4>
             </div>
@@ -411,8 +527,8 @@ export default function NewDocumentPage() {
           </div>
 
           {/* ── CARD 3: Dịch vụ & Phụ tùng ── */}
-          <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-border pb-2">
+          <div className="bg-card border border-border shadow-sm rounded-2xl p-4 sm:p-6 space-y-4">
+            <div className="flex items-center gap-2 pb-2">
               <Receipt size={16} className="text-primary" />
               <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Dịch vụ đi kèm &amp; Ghi chú</h4>
             </div>
@@ -476,56 +592,6 @@ export default function NewDocumentPage() {
         </div>
         )}
 
-        {/* ── WHOLESALE: Customer card ── */}
-        {saleMode==="WHOLESALE" && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-border pb-2">
-              <User size={16} className="text-primary" />
-              <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Thông tin Khách hàng</h4>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-              <div className="space-y-1.5 relative" ref={dropdownRef}>
-                <label className="text-xs font-bold text-muted-foreground">Chọn từ hệ thống</label>
-                <button type="button" onClick={()=>setIsOpen(!isOpen)} className="w-full px-3 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-left flex items-center justify-between outline-none">
-                  <span className="truncate">{selectedCustomerId?`${customerName} (${customerPhone})`:"-- Chọn khách hàng --"}</span>
-                  <ChevronDown size={14} className={`text-muted-foreground shrink-0 ml-2 transition-transform ${isOpen?"rotate-180":""}`} />
-                </button>
-                {isOpen && (
-                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
-                    <div className="p-2 border-b border-border">
-                      <div className="relative"><Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-                        <input autoFocus type="text" placeholder="Tìm tên/SĐT..." value={customerSearchQuery} onChange={(e)=>setCustomerSearchQuery(e.target.value)} className="w-full pl-8 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary"/></div></div>
-                    <div className="max-h-48 overflow-y-auto p-1 divide-y divide-border/20">
-                      {filteredCustomers.length===0?<div className="px-3 py-2 text-xs text-muted-foreground text-center">Không tìm thấy</div>
-                        :filteredCustomers.map(cust=>(
-                          <button key={cust.id} type="button" onClick={()=>{setSelectedCustomerId(cust.id.toString());setCustomerName(cust.name||"");setCustomerPhone(cust.phone||"");setCustomerBirthday(cust.birthday?new Date(cust.birthday).toISOString().split("T")[0]:"");setIsNewCustomer(false);setIsOpen(false);}}
-                            className={`w-full px-3 py-2 text-left text-xs font-bold rounded-lg flex items-center justify-between hover:bg-secondary/40 ${selectedCustomerId===cust.id.toString()?"bg-primary/10 text-primary":"text-foreground"}`}>
-                            <span>{cust.name}</span><span className="text-[10px] text-muted-foreground ml-2 shrink-0">{cust.phone}</span>
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-end">
-                {!selectedCustomerId&&!isNewCustomer&&(<button type="button" onClick={()=>{setIsNewCustomer(true);setCustomerName("");setCustomerPhone("");setCustomerBirthday("");}} className="w-full px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"><Plus size={14}/> Thêm khách mới</button>)}
-              </div>
-            </div>
-            {(selectedCustomerId||isNewCustomer)&&(
-              <div className="bg-secondary/10 border border-border/60 p-4 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{selectedCustomerId?"Liên kết khách hệ thống":"Khách hàng mới tự nhập"}</span>
-                  {isNewCustomer&&(<button type="button" onClick={()=>{setIsNewCustomer(false);setCustomerName("");setCustomerPhone("");setCustomerBirthday("");}} className="text-xs font-bold text-muted-foreground hover:text-foreground">Hủy</button>)}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1"><label className="text-xs font-bold text-muted-foreground">Tên khách *</label><input type="text" required placeholder="Nguyễn Văn A..." value={customerName} onChange={(e)=>setCustomerName(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary font-bold"/></div>
-                  <div className="space-y-1"><label className="text-xs font-bold text-muted-foreground">Số điện thoại *</label><input type="text" required placeholder="0987654321" value={customerPhone} onChange={(e)=>setCustomerPhone(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary font-bold"/></div>
-                  <div className="space-y-1"><label className="text-xs font-bold text-muted-foreground">Ngày sinh</label><input type="date" value={customerBirthday} onChange={(e)=>setCustomerBirthday(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary"/></div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Action Buttons */}
         <div className="flex items-center justify-end gap-3 pt-2">

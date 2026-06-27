@@ -21,6 +21,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, RESERVED, SOLD
+  const [saleTypeFilter, setSaleTypeFilter] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
 
   // Payment & Detail Modal State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -40,15 +41,36 @@ export default function DocumentsPage() {
     setPaymentModalOpen(true);
   };
 
+  const openGroupPaymentModal = (group: any) => {
+    setSelectedVehicle({
+      isGroup: true,
+      vehicles: group.vehicles,
+      customer: group.customer,
+      paidAmount: group.totalPaid,
+      debtAmount: group.totalDebt,
+    });
+    setPaymentAmount(group.totalPaid.toString());
+    setPaymentModalOpen(true);
+  };
+
   const submitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVehicle || !paymentAmount) return;
     try {
       setSubmittingPayment(true);
-      const res = await fetch(`/api/sales/vehicles/${selectedVehicle.id}/payment`, {
+      const isGroup = selectedVehicle.isGroup;
+      const url = isGroup 
+        ? "/api/sales/wholesale/payment"
+        : `/api/sales/vehicles/${selectedVehicle.id}/payment`;
+        
+      const body = isGroup
+        ? { vehicleIds: selectedVehicle.vehicles.map((v: any) => v.id), amount: Number(paymentAmount) }
+        : { amount: Number(paymentAmount) };
+
+      const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: Number(paymentAmount) }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         setPaymentModalOpen(false);
@@ -98,7 +120,7 @@ export default function DocumentsPage() {
       if (res.ok) {
         alert("Thành công: " + data.message + " - Mã phiếu: " + data.orderCode);
         fetchData();
-        setSelectedVehicle((prev: any) => prev ? { ...prev, accessoriesDeducted: true } : prev);
+        setSelectedVehicle((prev: any) => prev ? { ...prev, accessoriesExported: true } : prev);
       } else {
         alert("Lỗi: " + data.error);
       }
@@ -124,6 +146,24 @@ export default function DocumentsPage() {
     }
   };
 
+  const handleDeleteGroup = async (vehicles: any[]) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa toàn bộ hồ sơ bán buôn này gồm ${vehicles.length} xe không?`)) return;
+    try {
+      setLoading(true);
+      for (const v of vehicles) {
+        const res = await fetch(`/api/sales/${v.id}`, { method: "DELETE" });
+        if (!res.ok) {
+          alert(`Lỗi khi xóa hồ sơ xe ${v.model}`);
+        }
+      }
+      await fetchData();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filtered lists
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((v: any) => {
@@ -137,10 +177,36 @@ export default function DocumentsPage() {
         (v.customer?.phone || "").toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesStatus = statusFilter === "ALL" || v.status === statusFilter;
+      const matchesSaleType = (v.saleType || "RETAIL") === saleTypeFilter;
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesStatus && matchesSaleType;
     });
-  }, [vehicles, searchQuery, statusFilter]);
+  }, [vehicles, searchQuery, statusFilter, saleTypeFilter]);
+
+  const groupedWholesale = useMemo(() => {
+    if (saleTypeFilter !== "WHOLESALE") return [];
+    const groups: Record<string, any> = {};
+    filteredVehicles.forEach((v: any) => {
+      const dateKey = v.updatedAt ? new Date(v.updatedAt).toISOString().split('T')[0] : "unknown";
+      const key = v.customerId ? `${v.customerId}_${dateKey}` : `v_${v.id}`;
+      
+      if (!groups[key]) {
+        groups[key] = {
+          id: key,
+          customer: v.customer,
+          vehicles: [],
+          totalPaid: 0,
+          totalDebt: 0,
+          date: dateKey,
+          status: v.status
+        };
+      }
+      groups[key].vehicles.push(v);
+      groups[key].totalPaid += Number(v.paidAmount || 0);
+      groups[key].totalDebt += Number(v.debtAmount || 0);
+    });
+    return Object.values(groups).sort((a: any, b: any) => b.date.localeCompare(a.date));
+  }, [filteredVehicles, saleTypeFilter]);
 
   return (
     <div className="space-y-6 stagger">
@@ -161,6 +227,30 @@ export default function DocumentsPage() {
         >
           <Plus size={16} /> Tạo Hồ sơ mới
         </Link>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex">
+        <button
+          onClick={() => setSaleTypeFilter("RETAIL")}
+          className={`px-6 py-3 text-sm font-semibold transition-all border-b-2 -mb-[2px] ${
+            saleTypeFilter === "RETAIL"
+              ? "border-primary text-primary font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Hồ sơ Bán Lẻ
+        </button>
+        <button
+          onClick={() => setSaleTypeFilter("WHOLESALE")}
+          className={`px-6 py-3 text-sm font-semibold transition-all border-b-2 -mb-[2px] ${
+            saleTypeFilter === "WHOLESALE"
+              ? "border-primary text-primary font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Hồ sơ Bán Buôn
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -190,144 +280,274 @@ export default function DocumentsPage() {
         </div>
       </div>
 
+
+
       {/* Vehicles Procedures Table */}
-      <div className="glass-card rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-border bg-secondary/20 text-muted-foreground font-bold">
-              <th className="p-4">Số khung (VIN)</th>
-              <th className="p-4">Dòng xe & Phiên bản</th>
-              <th className="p-4">Khách hàng mua</th>
-              <th className="p-4">Tiến độ Ngân hàng (Trả góp)</th>
-              <th className="p-4">Thanh toán & Công nợ</th>
-              <th className="p-4 text-center">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filteredVehicles.map((v: any) => {
-              const plateCostVal = Number(v.plateCost || 0);
-              const accessoriesList = parseAccessories(v.accessoriesJson);
-              const notesText = v.notes || "";
-              return (
-                <tr key={v.id} className="hover:bg-secondary/10 transition-colors">
-                  <td className="p-4 font-mono font-bold text-foreground">
-                    {v.vin}
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="font-bold text-foreground">{v.model}</div>
-                      {v.status === "SOLD" ? (
-                        <span className="text-[9px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold uppercase">
-                          Đã Bán
-                        </span>
-                      ) : (
-                        <span className="text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold uppercase">
-                          Đã Cọc
-                        </span>
-                      )}
+      {saleTypeFilter === "WHOLESALE" ? (
+        <div className="space-y-4">
+          {groupedWholesale.map((group: any) => (
+            <div key={group.id} className="glass-card rounded-2xl p-6 border border-border bg-card shadow-sm hover:shadow-md transition-all duration-300">
+              {/* Card Header */}
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border/60">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                    {group.customer?.name?.[0]?.toUpperCase() || "K"}
+                  </div>
+                  <div>
+                    <div className="font-bold text-foreground text-sm flex items-center gap-2">
+                      {group.customer?.name || "Khách hàng mua buôn"}
+                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+                        Bán buôn
+                      </span>
                     </div>
-                    <div className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                      {v.variant} • {v.color || "Khác"} • {v.year}
+                    <div className="text-xs text-muted-foreground mt-0.5">SĐT: {group.customer?.phone || "Chưa có"}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ngày tạo</div>
+                    <div className="text-sm font-semibold text-foreground mt-0.5">
+                      {new Date(group.date).toLocaleDateString("vi-VN")}
                     </div>
-                  </td>
-                  <td className="p-4">
-                    {v.customer ? (
-                      <div className="space-y-0.5">
-                        <div className="font-bold text-foreground flex items-center gap-1.5">
-                          <User size={12} className="text-muted-foreground" />
-                          {v.customer.name}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-semibold">SĐT: {v.customer.phone}</div>
-                        {v.customer.birthday && (
-                          <div className="text-[10px] text-muted-foreground italic">
-                            Sinh: {formatDate(v.customer.birthday)}
+                  </div>
+                  <button 
+                    onClick={() => handleDeleteGroup(group.vehicles)}
+                    className="p-2 hover:bg-rose-500/10 rounded-xl text-rose-500 transition-colors ml-2"
+                    title="Xóa hồ sơ bán buôn"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Card Body */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-5">
+                {/* Vehicles list (takes 2 cols) */}
+                <div className="lg:col-span-2 space-y-3">
+                  <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-1">
+                    Danh sách xe xuất buôn ({group.vehicles.length})
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {group.vehicles.map((v: any) => (
+                      <div key={v.id} className="p-3 bg-secondary/10 hover:bg-secondary/20 transition-all rounded-xl border border-border/50 flex flex-col justify-between h-full">
+                        <div>
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="font-bold text-xs text-foreground">{v.model}</span>
+                            {v.status === "SOLD" ? (
+                              <span className="text-[9px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">
+                                Đã Bán
+                              </span>
+                            ) : (
+                              <span className="text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">
+                                Đã Cọc
+                              </span>
+                            )}
                           </div>
+                          <div className="text-[10px] text-muted-foreground mt-1.5 font-mono">VIN: {v.vin}</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {v.variant ? `${v.variant} • ` : ""}{v.color || "Khác"}{v.year ? ` • ${v.year}` : ""}
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-end items-center gap-1.5 mt-3 pt-2 border-t border-border/30">
+                          <button onClick={() => openDetailModal(v)} className="p-1 hover:bg-blue-500/10 rounded text-blue-500 transition-colors" title="Xem chi tiết"><Eye size={13} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Payment Stats (takes 1 col) */}
+                <div className="bg-secondary/5 p-4 rounded-xl border border-border flex flex-col justify-between h-full">
+                  <div>
+                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-3">
+                      Thông tin thanh toán
+                    </div>
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground">Đã thanh toán:</span>
+                        <span className="font-bold text-emerald-600">{formatCurrency(group.totalPaid)}</span>
+                      </div>
+                      <div className="w-full h-px bg-border/60"></div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground">Còn nợ:</span>
+                        <span className="font-bold text-rose-600">{formatCurrency(group.totalDebt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 pt-3 border-t border-border/40 space-y-2">
+                    <button
+                      onClick={() => openGroupPaymentModal(group)}
+                      className="w-full text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <DollarSign size={14} /> Cập nhật thanh toán
+                    </button>
+                    {group.totalDebt > 0 ? (
+                      <div className="text-[10px] text-rose-600 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-lg font-bold text-center uppercase tracking-wider">
+                        Chưa thanh toán hết ({formatCurrency(group.totalDebt)})
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg font-bold text-center uppercase tracking-wider">
+                        Đã thanh toán đủ
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {groupedWholesale.length === 0 && (
+            <div className="glass-card rounded-xl p-12 text-center text-muted-foreground italic border border-border">
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 text-primary font-bold">
+                  <Loader2 className="w-5 h-5 animate-spin" /> Đang tải danh sách hồ sơ bán buôn...
+                </div>
+              ) : (
+                "Không tìm thấy hồ sơ bán buôn nào phù hợp."
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="glass-card rounded-xl overflow-hidden shadow-sm">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border bg-secondary/20 text-muted-foreground font-bold">
+                <th className="p-4">Số khung (VIN)</th>
+                <th className="p-4">Dòng xe & Phiên bản</th>
+                <th className="p-4">Khách hàng mua</th>
+                <th className="p-4">Tiến độ Ngân hàng (Trả góp)</th>
+                <th className="p-4">Thanh toán & Công nợ</th>
+                <th className="p-4 text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filteredVehicles.map((v: any) => {
+                const plateCostVal = Number(v.plateCost || 0);
+                const accessoriesList = parseAccessories(v.accessoriesJson);
+                const notesText = v.notes || "";
+                return (
+                  <tr key={v.id} className="hover:bg-secondary/10 transition-colors">
+                    <td className="p-4 font-mono font-bold text-foreground">
+                      {v.vin}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="font-bold text-foreground">{v.model}</div>
+                        {v.status === "SOLD" ? (
+                          <span className="text-[9px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold uppercase">
+                            Đã Bán
+                          </span>
+                        ) : (
+                          <span className="text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold uppercase">
+                            Đã Cọc
+                          </span>
                         )}
                       </div>
-                    ) : (
-                      <span className="text-muted-foreground italic">Chưa gắn khách</span>
-                    )}
-                  </td>
-                  <td className="p-4">
-                    {v.bankStatus === "NONE" ? (
-                      <span className="badge bg-secondary text-muted-foreground border-none text-[10px] font-bold py-1 px-2 rounded-full">
-                        Mua thẳng (Không vay)
-                      </span>
-                    ) : v.bankStatus === "PENDING_APPROVAL" ? (
-                      <span className="badge bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
-                        Chờ phê duyệt hồ sơ vay
-                      </span>
-                    ) : v.bankStatus === "APPROVED" ? (
-                      <span className="badge bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
-                        Đã phê duyệt vay
-                      </span>
-                    ) : (
-                      <span className="badge bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
-                        Đã giải ngân tiền
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-4">
-                    <div className="space-y-1">
-                      <div className="text-[10px] text-muted-foreground font-semibold">
-                        Đã trả: <span className="text-emerald-600 font-bold">{formatCurrency(Number(v.paidAmount || 0))}</span>
+                      <div className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                        {v.variant} • {v.color || "Khác"} • {v.year}
                       </div>
-                      <div className="text-[10px] text-muted-foreground font-semibold">
-                        Còn nợ: <span className="text-rose-600 font-bold">{formatCurrency(Number(v.debtAmount || 0))}</span>
+                    </td>
+                    <td className="p-4">
+                      {v.customer ? (
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-foreground flex items-center gap-1.5">
+                            <User size={12} className="text-muted-foreground" />
+                            {v.customer.name}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground font-semibold">SĐT: {v.customer.phone}</div>
+                          {v.customer.birthday && (
+                            <div className="text-[10px] text-muted-foreground italic">
+                              Sinh: {formatDate(v.customer.birthday)}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground italic">Chưa gắn khách</span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {v.bankStatus === "NONE" ? (
+                        <span className="badge bg-secondary text-muted-foreground border-none text-[10px] font-bold py-1 px-2 rounded-full">
+                          Mua thẳng (Không vay)
+                        </span>
+                      ) : v.bankStatus === "PENDING_APPROVAL" ? (
+                        <span className="badge bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
+                          Chờ phê duyệt hồ sơ vay
+                        </span>
+                      ) : v.bankStatus === "APPROVED" ? (
+                        <span className="badge bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
+                          Đã phê duyệt vay
+                        </span>
+                      ) : (
+                        <span className="badge bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
+                          Đã giải ngân tiền
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-muted-foreground font-semibold">
+                          Đã trả: <span className="text-emerald-600 font-bold">{formatCurrency(Number(v.paidAmount || 0))}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-semibold">
+                          Còn nợ: <span className="text-rose-600 font-bold">{formatCurrency(Number(v.debtAmount || 0))}</span>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="p-4 text-center">
-                    <div className="inline-flex items-center gap-1.5">
-                      <button
-                        onClick={() => openDetailModal(v)}
-                        className="p-1.5 hover:bg-blue-500/10 rounded-lg text-blue-500 transition-colors"
-                        title="Xem chi tiết"
-                      >
-                        <Eye size={14} />
-                      </button>
-                      <button
-                        onClick={() => openPaymentModal(v)}
-                        className="p-1.5 hover:bg-emerald-500/10 rounded-lg text-emerald-500 transition-colors"
-                        title="Cập nhật thanh toán"
-                      >
-                        <DollarSign size={14} />
-                      </button>
-                      <Link
-                        href={`/sales/documents/edit/${v.id}`}
-                        className="p-1.5 hover:bg-secondary rounded-lg text-primary transition-colors"
-                        title="Sửa hồ sơ"
-                      >
-                        <Edit size={14} />
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(v.id)}
-                        className="p-1.5 hover:bg-rose-500/10 rounded-lg text-rose-500 transition-colors"
-                        title="Xóa hồ sơ"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          onClick={() => openDetailModal(v)}
+                          className="p-1.5 hover:bg-blue-500/10 rounded-lg text-blue-500 transition-colors"
+                          title="Xem chi tiết"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => openPaymentModal(v)}
+                          className="p-1.5 hover:bg-emerald-500/10 rounded-lg text-emerald-500 transition-colors"
+                          title="Cập nhật thanh toán"
+                        >
+                          <DollarSign size={14} />
+                        </button>
+                        <Link
+                          href={`/sales/documents/edit/${v.id}`}
+                          className="p-1.5 hover:bg-secondary rounded-lg text-primary transition-colors"
+                          title="Sửa hồ sơ"
+                        >
+                          <Edit size={14} />
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(v.id)}
+                          className="p-1.5 hover:bg-rose-500/10 rounded-lg text-rose-500 transition-colors"
+                          title="Xóa hồ sơ"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredVehicles.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="p-12 text-center text-muted-foreground italic">
+                    {loading ? (
+                      <div className="flex items-center justify-center gap-2 text-primary font-bold">
+                        <Loader2 className="w-5 h-5 animate-spin" /> Đang tải danh sách hồ sơ xe...
+                      </div>
+                    ) : (
+                      "Không tìm thấy hồ sơ xe đặt cọc hoặc đã bán nào phù hợp."
+                    )}
                   </td>
                 </tr>
-              );
-            })}
-            {filteredVehicles.length === 0 && (
-              <tr>
-                <td colSpan={8} className="p-12 text-center text-muted-foreground italic">
-                  {loading ? (
-                    <div className="flex items-center justify-center gap-2 text-primary font-bold">
-                      <Loader2 className="w-5 h-5 animate-spin" /> Đang tải danh sách hồ sơ xe...
-                    </div>
-                  ) : (
-                    "Không tìm thấy hồ sơ xe đặt cọc hoặc đã bán nào phù hợp."
-                  )}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Payment Modal */}
       {paymentModalOpen && selectedVehicle && (
@@ -467,12 +687,18 @@ export default function DocumentsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-bold text-muted-foreground">Phụ tùng / Dịch vụ mua kèm</p>
-                    <button 
-                      onClick={() => handleExportAccessories(selectedVehicle.id)}
-                      className="text-[10px] bg-primary text-white font-bold px-2 py-1 rounded hover:bg-primary/90 transition-colors"
-                    >
-                      Xuất Kho Phụ Kiện
-                    </button>
+                    {selectedVehicle.accessoriesExported ? (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                        Đã xuất kho
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => handleExportAccessories(selectedVehicle.id)}
+                        className="text-[10px] bg-primary text-white font-bold px-2.5 py-1 rounded hover:bg-primary/90 transition-colors"
+                      >
+                        Xuất Kho Phụ Kiện
+                      </button>
+                    )}
                   </div>
                   <div className="bg-secondary/10 border border-border rounded-xl p-3">
                     <ul className="space-y-2 text-sm">

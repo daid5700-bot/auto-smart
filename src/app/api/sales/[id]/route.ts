@@ -55,7 +55,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: "Hồ sơ xe không tồn tại" }, { status: 404 });
     }
 
-    return NextResponse.json(vehicle);
+    const existingOrder = await prisma.inventoryOrder.findFirst({
+      where: { reason: `Xuất phụ kiện bán kèm xe VIN: ${vehicle.vin}` }
+    });
+
+    return NextResponse.json({
+      ...vehicle,
+      accessoriesExported: !!existingOrder
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
@@ -81,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { 
       vin, model, variant, color, year, status, listPrice, floorPrice, image,
       bankStatus, plateStatus, plateCost, accessoriesJson, notes,
-      customerName, customerPhone, customerBirthday
+      customerName, customerPhone, customerBirthday, saleType
     } = body;
 
     let customerId = currentVehicle.customerId;
@@ -107,6 +114,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (plateCost !== undefined) updateData.plateCost = Number(plateCost);
     if (accessoriesJson !== undefined) updateData.accessoriesJson = accessoriesJson;
     if (notes !== undefined) updateData.notes = notes;
+    if (saleType !== undefined) updateData.saleType = saleType;
     
     // Explicitly set customerId if it was resolved
     updateData.customerId = customerId;

@@ -37,12 +37,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     
     // Check if enough stock
     for (const acc of accessories) {
-      const product = await prisma.product.findUnique({ where: { id: acc.productId } });
+      const productId = Number(acc.productId || acc.id);
+      if (isNaN(productId)) {
+        return NextResponse.json({ error: "ID phụ tùng không hợp lệ trong dữ liệu xe" }, { status: 400 });
+      }
+      const product = await prisma.product.findUnique({ where: { id: productId } });
       if (!product) {
-        return NextResponse.json({ error: `Phụ tùng ID ${acc.productId} không tồn tại` }, { status: 400 });
+        return NextResponse.json({ error: `Phụ tùng ID ${productId} không tồn tại` }, { status: 400 });
       }
       const productBranch = await prisma.productBranch.findUnique({
-        where: { productId_branchId: { productId: acc.productId, branchId: vehicle.branchId || 1 } }
+        where: { productId_branchId: { productId, branchId: vehicle.branchId || 1 } }
       });
       if (!productBranch) {
         return NextResponse.json({ error: `Sản phẩm [${product.sku}] ${product.name} chưa cấu hình kho.` }, { status: 400 });
@@ -72,19 +76,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
 
       for (const item of accessories) {
-        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        const productId = Number(item.productId || item.id);
+        if (isNaN(productId)) continue;
+        const product = await tx.product.findUnique({ where: { id: productId } });
         if (!product) continue;
 
         const quantity = Number(item.quantity);
         
         const pb = await tx.productBranch.findUnique({
-          where: { productId_branchId: { productId: item.productId, branchId: vehicle.branchId || 1 } }
+          where: { productId_branchId: { productId, branchId: vehicle.branchId || 1 } }
         });
         const cogsUnit = Number(pb?.movingAvgCost || 0);
 
         await tx.stockMovement.create({
           data: {
-            productId: item.productId,
+            productId,
             type: "EXPORT",
             quantity,
             unitCost: cogsUnit,
@@ -96,7 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
 
         await tx.productBranch.update({
-          where: { productId_branchId: { productId: item.productId, branchId: vehicle.branchId || 1 } },
+          where: { productId_branchId: { productId, branchId: vehicle.branchId || 1 } },
           data: { stockCount: { decrement: quantity } }
         });
       }

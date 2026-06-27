@@ -39,7 +39,10 @@ export async function GET(req: NextRequest) {
     ] = await Promise.all([
       prisma.vehicle.count({ where: whereSold }),
       prisma.vehicle.aggregate({
-        _sum: { listPrice: true },
+        _sum: { 
+          listPrice: true,
+          plateCost: true,
+        },
         where: whereSold
       }),
       prisma.vehicle.findMany({
@@ -53,8 +56,30 @@ export async function GET(req: NextRequest) {
       })
     ]);
 
-    const soldValue = soldValueResult._sum.listPrice || 0;
-    const avgPrice = soldVehicles > 0 ? Number(soldValue) / soldVehicles : 0;
+    const soldValueRaw = soldValueResult._sum.listPrice ? Number(soldValueResult._sum.listPrice.toString()) : 0;
+    const totalPlateCostRaw = soldValueResult._sum.plateCost ? Number(soldValueResult._sum.plateCost.toString()) : 0;
+    let totalAccessoriesCostRaw = 0;
+
+    soldList.forEach(v => {
+      try {
+        const accs = JSON.parse(v.accessoriesJson || "[]");
+        accs.forEach((a: any) => {
+          const priceStr = String(a.price || "0").replace(/[^0-9]/g, "");
+          const qtyStr = String(a.quantity || "1").replace(/[^0-9.]/g, "");
+          const parsedPrice = parseInt(priceStr, 10) || 0;
+          const parsedQty = parseFloat(qtyStr) || 1;
+          totalAccessoriesCostRaw += parsedPrice * parsedQty;
+        });
+      } catch (e) {
+        console.error("Error parsing accessoriesJson for vehicle", v.id, e);
+      }
+    });
+
+    const soldValue = isNaN(soldValueRaw) ? 0 : soldValueRaw;
+    const totalPlateCost = isNaN(totalPlateCostRaw) ? 0 : totalPlateCostRaw;
+    const totalAccessoriesCost = isNaN(totalAccessoriesCostRaw) ? 0 : totalAccessoriesCostRaw;
+
+    const avgPrice = soldVehicles > 0 ? soldValue / soldVehicles : 0;
 
     // Group by model to calculate top selling models
     const modelMap = new Map<string, { model: string; count: number; value: number }>();
@@ -119,6 +144,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       soldVehicles,
       soldValue,
+      totalPlateCost,
+      totalAccessoriesCost,
       avgPrice,
       soldList,
       topModels,

@@ -140,52 +140,84 @@ export default function SalesStatsPage() {
       </div>
 
       {/* Stats Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         {/* Đã bán */}
-        <div className="glass-card rounded-xl p-6 border-l-4 border-l-emerald-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
+        <div className="glass-card rounded-xl p-5 border-l-4 border-l-emerald-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Số xe đã bán
             </p>
             <CheckCircle size={18} className="text-emerald-500" />
           </div>
-          <p className="text-4xl font-bold mt-3 tracking-tight text-emerald-600 dark:text-emerald-400">
+          <p className="text-3xl font-bold mt-3 tracking-tight text-emerald-600 dark:text-emerald-400">
             {data.soldVehicles}
           </p>
           <p className="text-xs text-muted-foreground mt-1.5">
-            Giao dịch bàn bàn giao xe thành công
+            Giao dịch hoàn tất
           </p>
         </div>
 
-        {/* Tổng giá trị bán */}
-        <div className="glass-card rounded-xl p-6 border-l-4 border-l-primary hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
+        {/* Tiền bán xe */}
+        <div className="glass-card rounded-xl p-5 border-l-4 border-l-blue-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Tổng giá trị bán
+              Doanh thu bán xe
             </p>
-            <DollarSign size={18} className="text-primary" />
+            <DollarSign size={18} className="text-blue-500" />
           </div>
-          <p className="text-3xl font-bold mt-3 tracking-tight text-primary">
-            {formatCurrency(data.soldValue)}
+          <p className="text-2xl font-bold mt-3 tracking-tight text-blue-600 dark:text-blue-400">
+            {formatCurrency(Number(data.soldValue) || 0)}
           </p>
           <p className="text-xs text-muted-foreground mt-1.5">
-            Doanh thu cộng dồn từ xe đã bán
+            Tổng giá trị xe đã bán
           </p>
         </div>
 
-        {/* Đơn giá trung bình / xe */}
-        <div className="glass-card rounded-xl p-6 border-l-4 border-l-purple-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
+        {/* Chi phí làm biển */}
+        <div className="glass-card rounded-xl p-5 border-l-4 border-l-amber-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Đơn giá trung bình
+              Phí làm biển
             </p>
-            <TrendingUp size={18} className="text-purple-500" />
+            <ShieldCheck size={18} className="text-amber-500" />
           </div>
-          <p className="text-3xl font-bold mt-3 tracking-tight text-purple-600 dark:text-purple-400">
-            {formatCurrency(data.avgPrice)}
+          <p className="text-2xl font-bold mt-3 tracking-tight text-amber-600 dark:text-amber-400">
+            {formatCurrency(Number(data.totalPlateCost) || 0)}
           </p>
           <p className="text-xs text-muted-foreground mt-1.5">
-            Giá bán bình quân trên mỗi xe
+            Dịch vụ đăng ký & biển số
+          </p>
+        </div>
+
+        {/* Tiền phụ kiện kèm */}
+        <div className="glass-card rounded-xl p-5 border-l-4 border-l-purple-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              Phụ kiện mua kèm
+            </p>
+            <Tag size={18} className="text-purple-500" />
+          </div>
+          <p className="text-2xl font-bold mt-3 tracking-tight text-purple-600 dark:text-purple-400">
+            {formatCurrency(Number(data.totalAccessoriesCost) || 0)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Giá trị phụ kiện bán kèm
+          </p>
+        </div>
+
+        {/* Tổng doanh thu gộp */}
+        <div className="glass-card rounded-xl p-5 border-l-4 border-l-rose-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              Tổng doanh thu gộp
+            </p>
+            <Banknote size={18} className="text-rose-500" />
+          </div>
+          <p className="text-2xl font-bold mt-3 tracking-tight text-rose-600 dark:text-rose-400">
+            {formatCurrency((Number(data.soldValue) || 0) + (Number(data.totalPlateCost) || 0) + (Number(data.totalAccessoriesCost) || 0))}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Tổng cộng tiền thu hồ sơ
           </p>
         </div>
       </div>
@@ -288,40 +320,67 @@ export default function SalesStatsPage() {
                     <th className="p-3">Xe & Phiên bản</th>
                     <th className="p-3">Số VIN</th>
                     <th className="p-3">Khách hàng</th>
-                    <th className="p-3 text-right">Giá trị bán</th>
+                    <th className="p-3 text-right">Giá xe</th>
+                    <th className="p-3 text-right">Phí làm biển</th>
+                    <th className="p-3 text-right">Phụ kiện kèm</th>
+                    <th className="p-3 text-right">Tổng cộng</th>
                     <th className="p-3 text-center">Ngày bàn giao</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {data.soldList?.map((item: any, idx: number) => (
-                    <tr key={item.id} className="hover:bg-secondary/15 transition-colors">
-                      <td className="p-3 text-center text-muted-foreground font-semibold">{idx + 1}</td>
-                      <td className="p-3 font-bold text-foreground">
-                        {item.model}
-                        {item.variant && <span className="text-[10px] text-muted-foreground block font-normal">{item.variant} • {item.color || "N/A"}</span>}
-                      </td>
-                      <td className="p-3 font-mono font-bold text-muted-foreground">{item.vin?.slice(-6) || "N/A"}</td>
-                      <td className="p-3">
-                        {item.customer ? (
-                          <div>
-                            <span className="font-semibold block">{item.customer.name}</span>
-                            <span className="text-[10px] text-muted-foreground block">{item.customer.phone}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground italic">Vãng lai</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right font-black text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(Number(item.listPrice))}
-                      </td>
-                      <td className="p-3 text-center text-muted-foreground font-medium">
-                        {formatDate(item.updatedAt)}
-                      </td>
-                    </tr>
-                  ))}
+                  {data.soldList?.map((item: any, idx: number) => {
+                    const pCost = Number(item.plateCost) || 0;
+                    let aCost = 0;
+                    try {
+                      const accs = JSON.parse(item.accessoriesJson || "[]");
+                      aCost = accs.reduce((s: number, a: any) => {
+                        const priceStr = String(a.price || "0").replace(/[^0-9]/g, "");
+                        const qtyStr = String(a.quantity || "1").replace(/[^0-9.]/g, "");
+                        const parsedPrice = parseInt(priceStr, 10) || 0;
+                        const parsedQty = parseFloat(qtyStr) || 1;
+                        return s + (parsedPrice * parsedQty);
+                      }, 0);
+                    } catch (e) {}
+
+                    return (
+                      <tr key={item.id} className="hover:bg-secondary/15 transition-colors">
+                        <td className="p-3 text-center text-muted-foreground font-semibold">{idx + 1}</td>
+                        <td className="p-3 font-bold text-foreground">
+                          {item.model}
+                          {item.variant && <span className="text-[10px] text-muted-foreground block font-normal">{item.variant} • {item.color || "N/A"}</span>}
+                        </td>
+                        <td className="p-3 font-mono font-bold text-muted-foreground">{item.vin?.slice(-6) || "N/A"}</td>
+                        <td className="p-3">
+                          {item.customer ? (
+                            <div>
+                              <span className="font-semibold block">{item.customer.name}</span>
+                              <span className="text-[10px] text-muted-foreground block">{item.customer.phone}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground italic">Vãng lai</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right font-medium text-foreground">
+                          {formatCurrency(Number(item.listPrice))}
+                        </td>
+                        <td className="p-3 text-right text-muted-foreground font-medium">
+                          {pCost > 0 ? formatCurrency(pCost) : "-"}
+                        </td>
+                        <td className="p-3 text-right text-muted-foreground font-medium">
+                          {aCost > 0 ? formatCurrency(aCost) : "-"}
+                        </td>
+                        <td className="p-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(Number(item.listPrice) + pCost + aCost)}
+                        </td>
+                        <td className="p-3 text-center text-muted-foreground font-medium">
+                          {formatDate(item.updatedAt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {(!data.soldList || data.soldList.length === 0) && (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted-foreground italic">
+                      <td colSpan={9} className="p-8 text-center text-muted-foreground italic">
                         Không có dữ liệu xe đã bán trong khoảng thời gian này
                       </td>
                     </tr>
