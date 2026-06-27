@@ -41,9 +41,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
       if (!currentLead) return NextResponse.json({ error: "Lead không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
+      // FIX #2: Strip `type` field to prevent it from being passed to the DB
+      const { type, ...leadData } = body;
       const lead = await prisma.lead.update({
         where: { id },
-        data: body,
+        data: leadData,
       });
       return NextResponse.json(lead);
     }

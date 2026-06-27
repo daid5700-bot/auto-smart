@@ -17,6 +17,7 @@ export default function CRMPage() {
   const [stats, setStats] = useState<any>(null);
   const [tabData, setTabData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [leadPagination, setLeadPagination] = useState<any>(null);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -39,9 +40,13 @@ export default function CRMPage() {
 
   const fetchTabData = () => {
     setLoading(true);
-    fetch(`/api/crm?tab=${tab}`)
+    // FIX #8: Use limit=100 and track pagination for lead pipeline overflow
+    fetch(`/api/crm?tab=${tab}&limit=100`)
       .then((r) => r.json())
-      .then(setTabData)
+      .then((data) => {
+        setTabData(data);
+        if (data.pagination) setLeadPagination(data.pagination);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -174,6 +179,13 @@ export default function CRMPage() {
       </div>
 
       {loading ? <div className="flex items-center justify-center h-32"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> : <>
+        {/* FIX #8: Lead overflow warning banner */}
+        {tab === "leads" && leadPagination && leadPagination.total > leadPagination.limit && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+            ⚠️ Đang hiển thị {leadPagination.limit} / <strong>{leadPagination.total}</strong> leads. Hệ thống giới hạn {leadPagination.limit} leads mỗi trang để đảm bảo hiệu năng.
+          </div>
+        )}
+
         {tab === "leads" && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {LEAD_COLS.map((col) => {

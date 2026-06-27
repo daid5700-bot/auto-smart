@@ -381,6 +381,10 @@ export default function ZnsPage() {
             </span>
           </div>
 
+          <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] font-semibold text-amber-700 dark:text-amber-400 flex items-start gap-2 leading-relaxed">
+            ⚠️ <span>Mẫu tin ZNS hiện đang lưu trên <strong>trình duyệt cục bộ (localStorage)</strong>. Mỗi máy tính / nhân viên sẽ thấy mẫu tin <em>khác nhau</em>. Xóa cache trình duyệt sẽ làm mất mẫu. Khuyến nghị đồng bộ mẫu tin lên cơ sở dữ liệu trong phiên bản tiếp theo.</span>
+          </div>
+
           {/* Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredTemplates.map((t) => (

@@ -4,6 +4,30 @@ import { Loader2, Gift, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { redeemPointsDb } from "@/app/actions";
 
+// FIX #5: NumericInput — hiển thị số thô khi đang focus để không phá vỡ IME tiếng Việt
+const NumericInput = ({ value, onChange, className, ...props }: any) => {
+  const [isFocused, setIsFocused] = useState(false);
+  const displayValue = isFocused
+    ? (value === "" ? "" : value.toString())
+    : (value === "" ? "" : Number(value).toLocaleString("vi-VN"));
+  const handleChange = (e: any) => {
+    const raw = e.target.value.replace(/\D/g, "");
+    onChange(raw === "" ? "" : parseInt(raw, 10));
+  };
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={displayValue}
+      onChange={handleChange}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+      className={className}
+      {...props}
+    />
+  );
+};
+
 export default function LoyaltyPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,16 +102,10 @@ export default function LoyaltyPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Số điểm quy đổi</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9.]*"
+              <NumericInput
                 required
-                value={pointsToRedeem === "" ? "" : Number(pointsToRedeem).toLocaleString("vi-VN")}
-                onChange={(e) => {
-                  const cleanVal = e.target.value.replace(/\D/g, "");
-                  setPointsToRedeem(cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                }}
+                value={pointsToRedeem}
+                onChange={(val: any) => setPointsToRedeem(val)}
                 className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none font-semibold text-primary"
               />
             </div>

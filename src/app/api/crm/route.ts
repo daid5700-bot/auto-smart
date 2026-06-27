@@ -13,23 +13,31 @@ export async function GET(req: NextRequest) {
   const skip = (page - 1) * limit;
 
   if (tab === "leads") {
+    const baseWhere = {
+      ...(branchId ? { branchId } : {}),
+    };
     const [leads, total] = await Promise.all([
       prisma.lead.findMany({
-        where: branchId ? { branchId } : {},
+        where: baseWhere,
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
         include: { customer: true, assignedTo: true },
       }),
-      prisma.lead.count({ where: branchId ? { branchId } : {} })
+      prisma.lead.count({ where: baseWhere })
     ]);
     return NextResponse.json({ leads, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }
 
   if (tab === "customers") {
+    // FIX #6: Filter out soft-deleted customers
+    const baseWhere = {
+      isDeleted: false,
+      ...(branchId ? { branchId } : {}),
+    } as any;
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
-        where: (branchId ? { branchId } : {}) as any,
+        where: baseWhere,
         include: {
           vehicles: true,
           repairOrders: true,
@@ -38,14 +46,18 @@ export async function GET(req: NextRequest) {
         skip,
         take: limit,
       }),
-      prisma.customer.count({ where: (branchId ? { branchId } : {}) as any })
+      prisma.customer.count({ where: baseWhere })
     ]);
     return NextResponse.json({ customers, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }
 
   if (tab === "reminders") {
+    // FIX #7: Filter out soft-deleted customers
     const customers = await prisma.customer.findMany({
-      where: (branchId ? { branchId } : {}) as any,
+      where: {
+        isDeleted: false,
+        ...(branchId ? { branchId } : {}),
+      } as any,
       take: 150, // Limit to prevent massive memory usage
       include: {
         vehicles: true,
@@ -72,16 +84,6 @@ export async function GET(req: NextRequest) {
 
     for (const c of customers) {
       const lastVehicle = c.vehicles && c.vehicles[0];
-      const purchaseDate = lastVehicle ? new Date(lastVehicle.createdAt) : new Date(c.createdAt);
-      const vehicleDueDate = new Date(purchaseDate);
-      vehicleDueDate.setMonth(vehicleDueDate.getMonth() + 3);
-      const vehicleDiff = Math.ceil((vehicleDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      
-      const hasRecentVehicleZns = c.znsLogs.some(log => 
-        log.messageType === "VEHICLE_PURCHASE" &&
-        new Date(log.sentAt).getTime() > today.getTime() - (30 * 24 * 60 * 60 * 1000)
-      );
-
       const lastRo = c.repairOrders && c.repairOrders[0];
 
       const customerDetails = {
@@ -121,45 +123,59 @@ export async function GET(req: NextRequest) {
         } : null
       };
 
-      // 1. Vehicle Purchase Reminder (Mua xe)
-      reminders.push({
-        id: `${c.id}-VEHICLE_PURCHASE`,
-        customer: customerDetails,
-        plate: c.vehiclePlates[0] || (lastVehicle ? (lastVehicle.color ? `${lastVehicle.model} (${lastVehicle.color})` : lastVehicle.model) : "Chưa có"),
-        serviceType: "VEHICLE_PURCHASE",
-        serviceLabel: "MUA XE",
-        dueDate: vehicleDueDate,
-        daysRemaining: vehicleDiff,
-        isOverdue: vehicleDiff < 0,
-        isUpcoming: vehicleDiff >= 0 && vehicleDiff <= 14,
-        isFarther: vehicleDiff > 14,
-        isReminded: hasRecentVehicleZns
-      });
+      // FIX #1: Chỉ tạo vehicle reminder nếu KH thực sự mua xe qua hệ thống
+      if (lastVehicle) {
+        const purchaseDate = new Date(lastVehicle.createdAt);
+        const vehicleDueDate = new Date(purchaseDate);
+        vehicleDueDate.setMonth(vehicleDueDate.getMonth() + 3);
+        const vehicleDiff = Math.ceil((vehicleDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-      // 2. Repair Order Reminder (Dịch vụ sửa chữa)
-      const repairDate = lastRo?.completedAt ? new Date(lastRo.completedAt) : (c.lastVisit ? new Date(c.lastVisit) : new Date(c.createdAt));
-      const repairDueDate = new Date(repairDate);
-      repairDueDate.setMonth(repairDueDate.getMonth() + 3);
-      const repairDiff = Math.ceil((repairDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const hasRecentVehicleZns = c.znsLogs.some(log =>
+          log.messageType === "VEHICLE_PURCHASE" &&
+          new Date(log.sentAt).getTime() > today.getTime() - (30 * 24 * 60 * 60 * 1000)
+        );
 
-      const hasRecentRepairZns = c.znsLogs.some(log => 
-        log.messageType === "REPAIR_SERVICE" &&
-        new Date(log.sentAt).getTime() > today.getTime() - (30 * 24 * 60 * 60 * 1000)
-      );
+        reminders.push({
+          id: `${c.id}-VEHICLE_PURCHASE`,
+          customer: customerDetails,
+          plate: c.vehiclePlates[0] || (lastVehicle.color ? `${lastVehicle.model} (${lastVehicle.color})` : lastVehicle.model),
+          serviceType: "VEHICLE_PURCHASE",
+          serviceLabel: "MUA XE",
+          dueDate: vehicleDueDate,
+          daysRemaining: vehicleDiff,
+          isOverdue: vehicleDiff < 0,
+          isUpcoming: vehicleDiff >= 0 && vehicleDiff <= 14,
+          isFarther: vehicleDiff > 14,
+          isReminded: hasRecentVehicleZns
+        });
+      }
 
-      reminders.push({
-        id: `${c.id}-REPAIR_SERVICE`,
-        customer: customerDetails,
-        plate: c.vehiclePlates[0] || lastRo?.plateNumber || (lastVehicle ? lastVehicle.vin : "Chưa có"),
-        serviceType: "REPAIR_SERVICE",
-        serviceLabel: "DỊCH VỤ SỬA CHỮA",
-        dueDate: repairDueDate,
-        daysRemaining: repairDiff,
-        isOverdue: repairDiff < 0,
-        isUpcoming: repairDiff >= 0 && repairDiff <= 14,
-        isFarther: repairDiff > 14,
-        isReminded: hasRecentRepairZns
-      });
+      // FIX #4: Chỉ tạo repair reminder nếu KH có ít nhất 1 lệnh sửa chữa đã hoàn thành
+      if (lastRo) {
+        const repairDate = lastRo.completedAt ? new Date(lastRo.completedAt) : (c.lastVisit ? new Date(c.lastVisit) : new Date(lastRo.createdAt));
+        const repairDueDate = new Date(repairDate);
+        repairDueDate.setMonth(repairDueDate.getMonth() + 3);
+        const repairDiff = Math.ceil((repairDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        const hasRecentRepairZns = c.znsLogs.some(log =>
+          log.messageType === "REPAIR_SERVICE" &&
+          new Date(log.sentAt).getTime() > today.getTime() - (30 * 24 * 60 * 60 * 1000)
+        );
+
+        reminders.push({
+          id: `${c.id}-REPAIR_SERVICE`,
+          customer: customerDetails,
+          plate: c.vehiclePlates[0] || lastRo.plateNumber || (lastVehicle ? lastVehicle.vin : "Chưa có"),
+          serviceType: "REPAIR_SERVICE",
+          serviceLabel: "DỊCH VỤ SỬA CHỮA",
+          dueDate: repairDueDate,
+          daysRemaining: repairDiff,
+          isOverdue: repairDiff < 0,
+          isUpcoming: repairDiff >= 0 && repairDiff <= 14,
+          isFarther: repairDiff > 14,
+          isReminded: hasRecentRepairZns
+        });
+      }
     }
 
     return NextResponse.json({ reminders });
@@ -175,10 +191,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ znsLogs });
   }
 
-  // stats
+  // stats — FIX: also filter isDeleted customers
+  const baseCustomerWhere = { isDeleted: false, ...(branchId ? { branchId } : {}) } as any;
   const [leadCount, customerCount, znsCount, convertedCount, totalLeads] = await Promise.all([
     prisma.lead.count({ where: branchId ? { branchId } : {} }),
-    prisma.customer.count({ where: (branchId ? { branchId } : {}) as any }),
+    prisma.customer.count({ where: baseCustomerWhere }),
     prisma.znsLog.count({ where: (branchId ? { branchId } : {}) as any }),
     prisma.lead.count({ where: { status: "CONVERTED", ...(branchId ? { branchId } : {}) } }),
     prisma.lead.count({ where: branchId ? { branchId } : {} }),
