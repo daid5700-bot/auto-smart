@@ -135,7 +135,7 @@ export default function UnifiedRequisitionsApprovalPage() {
   }
 
   return (
-    <div className="space-y-6 stagger max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 stagger pb-12">
       {/* Header section with two-level tab bar */}
       <div className="flex flex-col gap-4 border-b border-border pb-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

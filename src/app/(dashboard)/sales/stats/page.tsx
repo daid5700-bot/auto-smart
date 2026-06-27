@@ -82,22 +82,6 @@ export default function SalesStatsPage() {
         </div>
       </div>
 
-      {/* Tổng quan 3 mảng + grand total */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="glass-card rounded-xl p-4 border-l-4 border-l-blue-500 flex items-center gap-3 hover:-translate-y-0.5 transition-transform">
-          <div className="p-2.5 rounded-xl bg-blue-500/10 shrink-0"><Car size={20} className="text-blue-500"/></div>
-          <div><p className="text-[11px] font-bold text-muted-foreground uppercase">Bán xe</p><p className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(vehicleTotal)}</p><p className="text-[10px] text-muted-foreground">{data.soldVehicles} xe bán ra</p></div>
-        </div>
-        <div className="glass-card rounded-xl p-4 border-l-4 border-l-purple-500 flex items-center gap-3 hover:-translate-y-0.5 transition-transform">
-          <div className="p-2.5 rounded-xl bg-purple-500/10 shrink-0"><Package size={20} className="text-purple-500"/></div>
-          <div><p className="text-[11px] font-bold text-muted-foreground uppercase">Phụ tùng</p><p className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatCurrency(partsTotal)}</p><p className="text-[10px] text-muted-foreground">{Number(invData?.totalSoldQty)||0} sp xuất kho</p></div>
-        </div>
-
-        <div className="glass-card rounded-xl p-4 border-l-4 border-l-rose-500 flex items-center gap-3 hover:-translate-y-0.5 transition-transform bg-rose-500/5">
-          <div className="p-2.5 rounded-xl bg-rose-500/10 shrink-0"><Banknote size={20} className="text-rose-500"/></div>
-          <div><p className="text-[11px] font-bold text-muted-foreground uppercase">Tổng doanh thu</p><p className="text-lg font-bold text-rose-600 dark:text-rose-400">{formatCurrency(grandTotal)}</p><p className="text-[10px] text-muted-foreground">Tất cả mảng cộng lại</p></div>
-        </div>
-      </div>
 
       {/* ====== MẢNG 1: BÁN XE ====== */}
       <div className="space-y-4">
