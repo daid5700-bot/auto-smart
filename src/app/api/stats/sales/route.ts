@@ -106,6 +106,7 @@ export async function GET(req: NextRequest) {
     // Initialize last 12 months with 0
     for (let i = 11; i >= 0; i--) {
       const d = new Date();
+      d.setDate(1);
       d.setMonth(d.getMonth() - i);
       const key = `T${d.getMonth() + 1}`;
       if (!monthlySalesMap.has(key)) {

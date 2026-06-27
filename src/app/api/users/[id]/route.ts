@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import bcrypt from "bcryptjs";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -9,7 +10,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const data: any = {};
     if (body.name !== undefined) data.name = body.name;
     if (body.email !== undefined) data.email = body.email;
-    if (body.password !== undefined && body.password !== "") data.password = body.password;
+    if (body.password !== undefined && body.password !== "") {
+      data.password = bcrypt.hashSync(body.password, 10);
+    }
     if (body.role !== undefined) data.role = body.role;
 
     const user = await prisma.$transaction(async (tx) => {

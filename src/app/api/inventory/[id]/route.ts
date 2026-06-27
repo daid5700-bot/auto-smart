@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { verifyRole } from "@/lib/auth";
 
 // PATCH /api/inventory/[id] — update product details & prices
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = parseInt(params.id);
     const body = await req.json();
-    const userRole = req.cookies.get("user_role")?.value;
+    const userRole = verifyRole(req.cookies.get("user_role")?.value);
     const isAdmin = userRole === "ADMIN";
     const branchId = getActiveBranchId();
 
@@ -75,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = parseInt(params.id);
-    const userRole = req.cookies.get("user_role")?.value;
+    const userRole = verifyRole(req.cookies.get("user_role")?.value);
     const isAdmin = userRole === "ADMIN";
     const branchId = getActiveBranchId();
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifyRole } from "@/lib/auth";
 
 // Role-to-allowed-paths mapping for RBAC middleware
 const ROLE_PATHS: Record<string, string[]> = {
@@ -28,7 +29,8 @@ export function middleware(request: NextRequest) {
   }
 
   // Active security check using cookie session
-  const userRole = request.cookies.get("user_role")?.value;
+  const userRoleCookie = request.cookies.get("user_role")?.value;
+  const userRole = verifyRole(userRoleCookie);
 
   if (!userRole) {
     // Return 401 for API requests instead of redirecting

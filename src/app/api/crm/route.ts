@@ -53,13 +53,22 @@ export async function GET(req: NextRequest) {
   }
 
   if (tab === "reminders") {
-    // FIX #7: Filter out soft-deleted customers
+    // Count total active customers
+    const totalCustomers = await prisma.customer.count({
+      where: {
+        isDeleted: false,
+        ...(branchId ? { branchId } : {}),
+      }
+    });
+
+    // Fetch up to 150 most recent active customers
     const customers = await prisma.customer.findMany({
       where: {
         isDeleted: false,
         ...(branchId ? { branchId } : {}),
       } as any,
       take: 150, // Limit to prevent massive memory usage
+      orderBy: { lastVisit: "desc" },
       include: {
         vehicles: true,
         repairOrders: {
@@ -179,7 +188,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ reminders });
+    return NextResponse.json({
+      reminders,
+      warning: totalCustomers > 150 ? `Chỉ hiển thị nhắc nhở của 150 khách hàng hoạt động gần đây nhất trên tổng số ${totalCustomers} khách hàng.` : null,
+      totalCustomers
+    });
   }
 
 

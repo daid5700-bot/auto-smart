@@ -69,8 +69,8 @@ export async function POST(req: NextRequest) {
     const debtAmount = totalAmount;
     const status = "DEBT";
 
-    // Generate code
-    const code = `PX-${Date.now().toString().slice(-6)}`;
+    // Generate unique code
+    const code = `PX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const order = await prisma.$transaction(async (tx) => {
       let finalCustomerId = customerId ? parseInt(customerId) : null;
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
       // Create a map for O(1) lookups
       const pbMap = new Map(productBranches.map(pb => [pb.productId, pb]));
 
-      // Validation phase
+      // Validation and update phase sequentially with row locking
       for (const item of items) {
         const pId = parseInt(item.productId || item.id);
         const pb = pbMap.get(pId);
@@ -157,22 +157,24 @@ export async function POST(req: NextRequest) {
           throw new Error(`Sản phẩm không tồn tại trong kho (ID: ${pId})`);
         }
         
-        if (pb.stockCount < item.quantity) {
-          throw new Error(`Sản phẩm [${pb.product.sku}] ${pb.product.name} không đủ tồn (Cần ${item.quantity}, Hiện có ${pb.stockCount}).`);
-        }
-      }
+        // Obtain write lock on product branch row
+        const lockedRows: any[] = await tx.$queryRaw`
+          SELECT id, "stockCount" FROM "ProductBranch"
+          WHERE id = ${pb.id} FOR UPDATE
+        `;
+        const freshPb = lockedRows[0];
+        const currentStock = Number(freshPb?.stockCount || 0);
 
-      // Update phase: execute all updates concurrently
-      await Promise.all(
-        items.map((item: any) => {
-          const pId = parseInt(item.productId || item.id);
-          const pb = pbMap.get(pId)!;
-          return tx.productBranch.update({
-            where: { id: pb.id },
-            data: { stockCount: { decrement: item.quantity } }
-          });
-        })
-      );
+        if (currentStock < item.quantity) {
+          throw new Error(`Sản phẩm [${pb.product.sku}] ${pb.product.name} không đủ tồn (Cần ${item.quantity}, Hiện có ${currentStock}).`);
+        }
+
+        // Decrement within transaction
+        await tx.productBranch.update({
+          where: { id: pb.id },
+          data: { stockCount: { decrement: item.quantity } }
+        });
+      }
 
       if (Number(paidAmount) > 0) {
         await tx.paymentTransaction.create({
@@ -190,12 +192,12 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Update customer debt and spent if customer exists
+      // Update customer debt and spent (by paidAmount) if customer exists
       if (finalCustomerId) {
         await tx.customer.update({
           where: { id: finalCustomerId },
           data: {
-            totalSpent: { increment: totalAmount },
+            totalSpent: { increment: Number(paidAmount || 0) },
             totalDebt: { increment: debtAmount },
             lastVisit: new Date(),
           }

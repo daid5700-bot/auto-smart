@@ -71,7 +71,6 @@ export const useAuth = create<AuthState>((set) => ({
           document.cookie = "active_branch_id=; path=/; max-age=0";
         }
       }
-      document.cookie = `user_role=${user.role}; path=/; max-age=86400`;
       return true;
     } catch {
       return false;
@@ -104,7 +103,6 @@ export const useAuth = create<AuthState>((set) => ({
           document.cookie = "active_branch_id=; path=/; max-age=0";
         }
       }
-      document.cookie = `user_role=${user.role}; path=/; max-age=86400`;
     }
   },
 

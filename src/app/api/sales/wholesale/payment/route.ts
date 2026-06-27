@@ -111,14 +111,51 @@ export async function PATCH(req: NextRequest) {
         });
       }
 
-      // 3. Update customer's totalDebt
-      if (customerId && debtDelta !== 0) {
-        await tx.customer.update({
-          where: { id: customerId },
-          data: {
-            totalDebt: { increment: debtDelta }
+      // 3. Update customer's totalDebt and totalSpent
+      if (customerId) {
+        let totalDebtChange = 0;
+        let totalSpentChange = 0;
+
+        for (const v of vehicles) {
+          const update = updates.find(u => u.id === v.id)!;
+          const wasActive = ["RESERVED", "SOLD"].includes(v.status);
+          const isNowActive = ["RESERVED", "SOLD"].includes(update.status);
+
+          const oldVehicleDebt = v.debtAmount.toNumber();
+          const oldVehiclePaid = v.paidAmount.toNumber();
+          const newVehicleDebt = update.debtAmount;
+          const newVehiclePaid = update.paidAmount;
+
+          let debtChange = 0;
+          let spentChange = 0;
+
+          if (!wasActive && isNowActive) {
+            // Became active: add whole debt and paid amounts to customer
+            debtChange = newVehicleDebt;
+            spentChange = newVehiclePaid;
+          } else if (wasActive && !isNowActive) {
+            // Became inactive: subtract
+            debtChange = -oldVehicleDebt;
+            spentChange = -oldVehiclePaid;
+          } else if (wasActive && isNowActive) {
+            // Stayed active: adjust deltas
+            debtChange = newVehicleDebt - oldVehicleDebt;
+            spentChange = newVehiclePaid - oldVehiclePaid;
           }
-        });
+
+          totalDebtChange += debtChange;
+          totalSpentChange += spentChange;
+        }
+
+        if (totalDebtChange !== 0 || totalSpentChange !== 0) {
+          await tx.customer.update({
+            where: { id: customerId },
+            data: {
+              totalDebt: { increment: totalDebtChange },
+              totalSpent: { increment: totalSpentChange }
+            }
+          });
+        }
       }
 
       return { success: true };

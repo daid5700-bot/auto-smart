@@ -57,12 +57,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         });
       }
 
-      // update customer debt
-      if (ro.customerId && debtDelta !== 0) {
+      // update customer debt & spent
+      if (ro.customerId) {
+        const isCompleted = ["DONE", "DELIVERED"].includes(ro.status);
         await tx.customer.update({
           where: { id: ro.customerId },
           data: {
-            totalDebt: { increment: debtDelta }
+            totalDebt: { increment: debtDelta },
+            ...(isCompleted && diffPaid > 0 ? { totalSpent: { increment: diffPaid } } : {})
           }
         });
       }

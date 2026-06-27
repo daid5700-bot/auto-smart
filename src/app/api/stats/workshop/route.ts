@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     // 2. Status Distribution
+    // 2. Status Distribution
     const roList = await prisma.repairOrder.findMany({
       where: roWhere,
       select: {
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
         laborCost: true,
         partsCost: true,
         totalAmount: true,
+        paidAmount: true,
         createdAt: true,
         completedAt: true,
       },
@@ -79,9 +81,10 @@ export async function GET(req: NextRequest) {
         statusMap[ro.status]++;
       }
       if (ro.status === "DONE" || ro.status === "DELIVERED") {
-        totalRevenue += Number(ro.totalAmount);
-        laborRevenue += Number(ro.laborCost);
-        partsRevenue += Number(ro.partsCost);
+        const ratio = Number(ro.totalAmount) > 0 ? Number(ro.paidAmount || 0) / Number(ro.totalAmount) : 0;
+        totalRevenue += Number(ro.paidAmount || 0);
+        laborRevenue += Number(ro.laborCost) * ratio;
+        partsRevenue += Number(ro.partsCost) * ratio;
       }
     });
 
@@ -109,6 +112,7 @@ export async function GET(req: NextRequest) {
             laborCost: true,
             partsCost: true,
             totalAmount: true,
+            paidAmount: true,
           },
         },
       },
@@ -121,9 +125,10 @@ export async function GET(req: NextRequest) {
       let partsTechRevenue = 0;
 
       tech.repairOrders.forEach((ro) => {
-        totalTechRevenue += Number(ro.totalAmount);
-        laborTechRevenue += Number(ro.laborCost);
-        partsTechRevenue += Number(ro.partsCost);
+        const ratio = Number(ro.totalAmount) > 0 ? Number(ro.paidAmount || 0) / Number(ro.totalAmount) : 0;
+        totalTechRevenue += Number(ro.paidAmount || 0);
+        laborTechRevenue += Number(ro.laborCost) * ratio;
+        partsTechRevenue += Number(ro.partsCost) * ratio;
       });
 
       return {
@@ -141,6 +146,7 @@ export async function GET(req: NextRequest) {
     const monthlyTrends = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
+      d.setDate(1);
       d.setMonth(d.getMonth() - i);
       const monthLabel = `${d.getMonth() + 1}/${d.getFullYear()}`;
       

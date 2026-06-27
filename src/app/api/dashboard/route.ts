@@ -35,7 +35,7 @@ export async function GET() {
       totalTechnicians,
     ] = await Promise.all([
       prisma.product.count({ where: branchId ? { productBranches: { some: { branchId } } } : {} }),
-      prisma.customer.count({ where: branchId ? { branchId } : {} }),
+      prisma.customer.count({ where: { isDeleted: false, ...(branchId ? { branchId } : {}) } }),
       prisma.lead.count({ where: branchId ? { branchId } : {} }),
       prisma.lead.count({ where: { status: "NEW", ...(branchId ? { branchId } : {}) } }),
       prisma.repairOrder.count({ where: { status: { notIn: ["DONE", "DELIVERED"] }, ...(branchId ? { branchId } : {}) } }),
@@ -142,7 +142,10 @@ export async function GET() {
 
     // 6. Care reminders (Oil change schedules)
     const allCustomers = await prisma.customer.findMany({
-      where: branchId ? { branchId } : {},
+      where: {
+        isDeleted: false,
+        ...(branchId ? { branchId } : {}),
+      },
       orderBy: { lastVisit: "desc" },
       take: 10,
     });
@@ -161,8 +164,8 @@ export async function GET() {
 
     // 7. Last 12 months revenue (Optimized: 1 query instead of 12)
     const twelveMonthsAgo = new Date();
-    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
     twelveMonthsAgo.setDate(1);
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
     twelveMonthsAgo.setHours(0, 0, 0, 0);
 
     const allYearROs = await prisma.repairOrder.findMany({
@@ -177,6 +180,7 @@ export async function GET() {
     const monthlyRevenue = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date();
+      d.setDate(1);
       d.setMonth(d.getMonth() - i);
       const monthLabel = `T${d.getMonth() + 1}`;
       

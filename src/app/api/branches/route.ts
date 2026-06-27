@@ -1,6 +1,6 @@
-export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyRole } from "@/lib/auth";
 
 // GET /api/branches — list all branches
 export async function GET(req: NextRequest) {
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 // POST /api/branches — create a new branch (Admin only)
 export async function POST(req: NextRequest) {
   try {
-    const role = req.cookies.get("user_role")?.value;
+    const role = verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thực hiện thao tác này" }, { status: 403 });
     }

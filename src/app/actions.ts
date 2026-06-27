@@ -33,8 +33,12 @@ export async function importStock(data: {
       create: { productId: data.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
     });
 
-    const oldStock = pb.stockCount;
-    const oldMac = Number(pb.movingAvgCost || 0);
+    const lockedRows: any[] = await tx.$queryRaw`
+      SELECT "stockCount", "movingAvgCost" FROM "ProductBranch"
+      WHERE "id" = ${pb.id} FOR UPDATE
+    `;
+    const oldStock = Number(lockedRows[0]?.stockCount || 0);
+    const oldMac = Number(lockedRows[0]?.movingAvgCost || 0);
     const newStock = oldStock + actualQty;
 
     let newMac = oldMac;
@@ -163,12 +167,27 @@ export async function sellItem(productId: number, quantity: number) {
   const branchId = getActiveBranchId();
   const targetBranchId = branchId || 1;
 
-  const pb = await prisma.productBranch.findUnique({ where: { productId_branchId: { productId, branchId: targetBranchId } } });
-  if (!pb || pb.stockCount < quantity) throw new Error("Không đủ hàng tồn kho");
+  const updated = await prisma.$transaction(async (tx) => {
+    const pb = await tx.productBranch.upsert({
+      where: { productId_branchId: { productId, branchId: targetBranchId } },
+      update: {},
+      create: { productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+    });
 
-  const updated = await prisma.productBranch.update({
-    where: { id: pb.id },
-    data: { stockCount: pb.stockCount - quantity },
+    const lockedRows: any[] = await tx.$queryRaw`
+      SELECT id, "stockCount" FROM "ProductBranch"
+      WHERE id = ${pb.id} FOR UPDATE
+    `;
+    const currentStock = Number(lockedRows[0]?.stockCount || 0);
+
+    if (currentStock < quantity) {
+      throw new Error("Không đủ hàng tồn kho");
+    }
+
+    return await tx.productBranch.update({
+      where: { id: pb.id },
+      data: { stockCount: { decrement: quantity } },
+    });
   });
 
   return updated;
@@ -201,13 +220,12 @@ export async function createDirectExport(data: {
     const targetBranchId = branchId || 1;
     const productIds = Array.from(new Set(data.items.map(i => i.productId)));
 
-    const [products, branches] = await Promise.all([
-      tx.product.findMany({ where: { id: { in: productIds } }, include: { prices: true } }),
-      tx.productBranch.findMany({ where: { productId: { in: productIds }, branchId: targetBranchId } })
-    ]);
+    const products = await tx.product.findMany({
+      where: { id: { in: productIds } },
+      include: { prices: true }
+    });
 
     const productMap = new Map(products.map(p => [p.id, p]));
-    const branchMap = new Map(branches.map(b => [b.productId, b]));
 
     for (const item of data.items) {
       if (item.conversionFactor !== undefined && item.conversionFactor <= 0) {
@@ -220,20 +238,31 @@ export async function createDirectExport(data: {
       const product = productMap.get(item.productId);
       if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
 
-      const pb = branchMap.get(item.productId);
+      // Upsert to ensure the product branch entry exists
+      const pb = await tx.productBranch.upsert({
+        where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
+        update: {},
+        create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+      });
 
-      if (!pb || pb.stockCount < actualQty) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho (hiện tại: ${pb?.stockCount || 0}, cần: ${actualQty})`);
+      // Obtain a write lock on the product branch row
+      const lockedRows: any[] = await tx.$queryRaw`
+        SELECT id, "stockCount", "movingAvgCost" FROM "ProductBranch"
+        WHERE id = ${pb.id} FOR UPDATE
+      `;
+      const currentStock = Number(lockedRows[0]?.stockCount || 0);
+      const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
+
+      if (currentStock < actualQty) {
+        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho (hiện tại: ${currentStock}, cần: ${actualQty})`);
       }
 
-      const newStock = pb.stockCount - actualQty;
+      const newStock = currentStock - actualQty;
 
       await tx.productBranch.update({
         where: { id: pb.id },
         data: { stockCount: newStock },
       });
-
-      const cogsUnit = Number(pb.movingAvgCost || 0);
 
       // Find the price based on export type
       const priceObj = product.prices.find((p) => p.type === exportType) ||
@@ -242,16 +271,16 @@ export async function createDirectExport(data: {
 
       const exportTypeLabel = exportType === "RETAIL" ? "Bán lẻ" : "Bán buôn";
       const finalReason = item.note
-        ? `[${exportTypeLabel}] ${item.note}`
-        : `[${exportTypeLabel}]`;
+          ? `[${exportTypeLabel}] ${item.note}`
+          : `[${exportTypeLabel}]`;
 
       const movement = await tx.stockMovement.create({
         data: {
           productId: item.productId,
           type: "EXPORT",
           quantity: actualQty,
-          unitCost: cogsUnit,
-          totalCost: cogsUnit * actualQty,
+          unitCost: currentMac,
+          totalCost: currentMac * actualQty,
           reason: finalReason,
           createdBy: data.createdBy,
         },
@@ -299,7 +328,15 @@ export async function createManualAdjust(data: {
         create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
       });
 
-      const diff = item.actualStock - pb.stockCount;
+      // Obtain write lock on the product branch row
+      const lockedRows: any[] = await tx.$queryRaw`
+        SELECT "stockCount", "movingAvgCost" FROM "ProductBranch"
+        WHERE "id" = ${pb.id} FOR UPDATE
+      `;
+      const currentStock = Number(lockedRows[0]?.stockCount || 0);
+      const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
+
+      const diff = item.actualStock - currentStock;
       if (diff !== 0) {
         await tx.productBranch.update({
           where: { id: pb.id },
@@ -308,10 +345,8 @@ export async function createManualAdjust(data: {
 
         // Nếu tăng tồn, tính toán lại MAC
         if (diff > 0) {
-           const oldStock = pb.stockCount;
-           const oldMac = Number(pb.movingAvgCost || 0);
            const avgCost = 0; // Điều chỉnh thì giá vốn hàng nhập thường là 0 nếu không biết
-           const newMac = item.actualStock > 0 ? ((oldStock * oldMac) + (diff * avgCost)) / item.actualStock : oldMac;
+           const newMac = item.actualStock > 0 ? ((currentStock * currentMac) + (diff * avgCost)) / item.actualStock : currentMac;
            await tx.productBranch.update({
              where: { id: pb.id },
              data: { movingAvgCost: newMac }
@@ -465,18 +500,10 @@ export async function exportStockForRO(data: {
   const branchId = getActiveBranchId();
   const targetBranchId = branchId || 1;
 
-  const pb = await prisma.productBranch.findUnique({
-    where: { productId_branchId: { productId: data.productId, branchId: targetBranchId } }
-  });
-
   const ro = await prisma.repairOrder.findUnique({ where: { id: data.repairOrderId } });
   if (!ro) throw new Error("Lệnh sửa chữa không tồn tại");
   if (branchId && ro.branchId !== branchId) {
     throw new Error("Lệnh sửa chữa không thuộc chi nhánh hiện tại");
-  }
-
-  if (!pb || pb.stockCount < data.quantity) {
-    throw new Error("Không đủ số lượng trong kho");
   }
 
   const selectedPrice = product.prices.find((p) => p.type === data.priceType);
@@ -484,15 +511,33 @@ export async function exportStockForRO(data: {
 
   const unitPrice = Number(selectedPrice.amount);
   const totalPrice = unitPrice * data.quantity;
-  const cogsUnit = Number(pb.movingAvgCost || 0);
 
-  // Transaction to update inventory, create order item & create stock movement
-  const [, item] = await prisma.$transaction([
-    prisma.productBranch.update({
+  const item = await prisma.$transaction(async (tx) => {
+    // Upsert to ensure product branch entry exists
+    const pb = await tx.productBranch.upsert({
+      where: { productId_branchId: { productId: data.productId, branchId: targetBranchId } },
+      update: {},
+      create: { productId: data.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+    });
+
+    // Obtain write lock on the product branch row
+    const lockedRows: any[] = await tx.$queryRaw`
+      SELECT id, "stockCount", "movingAvgCost" FROM "ProductBranch"
+      WHERE id = ${pb.id} FOR UPDATE
+    `;
+    const currentStock = Number(lockedRows[0]?.stockCount || 0);
+    const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
+
+    if (currentStock < data.quantity) {
+      throw new Error("Không đủ số lượng trong kho");
+    }
+
+    await tx.productBranch.update({
       where: { id: pb.id },
       data: { stockCount: { decrement: data.quantity } },
-    }),
-    prisma.orderItem.create({
+    });
+
+    const createdItem = await tx.orderItem.create({
       data: {
         repairOrderId: data.repairOrderId,
         productId: data.productId,
@@ -500,20 +545,23 @@ export async function exportStockForRO(data: {
         unitPrice,
         totalPrice,
       },
-    }),
-    prisma.stockMovement.create({
+    });
+
+    await tx.stockMovement.create({
       data: {
         productId: data.productId,
         type: "EXPORT",
         quantity: data.quantity,
-        unitCost: cogsUnit,
-        totalCost: cogsUnit * data.quantity,
+        unitCost: currentMac,
+        totalCost: currentMac * data.quantity,
         reason: "Xuất kho sửa chữa",
         relatedRoId: data.repairOrderId,
         createdBy: "system",
       },
-    }),
-  ]);
+    });
+
+    return createdItem;
+  });
 
   // Recalculate bill
   const roItems = await prisma.orderItem.findMany({
@@ -675,22 +723,34 @@ export async function createManualExport(data: {
     const targetBranchId = branchId || 1;
     const productIds = Array.from(new Set(data.items.map(i => i.productId)));
 
-    const [products, branches] = await Promise.all([
-      tx.product.findMany({ where: { id: { in: productIds } }, include: { prices: true } }),
-      tx.productBranch.findMany({ where: { productId: { in: productIds }, branchId: targetBranchId } })
-    ]);
+    const products = await tx.product.findMany({
+      where: { id: { in: productIds } },
+      include: { prices: true }
+    });
 
     const productMap = new Map(products.map(p => [p.id, p]));
-    const branchMap = new Map(branches.map(b => [b.productId, b]));
 
     for (const item of data.items) {
       const product = productMap.get(item.productId);
       if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
 
-      const pb = branchMap.get(item.productId);
+      // Upsert to ensure the product branch entry exists
+      const pb = await tx.productBranch.upsert({
+        where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
+        update: {},
+        create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+      });
 
-      if (!pb || pb.stockCount < item.quantity) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${pb?.stockCount || 0}, Yêu cầu: ${item.quantity})`);
+      // Obtain write lock on the product branch row
+      const lockedRows: any[] = await tx.$queryRaw`
+        SELECT id, "stockCount", "movingAvgCost" FROM "ProductBranch"
+        WHERE id = ${pb.id} FOR UPDATE
+      `;
+      const currentStock = Number(lockedRows[0]?.stockCount || 0);
+      const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
+
+      if (currentStock < item.quantity) {
+        throw new Error(`Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${currentStock}, Yêu cầu: ${item.quantity})`);
       }
 
       // Determine selling price
@@ -704,7 +764,6 @@ export async function createManualExport(data: {
       }
 
       const totalPrice = unitPrice * item.quantity;
-      const cogsUnit = Number(pb.movingAvgCost || 0);
 
       // Update stock
       await tx.productBranch.update({
@@ -718,8 +777,8 @@ export async function createManualExport(data: {
           productId: item.productId,
           type: "EXPORT",
           quantity: item.quantity,
-          unitCost: cogsUnit,
-          totalCost: cogsUnit * item.quantity,
+          unitCost: currentMac,
+          totalCost: currentMac * item.quantity,
           reason: reasonText,
           relatedRoId: data.exportType === "REPAIR" ? data.repairOrderId : null,
           createdBy: data.createdBy,
@@ -854,12 +913,23 @@ export async function createPartsRequisition(data: {
         throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
       }
 
-      const pb = await tx.productBranch.findUnique({
-        where: { productId_branchId: { productId: item.productId, branchId: activeBranchId } }
+      // Upsert to ensure the product branch entry exists
+      const pb = await tx.productBranch.upsert({
+        where: { productId_branchId: { productId: item.productId, branchId: activeBranchId } },
+        update: {},
+        create: { productId: item.productId, branchId: activeBranchId, stockCount: 0, reservedStock: 0, movingAvgCost: 0 }
       });
 
-      if (!pb || (pb.stockCount - pb.reservedStock) < item.quantity) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho khả dụng (Tồn: ${pb?.stockCount || 0}, Đang giữ chỗ: ${pb?.reservedStock || 0}, Yêu cầu: ${item.quantity})`);
+      // Obtain a write lock on the product branch row
+      const lockedRows: any[] = await tx.$queryRaw`
+        SELECT id, "stockCount", "reservedStock" FROM "ProductBranch"
+        WHERE id = ${pb.id} FOR UPDATE
+      `;
+      const currentStock = Number(lockedRows[0]?.stockCount || 0);
+      const currentReserved = Number(lockedRows[0]?.reservedStock || 0);
+
+      if ((currentStock - currentReserved) < item.quantity) {
+        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho khả dụng (Tồn: ${currentStock}, Đang giữ chỗ: ${currentReserved}, Yêu cầu: ${item.quantity})`);
       }
 
       // Increment reservedStock (Do NOT decrement stockCount yet)

@@ -45,13 +45,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           throw new Error(`Phụ tùng [${product.sku}] ${product.name} chưa cấu hình kho cho chi nhánh.`);
         }
 
-        if ((productBranch.stockCount) < item.quantity) {
-          throw new Error(`Phụ tùng [${product.sku}] ${product.name} không đủ tồn kho (Cần ${item.quantity}, hiện có ${productBranch.stockCount})`);
+        // Obtain write lock on the product branch row
+        const lockedRows: any[] = await tx.$queryRaw`
+          SELECT id, "stockCount", "reservedStock" FROM "ProductBranch"
+          WHERE id = ${productBranch.id} FOR UPDATE
+        `;
+        const freshPb = lockedRows[0];
+        const currentStock = Number(freshPb?.stockCount || 0);
+        const currentReserved = Number(freshPb?.reservedStock || 0);
+
+        if (currentStock < item.quantity) {
+          throw new Error(`Phụ tùng [${product.sku}] ${product.name} không đủ tồn kho (Cần ${item.quantity}, hiện có ${currentStock})`);
         }
 
         // Decrement product stock AND decrement the reservedStock since it's now fulfilled
         // Use Math.max guard to prevent reservedStock going negative due to data inconsistency
-        const safeReservedDecrement = Math.min(item.quantity, productBranch.reservedStock);
+        const safeReservedDecrement = Math.min(item.quantity, currentReserved);
         await tx.productBranch.update({
           where: { id: productBranch.id },
           data: { 

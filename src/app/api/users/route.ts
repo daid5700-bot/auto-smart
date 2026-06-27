@@ -1,6 +1,6 @@
-export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import bcrypt from "bcryptjs";
 
 export async function GET(req: NextRequest) {
   try {
@@ -57,11 +57,13 @@ export async function POST(req: NextRequest) {
       ? body.branchIds.map((id: any) => parseInt(id, 10)).filter((id: number) => !isNaN(id))
       : [];
 
+    const hashedPassword = bcrypt.hashSync(body.password, 10);
+
     const user = await prisma.user.create({
       data: {
         name: body.name,
         email: body.email,
-        password: body.password,
+        password: hashedPassword,
         role: body.role || "CRM",
         branches: {
           create: branchIds.map((branchId: number) => ({

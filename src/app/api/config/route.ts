@@ -1,6 +1,6 @@
-export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyRole } from "@/lib/auth";
 
 const DEFAULT_CONFIGS: Record<string, string> = {
   zns_template: "Kính gửi quý khách [NAME], xe [PLATE] đã đến hạn bảo dưỡng thay dầu nhớt. Vui lòng liên hệ AutoSmart để đặt lịch!",
@@ -28,7 +28,7 @@ export async function GET() {
 // POST /api/config — upsert one or many keys (Admin only)
 export async function POST(req: NextRequest) {
   try {
-    const role = req.cookies.get("user_role")?.value;
+    const role = verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thay đổi cấu hình" }, { status: 403 });
     }

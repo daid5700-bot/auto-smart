@@ -30,11 +30,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ 
       technicians: enriched,
-      debug: {
-        branchId,
-        totalInDb: dbCount,
-        returnedCount: enriched.length
-      }
     });
   } catch (error: any) {
     console.error("[DEBUG] /api/technicians error:", error);

@@ -93,13 +93,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const pointsRatePercent = configPointsRate ? parseFloat(configPointsRate.value) : 1.0;
         const points = Math.max(0, Math.floor((Number(ro.totalAmount) * (pointsRatePercent / 100)) / 1000));
 
-        // Update customer: add spent value and loyalty points; also clear remaining debt since work is completed
-        const roDebtAmount = Number(ro.debtAmount || 0);
+        // Update customer: add spent value (paidAmount) and loyalty points
         await prisma.customer.update({
           where: { id: ro.customerId },
           data: {
             loyaltyPoints: { increment: points },
-            totalSpent: { increment: ro.totalAmount },
+            totalSpent: { increment: Number(ro.paidAmount || 0) },
             lastVisit: new Date(),
           },
         });
@@ -195,13 +194,16 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         include: { items: true }
       });
 
-      // Assuming 1 RO has at most 1 requisition in this workflow
-      const req = requisitions[0];
-      
-      if (req) {
+      for (const req of requisitions) {
         if (req.status === "APPROVED") {
           // Warehouse already exported the parts. We must return them to stockCount.
-          const orderItems = await tx.orderItem.findMany({ where: { repairOrderId: id } });
+          const reqProductIds = req.items.map(ri => ri.productId);
+          const orderItems = await tx.orderItem.findMany({
+            where: {
+              repairOrderId: id,
+              productId: { in: reqProductIds }
+            }
+          });
           await Promise.all(orderItems.map(async (item) => {
             if (item.productId) {
               const pb = await tx.productBranch.findUnique({
@@ -238,23 +240,22 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         }
 
         // Cancel the requisition so warehouse doesn't see it anymore
-        if (req.status === "PENDING") {
-           await tx.partsRequisition.update({
-             where: { id: req.id },
-             data: { status: "REJECTED" } // Mark as rejected/cancelled
-           });
-        }
+        await tx.partsRequisition.update({
+          where: { id: req.id },
+          data: { status: "REJECTED" } // Mark as rejected/cancelled
+        });
       }
 
       // 2. Revert customer debt and spent
       if (currentRo.customerId) {
         const debtAmount = Number(currentRo.debtAmount || 0);
-        const totalAmount = Number(currentRo.totalAmount || 0);
+        const paidAmount = Number(currentRo.paidAmount || 0);
+        const isCompleted = ["DONE", "DELIVERED"].includes(currentRo.status);
         await tx.customer.update({
           where: { id: currentRo.customerId },
           data: {
             totalDebt: { decrement: debtAmount },
-            totalSpent: { decrement: totalAmount }
+            ...(isCompleted ? { totalSpent: { decrement: paidAmount } } : {})
           }
         });
       }

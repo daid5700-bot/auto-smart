@@ -142,10 +142,9 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // 6. Only count exports that are vehicle accessory exports (linked to vehicle sales)
+    // 6. Count all exports (sales, RO parts exports, manual exports, etc.)
     const exportWhere: any = {
       type: "EXPORT",
-      createdBy: "Hệ thống (Bán Xe)", // Only vehicle accessory exports
     };
     if (branchId) {
       exportWhere.product = { productBranches: { some: { branchId } } };
