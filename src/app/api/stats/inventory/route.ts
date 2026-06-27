@@ -142,8 +142,11 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // 6. Sales metrics within the date range
-    const exportWhere: any = { type: "EXPORT" };
+    // 6. Only count exports that are vehicle accessory exports (linked to vehicle sales)
+    const exportWhere: any = {
+      type: "EXPORT",
+      createdBy: "Hệ thống (Bán Xe)", // Only vehicle accessory exports
+    };
     if (branchId) {
       exportWhere.product = { productBranches: { some: { branchId } } };
     }

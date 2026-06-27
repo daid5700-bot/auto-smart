@@ -1,435 +1,223 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import {
-  Car, DollarSign, CheckCircle, TrendingUp, TrendingDown,
-  ArrowUpRight, Clock, Banknote, ShieldCheck,
-  Loader2, RefreshCw, X, Calendar, User, Tag
-} from "lucide-react";
+import { Car, DollarSign, CheckCircle, TrendingUp, TrendingDown, Banknote, ShieldCheck, Loader2, RefreshCw, X, Tag, Package, Boxes, BarChart2 } from "lucide-react";
+
+function StatCard({ label, value, sub, color, icon }: any) {
+  const colors: any = {
+    blue: "border-l-blue-500 text-blue-600 dark:text-blue-400",
+    emerald: "border-l-emerald-500 text-emerald-600 dark:text-emerald-400",
+    amber: "border-l-amber-500 text-amber-600 dark:text-amber-400",
+    purple: "border-l-purple-500 text-purple-600 dark:text-purple-400",
+    rose: "border-l-rose-500 text-rose-600 dark:text-rose-400",
+  };
+  return (
+    <div className={`glass-card rounded-xl p-4 border-l-4 ${colors[color]} hover:-translate-y-0.5 transition-transform`}>
+      <div className="flex items-center justify-between mb-2">{icon}<p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{label}</p></div>
+      <p className={`text-xl font-bold tracking-tight ${colors[color]}`}>{value}</p>
+      {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
+    </div>
+  );
+}
 
 export default function SalesStatsPage() {
   const [data, setData] = useState<any>(null);
+  const [invData, setInvData] = useState<any>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const fetchStats = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const params = new URLSearchParams();
-      if (startDate) params.set("startDate", startDate);
-      if (endDate) params.set("endDate", endDate);
-
-      const res = await fetch(`/api/stats/sales?${params}`);
-      if (!res.ok) throw new Error("Failed to load sales statistics");
-      const d = await res.json();
-      setData(d);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Đã xảy ra lỗi");
-    } finally {
-      setLoading(false);
-    }
+      setLoading(true); setError(null);
+      const q = new URLSearchParams();
+      if (startDate) q.set("startDate", startDate);
+      if (endDate) q.set("endDate", endDate);
+      const qs = q.toString();
+      const [r1, r2] = await Promise.all([fetch(`/api/stats/sales?${qs}`), fetch(`/api/stats/inventory?${qs}`)]);
+      if (!r1.ok) throw new Error("Lỗi tải dữ liệu");
+      const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+      setData(d1); setInvData(d2);
+    } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchStats();
-  }, [startDate, endDate]);
+  useEffect(() => { fetchStats(); }, [startDate, endDate]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary"/></div>;
+  if (error || !data) return <div className="p-6 text-center"><p className="text-destructive mb-4">{error}</p><button onClick={fetchStats} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold inline-flex items-center gap-2"><RefreshCw size={14}/> Thử lại</button></div>;
 
-  if (error || !data) {
-    return (
-      <div className="p-6 text-center">
-        <p className="text-destructive font-semibold mb-4">
-          Lỗi: {error || "Không thể tải dữ liệu thống kê kinh doanh"}
-        </p>
-        <button
-          onClick={fetchStats}
-          className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold inline-flex items-center gap-2"
-        >
-          <RefreshCw size={14} /> Thử lại
-        </button>
-      </div>
-    );
-  }
-
-  // Calculate SVG chart coordinates
+  // --- Vehicle chart data ---
   const monthlySales = data.monthlySales || [];
-  const maxVal = Math.max(...monthlySales.map((r: any) => r.value), 10);
-  const chartHeight = 240;
-  const chartWidth = 920;
-  const paddingX = 40;
-  const paddingY = 20;
-
-  const points = monthlySales.map((m: any, index: number) => {
-    const x = (index / 11) * chartWidth + paddingX;
-    const y = chartHeight - (m.value / maxVal) * (chartHeight - 40) + paddingY;
-    return { x, y, label: m.label, value: m.value };
-  });
-
-  const linePath = points.map((p: any, idx: number) => `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-  const areaPath = points.length > 0 
-    ? `${linePath} L ${points[points.length - 1].x} ${chartHeight + paddingY} L ${points[0].x} ${chartHeight + paddingY} Z` 
-    : "";
-
+  const maxVal = Math.max(...monthlySales.map((r: any) => r.value), 1);
+  const W = 900; const H = 200; const px = 40; const py = 20;
+  const pts = monthlySales.map((m: any, i: number) => ({ x: (i / Math.max(monthlySales.length - 1, 1)) * W + px, y: H - (m.value / maxVal) * (H - 40) + py, label: m.label, value: m.value }));
+  const line = pts.map((p: any, i: number) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const area = pts.length > 0 ? `${line} L ${pts[pts.length-1].x} ${H+py} L ${pts[0].x} ${H+py} Z` : "";
   const trend = data.trendPercentage ?? 0;
 
+  // --- Totals ---
+  const vehicleTotal = (Number(data.soldValue)||0) + (Number(data.totalPlateCost)||0) + (Number(data.totalAccessoriesCost)||0);
+  const partsTotal = Number(invData?.totalSoldAmount) || 0;
+  const grandTotal = vehicleTotal + partsTotal;
+
   return (
-    <div className="space-y-6 stagger">
-      {/* Header Section */}
+    <div className="space-y-8 stagger">
+      {/* Header */}
       <div className="flex items-center justify-between pb-5 border-b border-border flex-wrap gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Báo cáo thống kê
-          </p>
-          <h2 className="text-3xl font-extrabold tracking-tight mt-1">
-            Kinh doanh & Bán Xe
-          </h2>
-          </div>
-        
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          {/* Time Filter Group */}
+          <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Báo cáo thống kê</p>
+          <h2 className="text-3xl font-extrabold tracking-tight mt-1">Kinh doanh tổng hợp</h2>
+        </div>
+        <div className="flex items-center gap-3">
           <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl px-3 py-1.5 shadow-sm text-xs font-semibold">
-            <span className="text-muted-foreground">Từ ngày:</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
-            />
+            <span className="text-muted-foreground">Từ:</span>
+            <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="bg-transparent border-none outline-none text-foreground w-[125px] text-xs"/>
             <span className="text-muted-foreground border-l border-border pl-2">Đến:</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
-            />
-            {(startDate || endDate) && (
-              <button
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
-                }}
-                className="text-muted-foreground hover:text-destructive transition-colors ml-1"
-                title="Xóa bộ lọc"
-              >
-                <X size={14} />
-              </button>
-            )}
+            <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="bg-transparent border-none outline-none text-foreground w-[125px] text-xs"/>
+            {(startDate||endDate) && <button onClick={()=>{setStartDate("");setEndDate("");}} className="text-muted-foreground hover:text-destructive ml-1"><X size={14}/></button>}
           </div>
-
-          <button
-            onClick={fetchStats}
-            className="p-2.5 hover:bg-secondary rounded-xl text-primary border border-border bg-card transition-colors"
-            title="Tải lại dữ liệu"
-          >
-            <RefreshCw size={16} />
-          </button>
+          <button onClick={fetchStats} className="p-2.5 hover:bg-secondary rounded-xl text-primary border border-border bg-card transition-colors"><RefreshCw size={16}/></button>
         </div>
       </div>
 
-      {/* Stats Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-        {/* Đã bán */}
-        <div className="glass-card rounded-xl p-5 border-l-4 border-l-emerald-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Số xe đã bán
-            </p>
-            <CheckCircle size={18} className="text-emerald-500" />
-          </div>
-          <p className="text-3xl font-bold mt-3 tracking-tight text-emerald-600 dark:text-emerald-400">
-            {data.soldVehicles}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1.5">
-            Giao dịch hoàn tất
-          </p>
+      {/* Tổng quan 3 mảng + grand total */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="glass-card rounded-xl p-4 border-l-4 border-l-blue-500 flex items-center gap-3 hover:-translate-y-0.5 transition-transform">
+          <div className="p-2.5 rounded-xl bg-blue-500/10 shrink-0"><Car size={20} className="text-blue-500"/></div>
+          <div><p className="text-[11px] font-bold text-muted-foreground uppercase">Bán xe</p><p className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(vehicleTotal)}</p><p className="text-[10px] text-muted-foreground">{data.soldVehicles} xe bán ra</p></div>
+        </div>
+        <div className="glass-card rounded-xl p-4 border-l-4 border-l-purple-500 flex items-center gap-3 hover:-translate-y-0.5 transition-transform">
+          <div className="p-2.5 rounded-xl bg-purple-500/10 shrink-0"><Package size={20} className="text-purple-500"/></div>
+          <div><p className="text-[11px] font-bold text-muted-foreground uppercase">Phụ tùng</p><p className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatCurrency(partsTotal)}</p><p className="text-[10px] text-muted-foreground">{Number(invData?.totalSoldQty)||0} sp xuất kho</p></div>
         </div>
 
-        {/* Tiền bán xe */}
-        <div className="glass-card rounded-xl p-5 border-l-4 border-l-blue-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Doanh thu bán xe
-            </p>
-            <DollarSign size={18} className="text-blue-500" />
-          </div>
-          <p className="text-2xl font-bold mt-3 tracking-tight text-blue-600 dark:text-blue-400">
-            {formatCurrency(Number(data.soldValue) || 0)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1.5">
-            Tổng giá trị xe đã bán
-          </p>
-        </div>
-
-        {/* Chi phí làm biển */}
-        <div className="glass-card rounded-xl p-5 border-l-4 border-l-amber-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Phí làm biển
-            </p>
-            <ShieldCheck size={18} className="text-amber-500" />
-          </div>
-          <p className="text-2xl font-bold mt-3 tracking-tight text-amber-600 dark:text-amber-400">
-            {formatCurrency(Number(data.totalPlateCost) || 0)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1.5">
-            Dịch vụ đăng ký & biển số
-          </p>
-        </div>
-
-        {/* Tiền phụ kiện kèm */}
-        <div className="glass-card rounded-xl p-5 border-l-4 border-l-purple-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Phụ kiện mua kèm
-            </p>
-            <Tag size={18} className="text-purple-500" />
-          </div>
-          <p className="text-2xl font-bold mt-3 tracking-tight text-purple-600 dark:text-purple-400">
-            {formatCurrency(Number(data.totalAccessoriesCost) || 0)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1.5">
-            Giá trị phụ kiện bán kèm
-          </p>
-        </div>
-
-        {/* Tổng doanh thu gộp */}
-        <div className="glass-card rounded-xl p-5 border-l-4 border-l-rose-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Tổng doanh thu gộp
-            </p>
-            <Banknote size={18} className="text-rose-500" />
-          </div>
-          <p className="text-2xl font-bold mt-3 tracking-tight text-rose-600 dark:text-rose-400">
-            {formatCurrency((Number(data.soldValue) || 0) + (Number(data.totalPlateCost) || 0) + (Number(data.totalAccessoriesCost) || 0))}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1.5">
-            Tổng cộng tiền thu hồ sơ
-          </p>
+        <div className="glass-card rounded-xl p-4 border-l-4 border-l-rose-500 flex items-center gap-3 hover:-translate-y-0.5 transition-transform bg-rose-500/5">
+          <div className="p-2.5 rounded-xl bg-rose-500/10 shrink-0"><Banknote size={20} className="text-rose-500"/></div>
+          <div><p className="text-[11px] font-bold text-muted-foreground uppercase">Tổng doanh thu</p><p className="text-lg font-bold text-rose-600 dark:text-rose-400">{formatCurrency(grandTotal)}</p><p className="text-[10px] text-muted-foreground">Tất cả mảng cộng lại</p></div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column: Trend chart & Sold list */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Biểu đồ xu hướng */}
-          <div className="border border-border bg-card shadow-sm rounded-xl p-6 flex flex-col justify-between">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  XU HƯỚNG BÁN XE (12 THÁNG)
-                </p>
-                <h3 className="text-xl font-bold tracking-tight mt-0.5">
-                  Số xe chốt sales
-                </h3>
-              </div>
-              {trend >= 0 ? (
-                <span className="text-xs font-semibold text-emerald-500 flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                  <TrendingUp size={12} /> +{trend}%
-                </span>
-              ) : (
-                <span className="text-xs font-semibold text-rose-500 flex items-center gap-1 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
-                  <TrendingDown size={12} /> {trend}%
-                </span>
-              )}
-            </div>
+      {/* ====== MẢNG 1: BÁN XE ====== */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 pb-3 border-b border-border">
+          <div className="p-2 rounded-lg bg-blue-500/10"><Car size={18} className="text-blue-500"/></div>
+          <div><p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Mảng 1</p><h3 className="text-xl font-bold">Bán xe</h3></div>
+        </div>
 
-            {/* SVG Area Chart */}
-            <div className="w-full mt-6 relative overflow-x-auto min-w-[500px]">
-              <svg viewBox={`0 0 ${chartWidth + paddingX * 2} ${chartHeight + paddingY * 2}`} className="w-full h-auto overflow-visible">
-                <defs>
-                  <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--primary-color, #10b981)" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="var(--primary-color, #10b981)" stopOpacity="0.00" />
-                  </linearGradient>
-                </defs>
+        {/* Sub-cards bán xe */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatCard label="Số xe đã bán" value={String(data.soldVehicles)} sub="Giao dịch hoàn tất" color="emerald" icon={<CheckCircle size={16} className="text-emerald-500"/>}/>
+          <StatCard label="Doanh thu xe" value={formatCurrency(Number(data.soldValue)||0)} sub="Giá niêm yết" color="blue" icon={<DollarSign size={16} className="text-blue-500"/>}/>
+          <StatCard label="Phí làm biển" value={formatCurrency(Number(data.totalPlateCost)||0)} sub="Đăng ký biển số" color="amber" icon={<ShieldCheck size={16} className="text-amber-500"/>}/>
+          <StatCard label="Phụ kiện kèm" value={formatCurrency(Number(data.totalAccessoriesCost)||0)} sub="Bán kèm xe" color="purple" icon={<Tag size={16} className="text-purple-500"/>}/>
+        </div>
 
-                {/* Grid Lines */}
-                {[0, 1, 2, 3, 4].map((i) => {
-                  const y = paddingY + 40 + (i / 4) * (chartHeight - 40);
-                  return (
-                    <line key={i} x1={paddingX} y1={y} x2={chartWidth + paddingX} y2={y} stroke="var(--border-color, #e4e4e7)" strokeWidth={i === 4 ? 1 : 0.5} strokeDasharray={i === 4 ? "" : "3 3"} />
-                  );
-                })}
-
-                {/* Y Axis Labels */}
-                {[0, 1, 2, 3, 4].map((i) => {
-                  const y = paddingY + 40 + (i / 4) * (chartHeight - 40) + 4;
-                  const val = Math.round(maxVal * (1 - i / 4));
-                  return (
-                    <text key={i} x="30" y={y} textAnchor="end" className="text-[10px] fill-muted-foreground font-medium">{val}</text>
-                  );
-                })}
-
-                {/* Chart Line and Area */}
-                {points.length > 0 && (
-                  <>
-                    <path d={areaPath} fill="url(#chart-grad)" />
-                    <path d={linePath} fill="none" stroke="var(--primary-color, #10b981)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                    
-                    {/* Glowing Points */}
-                    {points.map((p: any, idx: number) => (
-                      <g key={idx} className="group cursor-pointer">
-                        <circle cx={p.x} cy={p.y} r="4" fill="var(--primary-color, #10b981)" stroke="white" strokeWidth="1.5" />
-                        <circle cx={p.x} cy={p.y} r="8" fill="var(--primary-color, #10b981)" fillOpacity="0" className="hover:fill-opacity-20 transition-all" />
-                        <title>{p.label}: {p.value} xe</title>
-                      </g>
-                    ))}
-                  </>
-                )}
-
-                {/* X Axis Labels */}
-                {points.map((p: any, idx: number) => (
-                  <text key={idx} x={p.x} y={chartHeight + paddingY + 12} textAnchor="middle" className="text-[10px] fill-muted-foreground font-bold">
-                    {p.label}
-                  </text>
-                ))}
-              </svg>
-            </div>
+        {/* Chart xe bán */}
+        <div className="border border-border bg-card shadow-sm rounded-xl p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div><p className="text-[11px] font-bold text-muted-foreground uppercase">Xu hướng bán xe (12 tháng)</p><h4 className="text-base font-bold">Số xe chốt sales</h4></div>
+            {trend >= 0
+              ? <span className="text-xs font-semibold text-emerald-500 flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20"><TrendingUp size={12}/> +{trend}%</span>
+              : <span className="text-xs font-semibold text-rose-500 flex items-center gap-1 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20"><TrendingDown size={12}/> {trend}%</span>}
           </div>
+          <div className="w-full overflow-x-auto">
+            <svg viewBox={`0 0 ${W+px*2} ${H+py*2}`} className="w-full h-auto min-w-[400px]">
+              <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2"/><stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/></linearGradient></defs>
+              {[0,1,2,3].map(i=><line key={i} x1={px} y1={py+40+(i/3)*(H-40)} x2={W+px} y2={py+40+(i/3)*(H-40)} stroke="#e4e4e7" strokeWidth={0.5} strokeDasharray="3 3"/>)}
+              {pts.length>0&&<><path d={area} fill="url(#cg)"/><path d={line} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>{pts.map((p:any,i:number)=><g key={i}><circle cx={p.x} cy={p.y} r="4" fill="#3b82f6" stroke="white" strokeWidth="1.5"/><title>{p.label}: {p.value} xe</title></g>)}</>}
+              {pts.map((p:any,i:number)=><text key={i} x={p.x} y={H+py+14} textAnchor="middle" className="text-[10px] fill-muted-foreground font-bold">{p.label}</text>)}
+            </svg>
+          </div>
+        </div>
 
-          {/* Hóa đơn / Danh sách xe đã bán */}
-          <div className="border border-border bg-card shadow-sm rounded-xl overflow-hidden flex flex-col">
-            <div className="px-6 py-4.5 border-b border-border bg-secondary/10 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock size={16} className="text-muted-foreground" />
-                <h3 className="font-bold text-sm">Danh sách xe đã bán ra</h3>
-              </div>
-              <span className="text-xs bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold">
-                {data.soldList?.length || 0} Giao dịch
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-border bg-secondary/20 text-muted-foreground font-bold">
-                    <th className="p-3 w-10 text-center">STT</th>
-                    <th className="p-3">Xe & Phiên bản</th>
-                    <th className="p-3">Số VIN</th>
-                    <th className="p-3">Khách hàng</th>
-                    <th className="p-3 text-right">Giá xe</th>
-                    <th className="p-3 text-right">Phí làm biển</th>
-                    <th className="p-3 text-right">Phụ kiện kèm</th>
-                    <th className="p-3 text-right">Tổng cộng</th>
-                    <th className="p-3 text-center">Ngày bàn giao</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {data.soldList?.map((item: any, idx: number) => {
-                    const pCost = Number(item.plateCost) || 0;
-                    let aCost = 0;
-                    try {
-                      const accs = JSON.parse(item.accessoriesJson || "[]");
-                      aCost = accs.reduce((s: number, a: any) => {
-                        const priceStr = String(a.price || "0").replace(/[^0-9]/g, "");
-                        const qtyStr = String(a.quantity || "1").replace(/[^0-9.]/g, "");
-                        const parsedPrice = parseInt(priceStr, 10) || 0;
-                        const parsedQty = parseFloat(qtyStr) || 1;
-                        return s + (parsedPrice * parsedQty);
-                      }, 0);
-                    } catch (e) {}
-
-                    return (
-                      <tr key={item.id} className="hover:bg-secondary/15 transition-colors">
-                        <td className="p-3 text-center text-muted-foreground font-semibold">{idx + 1}</td>
-                        <td className="p-3 font-bold text-foreground">
-                          {item.model}
-                          {item.variant && <span className="text-[10px] text-muted-foreground block font-normal">{item.variant} • {item.color || "N/A"}</span>}
-                        </td>
-                        <td className="p-3 font-mono font-bold text-muted-foreground">{item.vin?.slice(-6) || "N/A"}</td>
-                        <td className="p-3">
-                          {item.customer ? (
-                            <div>
-                              <span className="font-semibold block">{item.customer.name}</span>
-                              <span className="text-[10px] text-muted-foreground block">{item.customer.phone}</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground italic">Vãng lai</span>
-                          )}
-                        </td>
-                        <td className="p-3 text-right font-medium text-foreground">
-                          {formatCurrency(Number(item.listPrice))}
-                        </td>
-                        <td className="p-3 text-right text-muted-foreground font-medium">
-                          {pCost > 0 ? formatCurrency(pCost) : "-"}
-                        </td>
-                        <td className="p-3 text-right text-muted-foreground font-medium">
-                          {aCost > 0 ? formatCurrency(aCost) : "-"}
-                        </td>
-                        <td className="p-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                          {formatCurrency(Number(item.listPrice) + pCost + aCost)}
-                        </td>
-                        <td className="p-3 text-center text-muted-foreground font-medium">
-                          {formatDate(item.updatedAt)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {(!data.soldList || data.soldList.length === 0) && (
-                    <tr>
-                      <td colSpan={9} className="p-8 text-center text-muted-foreground italic">
-                        Không có dữ liệu xe đã bán trong khoảng thời gian này
-                      </td>
+        {/* Bảng xe đã bán */}
+        <div className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-border bg-secondary/10 flex items-center justify-between">
+            <div className="flex items-center gap-2"><Clock size={15} className="text-muted-foreground"/><h4 className="font-bold text-sm">Danh sách xe đã bán</h4></div>
+            <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-full font-bold">{data.soldList?.length||0} giao dịch</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead><tr className="border-b border-border bg-secondary/20 text-muted-foreground font-bold">
+                <th className="p-3 w-8 text-center">#</th><th className="p-3">Xe</th><th className="p-3">VIN</th><th className="p-3">Khách hàng</th>
+                <th className="p-3 text-right">Giá xe</th><th className="p-3 text-right">Phí biển</th><th className="p-3 text-right">Phụ kiện</th><th className="p-3 text-right">Tổng</th><th className="p-3 text-center">Ngày</th>
+              </tr></thead>
+              <tbody className="divide-y divide-border">
+                {data.soldList?.map((item: any, idx: number) => {
+                  const pCost = Number(item.plateCost)||0;
+                  let aCost = 0;
+                  try { const a = JSON.parse(item.accessoriesJson||"[]"); aCost = a.reduce((s:number,x:any)=>{const p=parseInt(String(x.price||"0").replace(/\D/g,""),10)||0;const q=parseFloat(String(x.quantity||"1").replace(/[^0-9.]/g,""))||1;return s+p*q;},0); } catch{}
+                  return (
+                    <tr key={item.id} className="hover:bg-secondary/10 transition-colors">
+                      <td className="p-3 text-center text-muted-foreground font-semibold">{idx+1}</td>
+                      <td className="p-3 font-bold">{item.model}{item.variant&&<span className="text-[10px] text-muted-foreground block font-normal">{item.variant} · {item.color||"N/A"}</span>}</td>
+                      <td className="p-3 font-mono text-muted-foreground">{item.vin?.slice(-6)||"N/A"}</td>
+                      <td className="p-3">{item.customer?<div><span className="font-semibold block">{item.customer.name}</span><span className="text-[10px] text-muted-foreground">{item.customer.phone}</span></div>:<span className="text-muted-foreground italic">Vãng lai</span>}</td>
+                      <td className="p-3 text-right font-medium">{formatCurrency(Number(item.listPrice)||0)}</td>
+                      <td className="p-3 text-right text-muted-foreground">{pCost>0?formatCurrency(pCost):"-"}</td>
+                      <td className="p-3 text-right text-muted-foreground">{aCost>0?formatCurrency(aCost):"-"}</td>
+                      <td className="p-3 text-right font-bold text-blue-600 dark:text-blue-400">{formatCurrency((Number(item.listPrice)||0)+pCost+aCost)}</td>
+                      <td className="p-3 text-center text-muted-foreground">{formatDate(item.updatedAt)}</td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Right column: Best selling models structure */}
-        <div className="space-y-6">
-          <div className="glass-card rounded-xl p-6 flex flex-col justify-between h-full">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Tag size={18} className="text-primary" />
-                <h3 className="text-lg font-bold tracking-tight">Cơ cấu dòng xe bán chạy</h3>
-              </div>
-              <div className="space-y-5">
-                {data.topModels?.map((item: any) => {
-                  const totalVal = Number(data.soldValue) || 1;
-                  const percent = Math.min(Math.round((item.value / totalVal) * 100), 100);
-                  return (
-                    <div key={item.model} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-foreground">{item.model}</span>
-                        <span className="text-muted-foreground font-semibold">
-                          {item.count} xe ({formatCurrency(item.value)})
-                        </span>
-                      </div>
-                      <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden">
-                        <div
-                          className="bg-primary h-full rounded-full"
-                          style={{ width: `${percent}%` }}
-                        ></div>
-                      </div>
-                    </div>
                   );
                 })}
-                {(!data.topModels || data.topModels.length === 0) && (
-                  <div className="text-center text-muted-foreground text-sm italic py-8">
-                    Chưa có cơ cấu bán hàng
-                  </div>
-                )}
-              </div>
-            </div>
+                {(!data.soldList||data.soldList.length===0)&&<tr><td colSpan={9} className="p-8 text-center text-muted-foreground italic">Chưa có dữ liệu xe đã bán</td></tr>}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
+
+      {/* ====== MẢNG 2: PHỤ TÙNG ====== */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 pb-3 border-b border-border">
+          <div className="p-2 rounded-lg bg-purple-500/10"><Package size={18} className="text-purple-500"/></div>
+          <div><p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Mảng 2</p><h3 className="text-xl font-bold">Phụ tùng &amp; Kho bãi</h3></div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatCard label="Tổng sản phẩm" value={String(invData?.totalProducts||0)} sub="Đang hoạt động" color="purple" icon={<Boxes size={16} className="text-purple-500"/>}/>
+          <StatCard label="Doanh thu xuất kho" value={formatCurrency(partsTotal)} sub="Theo kỳ lọc" color="blue" icon={<DollarSign size={16} className="text-blue-500"/>}/>
+          <StatCard label="Số lượng xuất" value={String(Number(invData?.totalSoldQty)||0)} sub="Sản phẩm" color="emerald" icon={<BarChart2 size={16} className="text-emerald-500"/>}/>
+          <StatCard label="Cảnh báo tồn kho" value={String(invData?.lowStockCount||0)} sub="Dưới mức tối thiểu" color="rose" icon={<ShieldCheck size={16} className="text-rose-500"/>}/>
+        </div>
+
+        {/* Bảng xuất kho */}
+        <div className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-border bg-secondary/10 flex items-center justify-between">
+            <div className="flex items-center gap-2"><Package size={15} className="text-muted-foreground"/><h4 className="font-bold text-sm">Chi tiết phiếu xuất kho phụ tùng</h4></div>
+            <span className="text-xs bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full font-bold">{invData?.exports?.length||0} phiếu</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead><tr className="border-b border-border bg-secondary/20 text-muted-foreground font-bold">
+                <th className="p-3 w-8 text-center">#</th><th className="p-3">Sản phẩm</th><th className="p-3">SKU</th>
+                <th className="p-3 text-right">SL</th><th className="p-3 text-right">Đơn giá</th><th className="p-3 text-right">Thành tiền</th>
+                <th className="p-3">Lý do</th><th className="p-3 text-center">Ngày</th>
+              </tr></thead>
+              <tbody className="divide-y divide-border">
+                {invData?.exports?.slice(0,30).map((item: any, idx: number) => (
+                  <tr key={item.id} className="hover:bg-secondary/10 transition-colors">
+                    <td className="p-3 text-center text-muted-foreground font-semibold">{idx+1}</td>
+                    <td className="p-3 font-bold">{item.product?.name}</td>
+                    <td className="p-3 font-mono text-muted-foreground">{item.product?.sku}</td>
+                    <td className="p-3 text-right">{item.quantity} {item.product?.unit}</td>
+                    <td className="p-3 text-right text-muted-foreground">{formatCurrency(item.product?.price||0)}</td>
+                    <td className="p-3 text-right font-bold text-purple-600 dark:text-purple-400">{formatCurrency(item.totalCost||0)}</td>
+                    <td className="p-3 text-muted-foreground truncate max-w-[120px]">{item.reason||"-"}</td>
+                    <td className="p-3 text-center text-muted-foreground">{formatDate(item.createdAt)}</td>
+                  </tr>
+                ))}
+                {(!invData?.exports||invData.exports.length===0)&&<tr><td colSpan={8} className="p-8 text-center text-muted-foreground italic">Chưa có phiếu xuất kho trong kỳ</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+
     </div>
   );
 }
