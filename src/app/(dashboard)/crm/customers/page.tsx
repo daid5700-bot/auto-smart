@@ -163,8 +163,7 @@ export default function CustomersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Danh sách khách hàng</h2>
-          <p className="text-muted-foreground text-sm mt-1">Quản lý tệp khách hàng chính thức sở hữu ô tô hoặc đã sử dụng dịch vụ tại garage</p>
-        </div>
+          </div>
         <div className="flex items-center gap-3">
           <button onClick={handleOpenAdd} className="gradient-success text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all w-fit">
             <Plus size={16} /> Thêm Khách hàng

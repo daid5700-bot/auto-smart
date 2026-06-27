@@ -107,13 +107,7 @@ export default function AdminDashboard() {
           <h2 className="text-3xl font-extrabold tracking-tight mt-1">
             Xin chào, {greetingName}.
           </h2>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Hôm nay có <span className="font-semibold text-primary">{data.activeRepairOrders} lệnh đang chạy</span>,{" "}
-            <span className="font-semibold text-destructive">{data.lowStockCount} cảnh báo tồn kho</span>,{" "}
-            <span className="font-semibold text-success">{data.newLeadsCount} lead mới</span>. KTV xuất sắc tuần này:{" "}
-            <span className="font-bold text-primary">{topKtvName}</span>.
-          </p>
-        </div>
+          </div>
         <Link
           href="/workshop"
           className="gradient-primary text-white px-5 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-95 shadow-lg shadow-primary/20 shrink-0 w-full md:w-auto"

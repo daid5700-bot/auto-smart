@@ -51,10 +51,7 @@ export default function HistoryPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between pb-5 border-b border-border gap-4">
         <div>
           <h2 className="text-3xl font-extrabold tracking-tight">Lịch sử sửa chữa xe</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Tra cứu toàn bộ lịch sử sửa chữa, bảo dưỡng của xe dịch vụ tại xưởng
-          </p>
-        </div>
+          </div>
       </div>
 
       <div className="relative w-full max-w-md">

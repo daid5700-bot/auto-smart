@@ -63,10 +63,7 @@ export default function SettingsPage() {
     <div className="space-y-6 stagger">
       <div>
         <h2 className="text-2xl font-bold">Cấu hình Hệ thống</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Thiết lập các thông số vận hành cho toàn bộ ERP &amp; CRM — lưu vào cơ sở dữ liệu, không mất khi reload
-        </p>
-      </div>
+        </div>
 
       <form onSubmit={handleSave} className="max-w-2xl glass-card rounded-xl p-6 space-y-6">
         {/* Section 1: ZNS */}

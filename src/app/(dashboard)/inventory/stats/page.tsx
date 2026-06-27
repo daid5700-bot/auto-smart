@@ -118,10 +118,7 @@ export default function InventoryStatsPage() {
           <h2 className="text-3xl font-extrabold tracking-tight mt-1">
             Quản lý Kho Phụ tùng
           </h2>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Theo dõi tổng quan giá trị tồn kho, các mặt hàng sắp hết và lịch sử luân chuyển vật tư.
-          </p>
-        </div>
+          </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Time Filter Group */}
           <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl px-3 py-1.5 shadow-sm text-xs font-semibold">

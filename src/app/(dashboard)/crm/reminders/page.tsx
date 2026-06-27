@@ -296,10 +296,7 @@ export default function RemindersPage() {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold">Lịch chăm sóc khách hàng</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Tự động sinh từ lịch sử sửa chữa. Hệ thống nhắc trước 7 ngày qua ZNS. Có thể gửi thủ công ngay bây giờ.
-        </p>
-      </div>
+        </div>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

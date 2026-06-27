@@ -106,8 +106,7 @@ export default function BranchesPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
         <p className="text-destructive font-bold text-lg">Quyền truy cập bị từ chối</p>
-        <p className="text-muted-foreground text-sm mt-1">Chỉ Quản trị viên (ADMIN) mới có quyền truy cập trang này.</p>
-      </div>
+        </div>
     );
   }
 
@@ -125,10 +124,7 @@ export default function BranchesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Quản lý cơ sở hệ thống</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Danh sách chi nhánh/cơ sở dịch vụ ô tô thuộc mạng lưới kinh doanh của AUTO-SMART
-          </p>
-        </div>
+          </div>
         <button onClick={handleOpenAdd} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
           <Plus size={16} /> Thêm cơ sở mới
         </button>

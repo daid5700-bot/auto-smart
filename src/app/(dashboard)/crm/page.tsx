@@ -149,7 +149,7 @@ export default function CRMPage() {
   return (
     <div className="space-y-6 stagger">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div><h2 className="text-2xl font-bold">Chăm sóc khách hàng</h2><p className="text-muted-foreground text-sm mt-1">Dữ liệu realtime từ PostgreSQL</p></div>
+        <div><h2 className="text-2xl font-bold">Chăm sóc khách hàng</h2></div>
         <div className="flex gap-2">
           {tab === "leads" && (
             <button onClick={() => handleOpenAdd("lead")} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all w-fit"><UserPlus size={16} />Thêm Lead</button>

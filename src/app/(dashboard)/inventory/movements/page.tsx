@@ -362,10 +362,7 @@ export default function MovementsPage() {
           PHÒNG PHỤ TÙNG
         </p>
         <h2 className="text-3xl font-black tracking-tight">Lệnh xuất nhập kho</h2>
-        <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
-          Tạo phiếu xuất, nhập hoặc kiểm kê cho nhiều mã phụ tùng cùng một lúc.
-        </p>
-      </div>
+        </div>
 
       <div className="border border-border bg-card shadow-sm rounded-xl relative z-20">
         {/* Tabs */}

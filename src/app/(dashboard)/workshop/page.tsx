@@ -309,7 +309,7 @@ export default function WorkshopPage() {
   return (
     <div className="space-y-6 stagger">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div><h2 className="text-2xl font-bold">Xưởng dịch vụ</h2><p className="text-muted-foreground text-sm mt-1">Dữ liệu từ PostgreSQL — Theo dõi tiến độ KTV và Lệnh sửa chữa</p></div>
+        <div><h2 className="text-2xl font-bold">Xưởng dịch vụ</h2></div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => { fetchBranchProducts(); setReqFormData({ repairOrderId: "", reason: "", items: [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }] }); setReqModalOpen(true); }} className="bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
             <ClipboardList size={16} /> Xin phụ tùng

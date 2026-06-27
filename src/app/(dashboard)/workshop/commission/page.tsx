@@ -35,8 +35,7 @@ export default function CommissionPage() {
     <div className="space-y-6 stagger">
       <div>
         <h2 className="text-2xl font-bold">Doanh số & Hoa hồng Kỹ thuật viên</h2>
-        <p className="text-muted-foreground text-sm mt-1">Bảng tổng hợp doanh số sửa chữa thực hiện và số hoa hồng KTV tích lũy được</p>
-      </div>
+        </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {performances.map((tech: any) => (

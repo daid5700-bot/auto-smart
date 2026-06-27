@@ -98,8 +98,7 @@ export default function TechniciansPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Quản lý Kỹ thuật viên (KTV)</h2>
-          <p className="text-muted-foreground text-sm mt-1">Quản lý hồ sơ nhân sự xưởng và phân công công việc</p>
-        </div>
+          </div>
         <button onClick={handleOpenAdd} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
           <Plus size={16} /> Thêm KTV mới
         </button>

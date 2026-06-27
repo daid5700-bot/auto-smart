@@ -93,10 +93,7 @@ export default function WorkshopStatsPage() {
           <h2 className="text-3xl font-extrabold tracking-tight mt-1">
             Quản lý Xưởng Dịch vụ
           </h2>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Phân tích số liệu sửa chữa, tiền công thợ, tiền phụ tùng, và hiệu suất công việc của từng Kỹ thuật viên.
-          </p>
-        </div>
+          </div>
         
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Time Filter Group */}

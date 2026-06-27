@@ -167,7 +167,7 @@ export default function SalesPage() {
   return (
     <div className="space-y-6 stagger">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div><h2 className="text-2xl font-bold">Kho xe</h2><p className="text-muted-foreground text-sm mt-1">Dữ liệu realtime từ PostgreSQL</p></div>
+        <div><h2 className="text-2xl font-bold">Kho xe</h2></div>
         <button onClick={handleOpenAdd} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit"><Plus size={16} />Thêm xe mới</button>
       </div>
 

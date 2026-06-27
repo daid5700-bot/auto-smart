@@ -137,8 +137,7 @@ export default function UsersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Quản trị người dùng hệ thống</h2>
-          <p className="text-muted-foreground text-sm mt-1">Danh sách tài khoản nhân viên và vai trò truy cập trong hệ thống ERP & CRM</p>
-        </div>
+          </div>
         <button onClick={handleOpenAdd} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
           <Plus size={16} /> Thêm tài khoản mới
         </button>

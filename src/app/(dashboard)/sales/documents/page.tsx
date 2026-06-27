@@ -153,10 +153,7 @@ export default function DocumentsPage() {
           <h2 className="text-3xl font-extrabold tracking-tight mt-1">
             Hồ sơ & Thủ tục
           </h2>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Quản lý và thực hiện thủ tục trả góp, đăng ký bấm biển, phụ tùng đi kèm cho xe đặt cọc/đã bán.
-          </p>
-        </div>
+          </div>
 
         <Link
           href="/sales/documents/new"

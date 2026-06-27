@@ -96,10 +96,7 @@ export default function SalesStatsPage() {
           <h2 className="text-3xl font-extrabold tracking-tight mt-1">
             Kinh doanh & Bán Xe
           </h2>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Theo dõi tổng quan số lượng xe đã bán và tổng giá trị xe đã bán.
-          </p>
-        </div>
+          </div>
         
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Time Filter Group */}

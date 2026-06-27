@@ -70,8 +70,7 @@ export default function InventoryOrdersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Lịch sử xuất/bán kho</h2>
-          <p className="text-muted-foreground text-sm mt-1">Quản lý hóa đơn bán lẻ, bán buôn và công nợ</p>
-        </div>
+          </div>
         <Link
           href="/inventory/orders/new"
           className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit"

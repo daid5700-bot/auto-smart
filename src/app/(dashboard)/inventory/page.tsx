@@ -7,6 +7,38 @@ import { useAuth } from "@/lib/store";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+// Component xử lý nhập số để không bị nhảy con trỏ khi gõ tiếng Việt (IME)
+const NumericInput = ({ value, onChange, className, ...props }: any) => {
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Khi đang focus (nhập liệu), hiển thị số thô không có dấu phẩy để tránh lỗi composition của Unikey/Vietkey
+  // Khi blur (nhấn ra ngoài), hiển thị số đã được format có dấu phẩy
+  const displayValue = isFocused
+    ? (value === "" ? "" : value.toString())
+    : (value === "" ? "" : Number(value).toLocaleString("vi-VN"));
+
+  const handleChange = (e: any) => {
+    const raw = e.target.value.replace(/\D/g, "");
+    onChange(raw === "" ? "" : parseInt(raw, 10));
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={displayValue}
+      onChange={handleChange}
+      onFocus={() => setIsFocused(true)}
+      onBlur={(e) => {
+        setIsFocused(false);
+        if (props.onBlur) props.onBlur(e);
+      }}
+      className={className}
+      {...props}
+    />
+  );
+};
+
 function InventoryContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -229,6 +261,10 @@ function InventoryContent() {
     const retail = (p.prices || []).find((pr: any) => pr.type === "RETAIL");
     return sum + (retail ? Number(retail.amount) * p.stockCount : 0);
   }, 0);
+  const totalInsuranceValue = rawProducts.reduce((sum: number, p: any) => {
+    const insurance = (p.prices || []).find((pr: any) => pr.type === "INSURANCE");
+    return sum + (insurance ? Number(insurance.amount) * p.stockCount : 0);
+  }, 0);
 
   const totalPages = data?.totalPages || 1;
   const totalCount = data?.totalCount || 0;
@@ -240,9 +276,7 @@ function InventoryContent() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Danh mục phụ tùng</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Dữ liệu từ PostgreSQL — Quản lý kho, bảng giá, đơn vị quy đổi
-          </p>
+
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleExportExcel} className="bg-card border border-border hover:bg-secondary text-foreground px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all w-fit"><Download size={16} />Xuất Excel</button>
@@ -290,7 +324,7 @@ function InventoryContent() {
         </div>
       )} */}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Tổng mặt hàng */}
         <div
           onClick={() => setStatFilter("all")}
@@ -314,6 +348,15 @@ function InventoryContent() {
             <span className="text-xs">Giá trị tồn kho</span>
           </div>
           <p className="text-2xl font-bold text-primary">{formatCurrency(totalValue)}</p>
+        </div>
+
+        {/* Card 3: Giá trị tồn (Bảo hiểm) */}
+        <div className="glass-card rounded-xl p-4 border border-border bg-card">
+          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+            <TrendingUp size={14} />
+            <span className="text-xs">Giá trị tồn (BH)</span>
+          </div>
+          <p className="text-2xl font-bold text-blue-500">{formatCurrency(totalInsuranceValue)}</p>
         </div>
 
         {/* Card 3: Sắp hết hàng */}
@@ -535,46 +578,28 @@ function InventoryContent() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số lượng tồn</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.stockCount === "" ? "" : Number(formData.stockCount).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, stockCount: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    value={formData.stockCount}
+                    onChange={(val: any) => setFormData({ ...formData, stockCount: val })}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Min an toàn</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.stockMin === "" ? "" : Number(formData.stockMin).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, stockMin: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    value={formData.stockMin}
+                    onChange={(val: any) => setFormData({ ...formData, stockMin: val })}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Max an toàn</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.stockMax === "" ? "" : Number(formData.stockMax).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, stockMax: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    value={formData.stockMax}
+                    onChange={(val: any) => setFormData({ ...formData, stockMax: val })}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
@@ -582,46 +607,28 @@ function InventoryContent() {
               <div className="grid grid-cols-3 gap-3 pt-2 border-t border-border/40">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giá bán lẻ</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.retailPrice === "" ? "" : Number(formData.retailPrice).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, retailPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    value={formData.retailPrice}
+                    onChange={(val: any) => setFormData({ ...formData, retailPrice: val })}
                     className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giá bán sỉ</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.wholesalePrice === "" ? "" : Number(formData.wholesalePrice).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, wholesalePrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    value={formData.wholesalePrice}
+                    onChange={(val: any) => setFormData({ ...formData, wholesalePrice: val })}
                     className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giá Bảo hiểm</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.insurancePrice === "" ? "" : Number(formData.insurancePrice).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, insurancePrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    value={formData.insurancePrice}
+                    onChange={(val: any) => setFormData({ ...formData, insurancePrice: val })}
                     className="w-full px-2 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
