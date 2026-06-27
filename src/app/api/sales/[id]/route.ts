@@ -308,6 +308,25 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         });
       }
 
+      // FIX BIZ-005: Cancel any PENDING accessory export orders for this VIN
+      // so warehouse staff don't accidentally approve stock deduction for a cancelled sale
+      const pendingExportOrder = await tx.inventoryOrder.findFirst({
+        where: {
+          reason: `Xuất phụ kiện bán kèm xe VIN: ${currentVehicle.vin}`,
+          createdBy: "Hệ thống (Bán Xe)",
+          status: "PENDING",
+        },
+      });
+      if (pendingExportOrder) {
+        await tx.inventoryOrder.update({
+          where: { id: pendingExportOrder.id },
+          data: {
+            status: "CANCELLED",
+            reason: `${pendingExportOrder.reason} | Tự động hủy do xe bị hủy hồ sơ`
+          },
+        });
+      }
+
       await tx.vehicle.update({ 
         where: { id },
         data: { status: "CANCELLED" }

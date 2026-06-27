@@ -50,11 +50,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
 
         // Decrement product stock AND decrement the reservedStock since it's now fulfilled
+        // Use Math.max guard to prevent reservedStock going negative due to data inconsistency
+        const safeReservedDecrement = Math.min(item.quantity, productBranch.reservedStock);
         await tx.productBranch.update({
           where: { id: productBranch.id },
           data: { 
             stockCount: { decrement: item.quantity },
-            reservedStock: { decrement: item.quantity }
+            reservedStock: { decrement: safeReservedDecrement }
           }
         });
 

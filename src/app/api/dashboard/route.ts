@@ -3,10 +3,23 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 
+// --- In-memory cache (L1) — 60-second TTL per branchId ---
+// Prevents 10+ DB queries firing on every page load.
+// Replace with Redis when available for multi-instance deployments.
+const dashboardCache = new Map<string, { data: any; expiresAt: number }>();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
 // GET /api/dashboard — aggregate stats
 export async function GET() {
   try {
     const branchId = getActiveBranchId();
+    const cacheKey = `dashboard_${branchId ?? "all"}`;
+
+    // Return cached data if still fresh
+    const cached = dashboardCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.data);
+    }
 
     // 1. Basic counts
     const [
@@ -177,7 +190,7 @@ export async function GET() {
       monthlyRevenue.push({ label: monthLabel, value: Number(total.toFixed(1)) });
     }
 
-    return NextResponse.json({
+    const responseData = {
       totalProducts,
       lowStockCount: lowStockProducts,
       lowStockParts,
@@ -197,7 +210,12 @@ export async function GET() {
       activeROList,
       careSchedules,
       monthlyRevenue,
-    });
+    };
+
+    // Store in cache with TTL
+    dashboardCache.set(cacheKey, { data: responseData, expiresAt: Date.now() + CACHE_TTL_MS });
+
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error("Dashboard API error:", error);
     return NextResponse.json({ error: "Failed to load dashboard" }, { status: 500 });

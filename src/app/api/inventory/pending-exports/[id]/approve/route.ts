@@ -32,26 +32,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const accessories = JSON.parse(vehicle.accessoriesJson || "[]");
     const branchId = vehicle.branchId || 1;
 
-    // Check stock before approving
-    for (const acc of accessories) {
-      const productId = Number(acc.productId || acc.id);
-      if (isNaN(productId)) continue;
-      const pb = await prisma.productBranch.findUnique({
-        where: { productId_branchId: { productId, branchId } }
-      });
-      if (!pb) {
-        return NextResponse.json({ error: `Sản phẩm ID ${productId} chưa cấu hình kho chi nhánh` }, { status: 400 });
-      }
-      if (pb.stockCount < Number(acc.quantity)) {
-        const product = await prisma.product.findUnique({ where: { id: productId } });
-        return NextResponse.json({
-          error: `[${product?.sku}] ${product?.name}: không đủ tồn (cần ${acc.quantity}, còn ${pb.stockCount})`
-        }, { status: 400 });
-      }
-    }
-
-    // Approve: create movements + deduct stock
+    // Approve: validate stock AND create movements + deduct — all inside one transaction to prevent race condition
     await prisma.$transaction(async (tx) => {
+      // Re-fetch order status inside transaction to prevent double-approval race
+      const freshOrder = await tx.inventoryOrder.findUnique({ where: { id: orderId } });
+      if (!freshOrder || freshOrder.status !== "PENDING") {
+        throw new Error("Lệnh này đã được xử lý bởi người khác. Vui lòng tải lại trang.");
+      }
+
+      // Validate stock INSIDE the transaction (atomic check-then-act)
+      for (const acc of accessories) {
+        const productId = Number(acc.productId || acc.id);
+        if (isNaN(productId)) continue;
+        const pb = await tx.productBranch.findUnique({
+          where: { productId_branchId: { productId, branchId } },
+          include: { product: true }
+        });
+        if (!pb) {
+          throw new Error(`Sản phẩm ID ${productId} chưa cấu hình kho chi nhánh`);
+        }
+        if (pb.stockCount < Number(acc.quantity)) {
+          throw new Error(
+            `[${pb.product.sku}] ${pb.product.name}: không đủ tồn (cần ${acc.quantity}, còn ${pb.stockCount})`
+          );
+        }
+      }
+
       // Update order status to PAID
       await tx.inventoryOrder.update({
         where: { id: orderId },

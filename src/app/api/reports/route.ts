@@ -64,51 +64,62 @@ export async function GET(req: NextRequest) {
     ]);
 
     // --- Workshop revenue (from completed repair orders) ---
-    const completedOrders = await prisma.repairOrder.findMany({
-      where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] } },
-      select: { totalAmount: true, createdAt: true },
-    });
+    // FIX BIZ-001: Use paidAmount (actually collected) not totalAmount (includes unpaid debt)
+    // FIX PERF-002: Push date filtering to Prisma WHERE instead of in-memory
+    const [allTimeRevResult, currentPeriodRevResult, prevPeriodRevResult, currentPeriodROCount, prevPeriodROCount] = await Promise.all([
+      // All-time paid revenue
+      prisma.repairOrder.aggregate({
+        _sum: { paidAmount: true },
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] } },
+      }),
+      // Current period paid revenue
+      prisma.repairOrder.aggregate({
+        _sum: { paidAmount: true },
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: startRange, lte: endRange } },
+      }),
+      // Previous period paid revenue
+      prisma.repairOrder.aggregate({
+        _sum: { paidAmount: true },
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: prevStart, lte: prevEnd } },
+      }),
+      // Current period RO count
+      prisma.repairOrder.count({
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: startRange, lte: endRange } },
+      }),
+      // Previous period RO count
+      prisma.repairOrder.count({
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: prevStart, lte: prevEnd } },
+      }),
+    ]);
 
-    const totalWorkshopRevenue = completedOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
-
-    const currentPeriodOrders = completedOrders.filter((ro) => {
-      const d = new Date(ro.createdAt);
-      return d >= startRange && d <= endRange;
-    });
-    const currentMonthRevenue = currentPeriodOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
-
-    const prevPeriodOrders = completedOrders.filter((ro) => {
-      const d = new Date(ro.createdAt);
-      return d >= prevStart && d <= prevEnd;
-    });
-    const lastMonthRevenue = prevPeriodOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+    const totalWorkshopRevenue = Number(allTimeRevResult._sum.paidAmount || 0);
+    const currentMonthRevenue = Number(currentPeriodRevResult._sum.paidAmount || 0);
+    const lastMonthRevenue = Number(prevPeriodRevResult._sum.paidAmount || 0);
 
     const revenueGrowth = lastMonthRevenue > 0
       ? Math.round(((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
       : null;
 
-    const currentMonthROCount = currentPeriodOrders.length;
-    const lastMonthROCount = prevPeriodOrders.length;
-    const roGrowth = lastMonthROCount > 0
-      ? Math.round(((currentMonthROCount - lastMonthROCount) / lastMonthROCount) * 100)
+    const completedRepairOrders = currentPeriodROCount;
+    const roGrowth = prevPeriodROCount > 0
+      ? Math.round(((currentPeriodROCount - prevPeriodROCount) / prevPeriodROCount) * 100)
       : null;
 
-    const completedRepairOrders = currentPeriodOrders.length;
-
-    // --- Monthly revenue chart (6 months ending at endRange) ---
-    const monthlyRevenue: { month: string; revenue: number }[] = [];
+    // --- Monthly revenue chart (6 months ending at endRange, using Prisma aggregate) ---
+    const monthlyRevenuePromises = [];
     const chartEnd = endRange;
     for (let i = 5; i >= 0; i--) {
       const start = new Date(chartEnd.getFullYear(), chartEnd.getMonth() - i, 1);
       const end = new Date(chartEnd.getFullYear(), chartEnd.getMonth() - i + 1, 0, 23, 59, 59);
       const monthLabel = start.toLocaleDateString("vi-VN", { month: "short", year: "numeric" });
-      const orders = completedOrders.filter((ro) => {
-        const d = new Date(ro.createdAt);
-        return d >= start && d <= end;
-      });
-      const revenue = orders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
-      monthlyRevenue.push({ month: monthLabel, revenue });
+      monthlyRevenuePromises.push(
+        prisma.repairOrder.aggregate({
+          _sum: { paidAmount: true },
+          where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: start, lte: end } },
+        }).then(result => ({ month: monthLabel, revenue: Number(result._sum.paidAmount || 0) }))
+      );
     }
+    const monthlyRevenue = await Promise.all(monthlyRevenuePromises);
 
     // --- Top selling products (from OrderItems in current period) ---
     const orderItemGroups = await prisma.orderItem.groupBy({
@@ -187,7 +198,7 @@ export async function GET(req: NextRequest) {
         currentMonthRevenue,
         revenueGrowth,
         completedRepairOrders,
-        currentMonthROCount,
+        currentMonthROCount: completedRepairOrders,
         roGrowth,
         activeKtv,
         totalCustomers,

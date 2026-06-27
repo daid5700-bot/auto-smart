@@ -24,6 +24,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Không tìm thấy xe nào" }, { status: 404 });
     }
 
+    // Validate all vehicles belong to the same customer to prevent debt mis-assignment
+    const uniqueCustomerIds = new Set(vehicles.map(v => v.customerId));
+    if (uniqueCustomerIds.size > 1) {
+      return NextResponse.json({ error: "Các xe trong lô không cùng một khách hàng. Vui lòng kiểm tra lại." }, { status: 400 });
+    }
+
     // Check if they all belong to the same customer
     const customerId = vehicles[0].customerId;
     const branchId = vehicles[0].branchId;

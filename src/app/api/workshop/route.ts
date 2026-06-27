@@ -86,30 +86,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH /api/workshop — update RO status
+// DEPRECATED: PATCH /api/workshop — This endpoint was removed because it bypassed loyalty points,
+// totalSpent calculation, and ZNS sending logic.
+// All status/cost updates MUST go through PATCH /api/workshop/[id] which contains the full business logic.
 export async function PATCH(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const data: any = { status: body.status };
-    if (body.status === "DONE") data.completedAt = new Date();
-
-    const ro = await prisma.repairOrder.update({
-      where: { id: body.id },
-      data,
-      include: { customer: true, technician: true },
-    });
-
-    // If DONE: free up technician
-    if (body.status === "DONE" && ro.technicianId) {
-      await prisma.technician.update({ where: { id: ro.technicianId }, data: { status: "IDLE" } });
-      // Auto-send ZNS thank you
-      await prisma.znsLog.create({
-        data: { customerId: ro.customerId, phone: ro.customer.phone, messageType: "THANK_YOU", content: `Cảm ơn ${ro.customer.name} đã sử dụng dịch vụ tại AutoSmart!`, status: "SENT", branchId: ro.branchId },
-      });
-    }
-
-    return NextResponse.json(ro);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
+  return NextResponse.json(
+    {
+      error: "Endpoint này đã bị loại bỏ. Vui lòng sử dụng PATCH /api/workshop/[id] thay thế.",
+      hint: "Use PATCH /api/workshop/{id} with full body including status, laborCost, partsCost."
+    },
+    { status: 410 } // 410 Gone — intentionally removed
+  );
 }
+
