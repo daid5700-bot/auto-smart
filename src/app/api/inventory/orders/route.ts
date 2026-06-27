@@ -84,15 +84,28 @@ export async function POST(req: NextRequest) {
       
       // Auto-create customer if phone & name provided but no ID
       if (!finalCustomerId && body.phone && body.customerName) {
-        const newCustomer = await tx.customer.create({
-          data: {
-            phone: body.phone,
-            name: body.customerName,
-            address: address || null,
-            branchId,
-          }
+        const existingCust = await tx.customer.findUnique({
+          where: { phone: body.phone }
         });
-        finalCustomerId = newCustomer.id;
+        if (existingCust) {
+          finalCustomerId = existingCust.id;
+          if (address && !existingCust.address) {
+            await tx.customer.update({
+              where: { id: existingCust.id },
+              data: { address }
+            });
+          }
+        } else {
+          const newCustomer = await tx.customer.create({
+            data: {
+              phone: body.phone,
+              name: body.customerName,
+              address: address || null,
+              branchId,
+            }
+          });
+          finalCustomerId = newCustomer.id;
+        }
       }
 
       const newOrder = await tx.inventoryOrder.create({
