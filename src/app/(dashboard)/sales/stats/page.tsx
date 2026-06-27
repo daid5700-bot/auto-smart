@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Car, DollarSign, CheckCircle, TrendingUp, TrendingDown, Banknote, ShieldCheck, Loader2, RefreshCw, X, Tag, Package, Boxes, BarChart2 } from "lucide-react";
+import { Car, DollarSign, CheckCircle, TrendingUp, TrendingDown, Banknote, ShieldCheck, Loader2, RefreshCw, X, Tag, Package, Boxes, BarChart2, Clock } from "lucide-react";
 
 function StatCard({ label, value, sub, color, icon }: any) {
   const colors: any = {
