@@ -172,6 +172,18 @@ export async function POST(req: NextRequest) {
       console.error("Error auto-releasing INACTIVE SKUs:", e);
     }
 
+    if (body.sku) {
+      const existingActive = await prisma.product.findFirst({
+        where: {
+          sku: body.sku,
+          status: { not: "INACTIVE" }
+        }
+      });
+      if (existingActive) {
+        return NextResponse.json({ error: `Mã sản phẩm (SKU) '${body.sku}' đã tồn tại và đang hoạt động.` }, { status: 400 });
+      }
+    }
+
     const product = await prisma.product.create({
       data: {
         sku: body.sku,

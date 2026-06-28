@@ -177,6 +177,18 @@ export async function POST(req: NextRequest) {
       customerName, customerPhone, customerBirthday
     } = body;
 
+    if (vin && vin.trim() !== "") {
+      const existingActive = await prisma.vehicle.findFirst({
+        where: {
+          vin: vin.trim(),
+          status: { not: "CANCELLED" }
+        }
+      });
+      if (existingActive) {
+        return NextResponse.json({ error: `Số khung (VIN) '${vin.trim()}' đã tồn tại trên một xe khác đang hoạt động trong hệ thống.` }, { status: 400 });
+      }
+    }
+
     let customerId: number | null = null;
     if (customerPhone && customerName) {
       const customer = await getOrCreateCustomer(customerName, customerPhone, customerBirthday, branchId);

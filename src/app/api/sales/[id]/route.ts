@@ -98,6 +98,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       customerName, customerPhone, customerBirthday, customerAddress, saleType
     } = body;
 
+    if (vin !== undefined && vin && vin.trim() !== "" && vin.trim() !== currentVehicle.vin) {
+      const existingActive = await prisma.vehicle.findFirst({
+        where: {
+          vin: vin.trim(),
+          status: { not: "CANCELLED" },
+          id: { not: id }
+        }
+      });
+      if (existingActive) {
+        return NextResponse.json({ error: `Số khung (VIN) '${vin.trim()}' đã tồn tại trên một xe khác đang hoạt động trong hệ thống.` }, { status: 400 });
+      }
+    }
+
     let customerId = currentVehicle.customerId;
     if (customerPhone && customerName) {
       const customer = await getOrCreateCustomer(customerName, customerPhone, customerBirthday, branchId, customerAddress);

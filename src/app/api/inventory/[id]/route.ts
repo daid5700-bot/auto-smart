@@ -42,6 +42,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!currentProduct) return NextResponse.json({ error: "Phụ tùng không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
+    if (body.sku && body.sku !== currentProduct.sku) {
+      const existingActive = await prisma.product.findFirst({
+        where: {
+          sku: body.sku,
+          status: { not: "INACTIVE" },
+          id: { not: id }
+        }
+      });
+      if (existingActive) {
+        return NextResponse.json({ error: `Mã sản phẩm (SKU) '${body.sku}' đã tồn tại và đang hoạt động.` }, { status: 400 });
+      }
+    }
+
     // Update product 
     const product = await prisma.product.update({
       where: { id },
