@@ -42,6 +42,7 @@ model UserBranch {
 
 model Branch {
   id           Int           @id @default(autoincrement())
+  code         String?
   name         String
   address      String?
   phone        String?
@@ -236,7 +237,11 @@ model TechPerformance {
 model Vehicle {
   id              Int      @id @default(autoincrement())
   vin             String   @unique
+  sku             String?
   engineNumber    String?
+  importPrice     Decimal?  @default(0)
+  importDate      DateTime? @default(now())
+  stockCount      Int       @default(1)
   model           String
   variant         String?
   color           String?
@@ -255,6 +260,7 @@ model Vehicle {
   accessoriesJson String?   @default("[]")
   saleType        String    @default("RETAIL") // RETAIL, WHOLESALE
   notes           String?
+  warehouse       String?
   branchId        Int?
   branch          Branch?   @relation(fields: [branchId], references: [id])
   createdAt       DateTime @default(now())

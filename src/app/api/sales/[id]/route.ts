@@ -92,7 +92,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const { 
-      vin, model, variant, color, year, status, listPrice, floorPrice, image,
+      vin, sku, engineNumber, importPrice, importDate, stockCount, branchId: selectBranchId, warehouse,
+      model, variant, color, year, status, listPrice, floorPrice, image,
       bankStatus, plateStatus, plateCost, accessoriesJson, notes,
       customerName, customerPhone, customerBirthday, customerAddress, saleType
     } = body;
@@ -106,20 +107,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const updateData: any = {};
-    if (vin !== undefined) updateData.vin = vin;
-    if (model !== undefined) updateData.model = model;
-    if (variant !== undefined) updateData.variant = variant;
-    if (color !== undefined) updateData.color = color;
-    if (year !== undefined) updateData.year = Number(year);
+    if (vin !== undefined) updateData.vin = vin && vin.trim() !== "" ? vin.trim() : currentVehicle.vin;
+    if (sku !== undefined) updateData.sku = sku || null;
+    if (engineNumber !== undefined) updateData.engineNumber = engineNumber || null;
+    if (importPrice !== undefined) updateData.importPrice = importPrice !== "" ? Number(importPrice) : 0;
+    if (importDate !== undefined) updateData.importDate = importDate ? new Date(importDate) : null;
+    if (stockCount !== undefined) updateData.stockCount = stockCount !== "" ? Number(stockCount) : 1;
+    if (selectBranchId !== undefined) updateData.branchId = selectBranchId ? Number(selectBranchId) : null;
+    if (model !== undefined) updateData.model = model && model.trim() !== "" ? model.trim() : "Chưa rõ";
+    if (variant !== undefined) updateData.variant = variant || null;
+    if (color !== undefined) updateData.color = color || null;
+    if (year !== undefined) updateData.year = Number(year) || new Date().getFullYear();
     if (status !== undefined) updateData.status = status;
-    if (listPrice !== undefined) updateData.listPrice = Number(listPrice);
-    if (floorPrice !== undefined) updateData.floorPrice = Number(floorPrice);
+    if (listPrice !== undefined) updateData.listPrice = listPrice !== "" ? Number(listPrice) : 0;
+    if (floorPrice !== undefined) updateData.floorPrice = floorPrice !== "" ? Number(floorPrice) : 0;
     if (image !== undefined) updateData.image = image;
     if (bankStatus !== undefined) updateData.bankStatus = bankStatus;
     if (plateStatus !== undefined) updateData.plateStatus = plateStatus;
     if (plateCost !== undefined) updateData.plateCost = Number(plateCost);
     if (accessoriesJson !== undefined) updateData.accessoriesJson = accessoriesJson;
     if (notes !== undefined) updateData.notes = notes;
+    if (warehouse !== undefined) updateData.warehouse = warehouse;
     if (saleType !== undefined) updateData.saleType = saleType;
     
     // Explicitly set customerId if it was resolved
@@ -273,6 +281,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });    
     return NextResponse.json(vehicle);
   } catch (error: any) {
+    console.error("PATCH /api/sales/[id] error details:", error);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

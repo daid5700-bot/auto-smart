@@ -145,10 +145,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const branchId = getActiveBranchId();
+    console.log("POST /api/sales body:", body);
+    const branchId = body.branchId !== undefined ? (body.branchId ? Number(body.branchId) : null) : getActiveBranchId();
     
     const { 
-      vin, model, variant, color, year, status, listPrice, floorPrice, image,
+      vin, sku, engineNumber, importPrice, importDate, stockCount, warehouse,
+      model, variant, color, year, status, listPrice, floorPrice, image,
       bankStatus, plateStatus, plateCost, accessoriesJson, notes,
       customerName, customerPhone, customerBirthday
     } = body;
@@ -170,8 +172,13 @@ export async function POST(req: NextRequest) {
     const vehicle = await prisma.$transaction(async (tx) => {
       const v = await tx.vehicle.create({
         data: {
-          vin,
-          model,
+          vin: vin && vin.trim() !== "" ? vin.trim() : `VIN-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          sku: sku || null,
+          engineNumber: engineNumber || null,
+          importPrice: importPrice !== undefined && importPrice !== "" ? Number(importPrice) : 0,
+          importDate: importDate ? new Date(importDate) : new Date(),
+          stockCount: stockCount !== undefined && stockCount !== "" ? Number(stockCount) : 1,
+          model: model && model.trim() !== "" ? model.trim() : "Chưa rõ",
           variant: variant || null,
           color: color || null,
           year: Number(year) || new Date().getFullYear(),
@@ -185,9 +192,10 @@ export async function POST(req: NextRequest) {
           accessoriesJson: accessoriesJson || "[]",
           debtAmount: initialDebtAmount,
           notes: notes || null,
+          warehouse: warehouse || null,
           customerId,
           branchId,
-        },
+        } as any,
         include: { customer: true }
       });
       
@@ -228,6 +236,7 @@ export async function POST(req: NextRequest) {
     
     return NextResponse.json(vehicle, { status: 201 });
   } catch (error: any) {
+    console.error("POST /api/sales error details:", error);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

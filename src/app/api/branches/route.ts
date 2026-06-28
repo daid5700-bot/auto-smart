@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
 
     const branch = await prisma.branch.create({
       data: {
+        code: body.code || null,
         name: body.name,
         address: body.address || "",
         phone: body.phone || "",

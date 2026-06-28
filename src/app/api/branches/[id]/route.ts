@@ -16,6 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const branch = await prisma.branch.update({
       where: { id },
       data: {
+        code: body.code,
         name: body.name,
         address: body.address,
         phone: body.phone,

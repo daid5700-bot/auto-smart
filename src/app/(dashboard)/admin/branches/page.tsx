@@ -13,6 +13,7 @@ export default function BranchesPage() {
 
   // Form State
   const [formData, setFormData] = useState({
+    code: "",
     name: "",
     address: "",
     phone: "",
@@ -54,6 +55,7 @@ export default function BranchesPage() {
   const handleOpenAdd = () => {
     setEditingId(null);
     setFormData({
+      code: "",
       name: "",
       address: "",
       phone: "",
@@ -64,6 +66,7 @@ export default function BranchesPage() {
   const handleOpenEdit = (b: any) => {
     setEditingId(b.id);
     setFormData({
+      code: b.code || "",
       name: b.name,
       address: b.address || "",
       phone: b.phone || "",
@@ -114,6 +117,7 @@ export default function BranchesPage() {
     const q = searchQuery.toLowerCase();
     return (
       b.name.toLowerCase().includes(q) ||
+      (b.code && b.code.toLowerCase().includes(q)) ||
       (b.address && b.address.toLowerCase().includes(q)) ||
       (b.phone && b.phone.includes(q))
     );
@@ -148,6 +152,7 @@ export default function BranchesPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th className="w-[120px]">Mã Cơ sở</th>
                 <th>Tên Cơ sở</th>
                 <th>Địa chỉ</th>
                 <th>Điện thoại</th>
@@ -159,8 +164,13 @@ export default function BranchesPage() {
               {filteredBranches.map((b: any) => (
                 <tr key={b.id}>
                   <td>
+                    <span className="font-mono text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-lg font-bold border border-primary/20">
+                      {b.code || "—"}
+                    </span>
+                  </td>
+                  <td>
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white">
+                      <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white shrink-0">
                         <Building2 size={16} />
                       </div>
                       <span className="font-bold text-foreground text-base">{b.name}</span>
@@ -207,7 +217,7 @@ export default function BranchesPage() {
               ))}
               {filteredBranches.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <td colSpan={6} className="text-center py-8 text-muted-foreground">
                     Không tìm thấy cơ sở nào.
                   </td>
                 </tr>
@@ -233,6 +243,17 @@ export default function BranchesPage() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Mã cơ sở/chi nhánh</label>
+                <input
+                  type="text"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  placeholder="Ví dụ: CN9, HN, SG..."
+                  className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground">Tên cơ sở/chi nhánh *</label>
                 <input

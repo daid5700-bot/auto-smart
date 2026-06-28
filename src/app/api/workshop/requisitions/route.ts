@@ -32,25 +32,25 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Handle Decimal serialization
+    // Handle Decimal serialization safely
     const serializedRequisitions = requisitions.map((req) => ({
       ...req,
       items: req.items.map((item) => ({
         ...item,
-        product: {
+        product: item.product ? {
           ...item.product,
-          prices: item.product.prices.map((p) => ({
+          prices: (item.product.prices || []).map((p) => ({
             ...p,
             amount: Number(p.amount)
           }))
-        }
+        } : null
       })),
-      repairOrder: {
+      repairOrder: req.repairOrder ? {
         ...req.repairOrder,
         laborCost: Number(req.repairOrder.laborCost),
         partsCost: Number(req.repairOrder.partsCost),
         totalAmount: Number(req.repairOrder.totalAmount)
-      }
+      } : null
     }));
 
     return NextResponse.json({ requisitions: serializedRequisitions });
