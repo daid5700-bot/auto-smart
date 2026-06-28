@@ -112,7 +112,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (engineNumber !== undefined) updateData.engineNumber = engineNumber || null;
     if (importPrice !== undefined) updateData.importPrice = importPrice !== "" ? Number(importPrice) : 0;
     if (importDate !== undefined) updateData.importDate = importDate ? new Date(importDate) : null;
-    if (stockCount !== undefined) updateData.stockCount = stockCount !== "" ? Number(stockCount) : 1;
+    if (stockCount !== undefined) updateData.stockCount = stockCount || null;
     if (selectBranchId !== undefined) updateData.branchId = selectBranchId ? Number(selectBranchId) : null;
     if (model !== undefined) updateData.model = model && model.trim() !== "" ? model.trim() : "Chưa rõ";
     if (variant !== undefined) updateData.variant = variant || null;

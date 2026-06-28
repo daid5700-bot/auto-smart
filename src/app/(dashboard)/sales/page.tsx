@@ -27,7 +27,7 @@ export default function SalesPage() {
     engineNumber: string;
     importPrice: number | "";
     importDate: string;
-    stockCount: number | "";
+    stockCount: string;
     branchInput: string;
     model: string;
     variant: string;
@@ -43,7 +43,7 @@ export default function SalesPage() {
     engineNumber: "",
     importPrice: "",
     importDate: new Date().toISOString().slice(0, 10),
-    stockCount: 1,
+    stockCount: "",
     branchInput: "",
     model: "",
     variant: "",
@@ -110,7 +110,7 @@ export default function SalesPage() {
       engineNumber: "",
       importPrice: "",
       importDate: new Date().toISOString().slice(0, 10),
-      stockCount: 1,
+      stockCount: "",
       branchInput: "",
       model: "",
       variant: "",
@@ -133,7 +133,7 @@ export default function SalesPage() {
       engineNumber: v.engineNumber || "",
       importPrice: v.importPrice ? Number(v.importPrice) : "",
       importDate: v.importDate ? new Date(v.importDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-      stockCount: v.stockCount !== undefined ? Number(v.stockCount) : 1,
+      stockCount: v.stockCount || "",
       branchInput: brName,
       model: v.model,
       variant: v.variant || "",
@@ -185,7 +185,7 @@ export default function SalesPage() {
         listPrice: Number(formData.listPrice) || 0,
         floorPrice: Number(formData.floorPrice) || 0,
         importPrice: Number(formData.importPrice) || 0,
-        stockCount: Number(formData.stockCount) || 1,
+        stockCount: formData.stockCount.trim(),
         warehouse: formData.branchInput.trim(),
       };
 
@@ -234,6 +234,9 @@ export default function SalesPage() {
   const uniqueWarehouses: string[] = Array.from(new Set(
     vehicles.map((v: any) => v.warehouse as string).filter(Boolean)
   ));
+  const uniqueStockCounts: string[] = Array.from(new Set(
+    vehicles.map((v: any) => v.stockCount as string).filter(Boolean)
+  ));
 
   return (
     <div className="space-y-6 stagger">
@@ -274,12 +277,12 @@ export default function SalesPage() {
           <div className="absolute right-4 top-4 text-blue-500 opacity-20">
             <span className="text-xl font-bold font-mono">VNĐ</span>
           </div>
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Giá trị tồn (Giá sàn)</p>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Giá trị tồn (Nhập)</p>
           <p className="text-2xl font-bold mt-2 text-blue-600 dark:text-blue-400">
-            {formatCurrency(counts.remainingFloorValue || 0)}
+            {formatCurrency(counts.remainingImportValue || 0)}
           </p>
           <p className="text-[10px] text-muted-foreground mt-2">
-            Mức giá xuất xưởng tối thiểu cho phép
+            Tính theo tổng giá nhập kho hiện hành
           </p>
         </div>
       </div>
@@ -402,7 +405,7 @@ export default function SalesPage() {
                   </div>
 
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-2 px-1">
-                    <span>Tồn kho: <strong className="text-foreground">{v.stockCount ?? 1}</strong></span>
+                    <span>Số tồn kho: <strong className="text-foreground font-mono">{v.stockCount || "—"}</strong></span>
                     <span>Nhập: <strong>{v.importDate ? new Date(v.importDate).toLocaleDateString("vi-VN") : "—"}</strong></span>
                   </div>
 
@@ -570,12 +573,12 @@ export default function SalesPage() {
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số tồn kho</label>
                   <input 
-                    type="number" 
+                    type="text" 
                     list="stockCount-list" 
                     value={formData.stockCount} 
-                    onChange={(e) => setFormData({ ...formData, stockCount: e.target.value === "" ? "" : parseInt(e.target.value, 10) })} 
+                    onChange={(e) => setFormData({ ...formData, stockCount: e.target.value })} 
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
-                    placeholder="VD: 1" 
+                    placeholder="VD: N633-SN-25-00000148..." 
                   />
                 </div>
                 <div>
@@ -774,8 +777,8 @@ export default function SalesPage() {
                       <span className="font-bold text-foreground">{selectedVehicle.year}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm py-1 border-b border-border/30">
-                      <span className="text-muted-foreground font-medium">Số lượng tồn kho</span>
-                      <span className="font-bold text-foreground">{selectedVehicle.stockCount ?? 1}</span>
+                      <span className="text-muted-foreground font-medium">Số tồn kho (Mã)</span>
+                      <span className="font-bold font-mono text-foreground">{selectedVehicle.stockCount || "—"}</span>
                     </div>
                   </div>
                 </div>
@@ -797,12 +800,7 @@ export default function SalesPage() {
                         {formatCurrency(Number(selectedVehicle.listPrice))}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-sm py-1 border-b border-border/30">
-                      <span className="text-muted-foreground font-medium">Giá sàn tối thiểu</span>
-                      <span className="font-bold text-foreground">
-                        {selectedVehicle.floorPrice ? formatCurrency(Number(selectedVehicle.floorPrice)) : "—"}
-                      </span>
-                    </div>
+
                     <div className="flex justify-between items-center text-sm py-1 border-b border-border/30">
                       <span className="text-muted-foreground font-medium">Ngày nhập kho</span>
                       <span className="font-semibold text-foreground">
@@ -841,10 +839,9 @@ export default function SalesPage() {
 
       {/* Unique datalists for auto-suggestions */}
       <datalist id="stockCount-list">
-        <option value="1" />
-        <option value="2" />
-        <option value="5" />
-        <option value="10" />
+        {uniqueStockCounts.map(sc => (
+          <option key={sc} value={sc} />
+        ))}
       </datalist>
       <datalist id="sku-list">
         {uniqueSKUs.map(sku => (

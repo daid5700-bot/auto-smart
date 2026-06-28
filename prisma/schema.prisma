@@ -241,7 +241,7 @@ model Vehicle {
   engineNumber    String?
   importPrice     Decimal?  @default(0)
   importDate      DateTime? @default(now())
-  stockCount      Int       @default(1)
+  stockCount      String?
   model           String
   variant         String?
   color           String?

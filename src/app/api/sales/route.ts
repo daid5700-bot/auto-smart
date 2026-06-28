@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       },
       _sum: {
         listPrice: true,
-        floorPrice: true
+        importPrice: true
       }
     })
   ]);
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
     SOLD: countSold,
     remainingCount: countAvailable + countReserved + countIncoming,
     remainingListValue: Number(remainingStats._sum.listPrice || 0),
-    remainingFloorValue: Number(remainingStats._sum.floorPrice || 0),
+    remainingImportValue: Number(remainingStats._sum.importPrice || 0),
   };
 
   return NextResponse.json({ 
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
           engineNumber: engineNumber || null,
           importPrice: importPrice !== undefined && importPrice !== "" ? Number(importPrice) : 0,
           importDate: importDate ? new Date(importDate) : new Date(),
-          stockCount: stockCount !== undefined && stockCount !== "" ? Number(stockCount) : 1,
+          stockCount: stockCount || null,
           model: model && model.trim() !== "" ? model.trim() : "Chưa rõ",
           variant: variant || null,
           color: color || null,
