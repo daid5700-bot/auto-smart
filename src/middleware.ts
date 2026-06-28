@@ -11,7 +11,7 @@ const ROLE_PATHS: Record<string, string[]> = {
   CRM: ["/crm", "/api/crm", "/api/dashboard", "/api/search", "/api/config"],
 };
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip auth for login page, API login, and static assets
@@ -31,7 +31,7 @@ export function middleware(request: NextRequest) {
   // Active security check using cookie session
   const userRoleCookie = request.cookies.get("user_role")?.value;
   console.log("MIDDLEWARE CHECK - path:", pathname, "cookie:", userRoleCookie);
-  const userRole = verifyRole(userRoleCookie);
+  const userRole = await verifyRole(userRoleCookie);
   console.log("MIDDLEWARE CHECK - verified role:", userRole);
 
   if (!userRole) {

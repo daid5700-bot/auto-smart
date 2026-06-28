@@ -28,7 +28,7 @@ export async function GET() {
 // POST /api/config — upsert one or many keys (Admin only)
 export async function POST(req: NextRequest) {
   try {
-    const role = verifyRole(req.cookies.get("user_role")?.value);
+    const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thay đổi cấu hình" }, { status: 403 });
     }

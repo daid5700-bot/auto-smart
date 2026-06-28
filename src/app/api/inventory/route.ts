@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "20")));
   const skip = (page - 1) * limit;
   const branchId = getActiveBranchId();
-  const userRole = verifyRole(req.cookies.get("user_role")?.value);
+  const userRole = await verifyRole(req.cookies.get("user_role")?.value);
   const isAdmin = userRole === "ADMIN";
 
   const where: any = { status: "ACTIVE" };
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const userRole = verifyRole(req.cookies.get("user_role")?.value);
+    const userRole = await verifyRole(req.cookies.get("user_role")?.value);
     const isAdmin = userRole === "ADMIN";
     const branchId = getActiveBranchId();
     

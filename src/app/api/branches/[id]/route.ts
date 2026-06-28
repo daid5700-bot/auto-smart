@@ -5,7 +5,7 @@ import { verifyRole } from "@/lib/auth";
 // PATCH /api/branches/[id] — update branch details (Admin only)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const role = verifyRole(req.cookies.get("user_role")?.value);
+    const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thực hiện thao tác này" }, { status: 403 });
     }
@@ -32,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // DELETE /api/branches/[id] — delete branch (Admin only)
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const role = verifyRole(req.cookies.get("user_role")?.value);
+    const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thực hiện thao tác này" }, { status: 403 });
     }

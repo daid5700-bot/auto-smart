@@ -1,22 +1,36 @@
 const DEFAULT_SECRET = "super-secret-key-auto-smart-crm-erp";
 const SECRET = process.env.COOKIE_SIGN_SECRET || DEFAULT_SECRET;
 
-// Secure, Edge-compatible custom signature generator using DJB2 key-keyed hashing
-function djb2Hash(str: string): string {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) + str.charCodeAt(i);
-  }
-  return (hash >>> 0).toString(16);
+const encoder = new TextEncoder();
+
+async function hmacSha256(message: string, secret: string): Promise<string> {
+  const keyData = encoder.encode(secret);
+  const msgData = encoder.encode(message);
+
+  // Import the secret key for HMAC SHA-256
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  // Sign the message
+  const signatureBuffer = await crypto.subtle.sign("HMAC", key, msgData);
+
+  // Convert buffer to hex string
+  const signatureArray = Array.from(new Uint8Array(signatureBuffer));
+  return signatureArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function signRole(role: string): string {
+export async function signRole(role: string): Promise<string> {
   const data = `${role}:${SECRET}`;
-  const signature = djb2Hash(data);
+  const signature = await hmacSha256(data, SECRET);
   return `${role}.${signature}`;
 }
 
-export function verifyRole(cookieValue: string | undefined): string | null {
+export async function verifyRole(cookieValue: string | undefined): Promise<string | null> {
   if (!cookieValue) return null;
 
   // Clean double quotes and decode URI just in case
@@ -39,14 +53,16 @@ export function verifyRole(cookieValue: string | undefined): string | null {
 
   // Try verifying with the active SECRET
   const data = `${role}:${SECRET}`;
-  if (signature === djb2Hash(data)) {
+  const expectedSignature = await hmacSha256(data, SECRET);
+  if (signature === expectedSignature) {
     return role;
   }
 
   // Fallback: try verifying with the default secret if active SECRET is different
   if (SECRET !== DEFAULT_SECRET) {
     const fallbackData = `${role}:${DEFAULT_SECRET}`;
-    if (signature === djb2Hash(fallbackData)) {
+    const fallbackSignature = await hmacSha256(fallbackData, DEFAULT_SECRET);
+    if (signature === fallbackSignature) {
       return role;
     }
   }

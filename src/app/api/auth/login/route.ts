@@ -44,8 +44,7 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({ user: safeUser, branches: userBranches });
     
-    // Set signed user_role cookie from server side
-    const signedRole = signRole(safeUser.role);
+    const signedRole = await signRole(safeUser.role);
     console.log("LOGIN ROUTE: signedRole =", signedRole);
     response.cookies.set("user_role", signedRole, {
       path: "/",
