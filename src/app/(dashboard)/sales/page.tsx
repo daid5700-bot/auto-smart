@@ -30,7 +30,7 @@ export default function SalesPage() {
     vin: "",
     model: "",
     variant: "",
-    color: "Đen",
+    color: "",
     year: 2026,
     listPrice: "",
     floorPrice: "",
@@ -79,7 +79,7 @@ export default function SalesPage() {
       vin: "",
       model: "",
       variant: "",
-      color: "Đen",
+      color: "",
       year: 2026,
       listPrice: "",
       floorPrice: "",
@@ -414,13 +414,7 @@ export default function SalesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Màu sắc</label>
-                  <select value={formData.color} onChange={(e) => setFormData({ ...formData, color: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                    <option value="Đen">Đen</option>
-                    <option value="Trắng">Trắng</option>
-                    <option value="Bạc">Bạc</option>
-                    <option value="Đỏ">Đỏ</option>
-                    <option value="Xanh">Xanh</option>
-                  </select>
+                  <input required value={formData.color} onChange={(e) => setFormData({ ...formData, color: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: Đen, Trắng..." />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Năm sản xuất</label>
