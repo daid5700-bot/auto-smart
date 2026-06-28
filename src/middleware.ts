@@ -30,7 +30,9 @@ export function middleware(request: NextRequest) {
 
   // Active security check using cookie session
   const userRoleCookie = request.cookies.get("user_role")?.value;
+  console.log("MIDDLEWARE CHECK - path:", pathname, "cookie:", userRoleCookie);
   const userRole = verifyRole(userRoleCookie);
+  console.log("MIDDLEWARE CHECK - verified role:", userRole);
 
   if (!userRole) {
     // Return 401 for API requests instead of redirecting

@@ -300,7 +300,10 @@ export default function DocumentsPage() {
                         Bán buôn
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">SĐT: {group.customer?.phone || "Chưa có"}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      SĐT: {group.customer?.phone || "Chưa có"}
+                      {group.customer?.address ? ` • Địa chỉ: ${group.customer.address}` : ""}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -652,6 +655,9 @@ export default function DocumentsPage() {
                       <p className="text-xs font-medium text-muted-foreground mt-0.5">SĐT: {selectedVehicle.customer.phone}</p>
                       {selectedVehicle.customer.birthday && (
                         <p className="text-xs italic text-muted-foreground mt-1">SN: {formatDate(selectedVehicle.customer.birthday)}</p>
+                      )}
+                      {selectedVehicle.customer.address && (
+                        <p className="text-xs text-muted-foreground mt-1">Địa chỉ: {selectedVehicle.customer.address}</p>
                       )}
                     </div>
                   ) : (

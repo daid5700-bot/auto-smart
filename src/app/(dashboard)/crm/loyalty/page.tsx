@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Loader2, Gift, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { Loader2, Gift, ArrowDownCircle, ArrowUpCircle, Search } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { redeemPointsDb } from "@/app/actions";
 
@@ -30,18 +30,26 @@ const NumericInput = ({ value, onChange, className, ...props }: any) => {
 
 export default function LoyaltyPage() {
   const [customers, setCustomers] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
   // Form State
   const [customerId, setCustomerId] = useState("");
   const [pointsToRedeem, setPointsToRedeem] = useState<number | "">(10);
+  const [description, setDescription] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   const fetchData = async () => {
     try {
-      const res = await fetch("/api/crm?tab=customers");
-      const data = await res.json();
-      setCustomers(data.customers || []);
+      const [resCust, resTx] = await Promise.all([
+        fetch("/api/crm?tab=customers&allBranches=true"),
+        fetch("/api/crm?tab=loyalty&allBranches=true")
+      ]);
+      const dataCust = await resCust.json();
+      const dataTx = await resTx.json();
+      setCustomers(dataCust.customers || []);
+      setTransactions(dataTx.transactions || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -60,10 +68,12 @@ export default function LoyaltyPage() {
       const discount = await redeemPointsDb({
         customerId: parseInt(customerId),
         points: Number(pointsToRedeem) || 0,
+        description: description.trim() || undefined,
       });
       setSuccessMsg(`Quy đổi điểm thành công! Khách hàng được giảm giá ${formatCurrency(discount)} trên hóa đơn.`);
       setCustomerId("");
       setPointsToRedeem(10);
+      setDescription("");
       await fetchData();
     } catch (err: any) {
       alert("Lỗi quy đổi điểm: " + err.message);
@@ -76,11 +86,21 @@ export default function LoyaltyPage() {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
+  const filteredTransactions = transactions.filter((tx) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      tx.customer?.name?.toLowerCase().includes(q) ||
+      tx.customer?.phone?.includes(q) ||
+      tx.description?.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="space-y-6 stagger">
       <div>
         <h2 className="text-2xl font-bold">Chương trình Tích điểm Thành viên (Loyalty)</h2>
-        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column — Redeem points form */}
@@ -96,7 +116,7 @@ export default function LoyaltyPage() {
               <select required value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none">
                 <option value="">-- Chọn khách hàng --</option>
                 {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} (Điểm hiện tại: {c.loyaltyPoints})</option>
+                  <option key={c.id} value={c.id}>{c.name} - {c.phone} (Điểm: {c.loyaltyPoints})</option>
                 ))}
               </select>
             </div>
@@ -107,6 +127,16 @@ export default function LoyaltyPage() {
                 value={pointsToRedeem}
                 onChange={(val: any) => setPointsToRedeem(val)}
                 className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none font-semibold text-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Mã hóa đơn / Ghi chú</label>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Ví dụ: HD-0012, Lệnh dịch vụ..."
+                className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
             {successMsg && <p className="text-xs text-success font-semibold bg-success/10 p-2.5 rounded-lg border border-success/20">{successMsg}</p>}
@@ -134,6 +164,65 @@ export default function LoyaltyPage() {
                   <td className="font-semibold text-success">{formatCurrency(c.loyaltyPoints * 1000)}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Deduction History */}
+      <div className="glass-card rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h3 className="font-bold text-lg">Lịch sử trừ điểm (Khấu trừ hóa đơn)</h3>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={13} />
+            <input
+              type="text"
+              placeholder="Tìm tên, SĐT, mô tả..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-8 py-1.5 bg-secondary/30 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-[10px]"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Ngày giao dịch</th>
+                <th>Khách hàng</th>
+                <th>Số điện thoại</th>
+                <th>Số điểm đã trừ</th>
+                <th>Giá trị quy đổi</th>
+                <th>Nội dung / Mô tả</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-muted-foreground italic">
+                    Chưa có lịch sử trừ điểm nào được ghi nhận.
+                  </td>
+                </tr>
+              ) : (
+                filteredTransactions.map((tx: any) => (
+                  <tr key={tx.id}>
+                    <td className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleString("vi-VN")}</td>
+                    <td className="font-semibold">{tx.customer?.name}</td>
+                    <td>{tx.customer?.phone}</td>
+                    <td className="font-bold text-destructive">{tx.points} điểm</td>
+                    <td className="font-semibold text-success">{formatCurrency(Math.abs(tx.points) * 1000)}</td>
+                    <td className="text-xs text-muted-foreground">{tx.description}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

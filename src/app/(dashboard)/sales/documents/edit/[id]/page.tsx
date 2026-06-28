@@ -51,6 +51,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerBirthday, setCustomerBirthday] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
   const [systemCustomers, setSystemCustomers] = useState<any[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
@@ -112,6 +113,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
             ? new Date(vehicle.customer.birthday).toISOString().split("T")[0] 
             : ""
         );
+        setCustomerAddress(vehicle.customer?.address || "");
 
         if (vehicle.customerId) {
           setSelectedCustomerId(vehicle.customerId.toString());
@@ -190,7 +192,8 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
         notes: rawNotes,
         customerName,
         customerPhone,
-        customerBirthday: customerBirthday || undefined
+        customerBirthday: customerBirthday || undefined,
+        customerAddress
       };
 
       const res = await fetch(`/api/sales/${vehicleId}`, {
@@ -399,6 +402,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                                 ? new Date(cust.birthday).toISOString().split("T")[0] 
                                 : ""
                             );
+                            setCustomerAddress(cust.address || "");
                             setIsNewCustomer(false);
                             setIsOpen(false);
                           }}
@@ -427,6 +431,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                     setCustomerName("");
                     setCustomerPhone("");
                     setCustomerBirthday("");
+                    setCustomerAddress("");
                   }}
                   className="w-full md:w-auto px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
                 >
@@ -451,6 +456,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                       setCustomerName("");
                       setCustomerPhone("");
                       setCustomerBirthday("");
+                      setCustomerAddress("");
                     }}
                     className="text-xs font-bold text-muted-foreground hover:text-foreground"
                   >
@@ -459,7 +465,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Tên khách hàng *</label>
                   <input
@@ -489,6 +495,16 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                     value={customerBirthday}
                     onChange={(e) => setCustomerBirthday(e.target.value)}
                     className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-semibold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground">Địa chỉ</label>
+                  <input
+                    type="text"
+                    placeholder="Hà Nội, TP.HCM..."
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   />
                 </div>
               </div>

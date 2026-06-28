@@ -205,6 +205,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ znsLogs });
   }
 
+  if (tab === "loyalty") {
+    const transactions = await prisma.loyaltyTransaction.findMany({
+      where: {
+        type: "REDEEM",
+        ...(branchId ? { branchId } : {}),
+      } as any,
+      include: {
+        customer: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    return NextResponse.json({ transactions });
+  }
+
   // stats — FIX: also filter isDeleted customers
   const baseCustomerWhere = { isDeleted: false, ...(branchId ? { branchId } : {}) } as any;
   const [leadCount, customerCount, znsCount, convertedCount, totalLeads] = await Promise.all([

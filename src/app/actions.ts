@@ -600,13 +600,10 @@ export async function sendZNSMock(phone: string, templateId: string, payload: an
   };
 }
 
-export async function redeemPointsDb(data: { customerId: number; points: number }) {
+export async function redeemPointsDb(data: { customerId: number; points: number; description?: string }) {
   const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
   if (!customer) throw new Error("Khách hàng không tồn tại");
   const branchId = getActiveBranchId();
-  if (branchId && customer.branchId !== branchId) {
-    throw new Error("Khách hàng không thuộc chi nhánh hiện tại");
-  }
   if (customer.loyaltyPoints < data.points) throw new Error("Không đủ điểm tích lũy");
 
   const updated = await prisma.customer.update({
@@ -615,13 +612,14 @@ export async function redeemPointsDb(data: { customerId: number; points: number 
   });
 
   // Ghi log giao dịch điểm (audit trail)
+  const defaultDesc = `Đổi ${data.points} điểm thành ${(data.points * 1000).toLocaleString("vi-VN")}đ giảm giá hóa đơn`;
   await prisma.loyaltyTransaction.create({
     data: {
       customerId: data.customerId,
       type: "REDEEM",
       points: -data.points,
-      description: `Đổi ${data.points} điểm thành ${(data.points * 1000).toLocaleString("vi-VN")}đ giảm giá hóa đơn`,
-      branchId: customer.branchId,
+      description: data.description ? `${data.description} (${defaultDesc})` : defaultDesc,
+      branchId: branchId || customer.branchId,
     },
   });
 
@@ -632,7 +630,7 @@ export async function redeemPointsDb(data: { customerId: number; points: number 
       messageType: "PROMO",
       content: `Khách hàng ${customer.name} đã đổi thành công ${data.points} điểm tích lũy thành giảm giá hóa đơn!`,
       status: "SENT",
-      branchId: customer.branchId,
+      branchId: branchId || customer.branchId,
     },
   });
 

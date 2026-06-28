@@ -57,6 +57,7 @@ export default function NewDocumentPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerBirthday, setCustomerBirthday] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
   const [systemCustomers, setSystemCustomers] = useState<any[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
@@ -193,7 +194,8 @@ export default function NewDocumentPage() {
               listPrice: Number(wv.listPrice)||0,
               accessoriesJson: "[]", notes: "Bán buôn",
               saleType: "WHOLESALE",
-              customerName, customerPhone, customerBirthday: customerBirthday||undefined
+              customerName, customerPhone, customerBirthday: customerBirthday||undefined,
+              customerAddress
             })
           });
           if (!res.ok) {
@@ -214,6 +216,7 @@ export default function NewDocumentPage() {
         accessoriesJson: JSON.stringify(selectedAccessories.map(a=>({...a, quantity:Number(a.quantity)||1}))),
         notes: rawNotes, customerName, customerPhone,
         customerBirthday: customerBirthday||undefined,
+        customerAddress,
         saleType: "RETAIL"
       };
       const res = await fetch(`/api/sales/${selectedVehicleId}`, {
@@ -287,9 +290,9 @@ export default function NewDocumentPage() {
           <div className="bg-card border border-border shadow-sm rounded-2xl p-4 sm:p-6 space-y-4">
             <div className="flex items-center gap-2 pb-2">
               <User size={16} className="text-primary" />
-              <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Thông tin Khách hàng (Giống kho)</h4>
+              <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Thông tin Khách hàng</h4>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="relative">
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">SĐT Khách *</label>
                 <input
@@ -320,6 +323,7 @@ export default function NewDocumentPage() {
                           onClick={() => {
                             setCustomerPhone(c.phone);
                             setCustomerName(c.name);
+                            setCustomerAddress(c.address || "");
                             setSelectedCustomerId(c.id.toString());
                             setShowWholesaleSuggestions(false);
                           }}
@@ -343,6 +347,16 @@ export default function NewDocumentPage() {
                   onChange={(e) => setCustomerName(e.target.value)}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   placeholder="Nguyễn Văn A..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Địa chỉ khách hàng</label>
+                <input
+                  type="text"
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="Hà Nội, TP.HCM..."
                 />
               </div>
             </div>
@@ -540,6 +554,7 @@ export default function NewDocumentPage() {
                             setSelectedCustomerId(cust.id.toString());
                             setCustomerName(cust.name||"");setCustomerPhone(cust.phone||"");
                             setCustomerBirthday(cust.birthday?new Date(cust.birthday).toISOString().split("T")[0]:"");
+                            setCustomerAddress(cust.address||"");
                             setIsNewCustomer(false);setIsOpen(false);
                           }} className={`w-full px-3 py-2 text-left text-xs font-bold rounded-lg flex items-center justify-between hover:bg-secondary/40 ${selectedCustomerId===cust.id.toString()?"bg-primary/10 text-primary":"text-foreground"}`}>
                             <span>{cust.name}</span><span className="text-[10px] text-muted-foreground ml-2 shrink-0">{cust.phone}</span>
@@ -552,7 +567,7 @@ export default function NewDocumentPage() {
               </div>
               <div className="flex items-end">
                 {!selectedCustomerId&&!isNewCustomer&&(
-                  <button type="button" onClick={()=>{setIsNewCustomer(true);setCustomerName("");setCustomerPhone("");setCustomerBirthday("");}}
+                  <button type="button" onClick={()=>{setIsNewCustomer(true);setCustomerName("");setCustomerPhone("");setCustomerBirthday("");setCustomerAddress("");}}
                     className="w-full px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
                     <Plus size={14} /> Thêm khách mới
                   </button>
@@ -567,9 +582,9 @@ export default function NewDocumentPage() {
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                     {selectedCustomerId?"Liên kết khách hệ thống":"Khách hàng mới tự nhập"}
                   </span>
-                  {isNewCustomer&&(<button type="button" onClick={()=>{setIsNewCustomer(false);setCustomerName("");setCustomerPhone("");setCustomerBirthday("");}} className="text-xs font-bold text-muted-foreground hover:text-foreground">Hủy</button>)}
+                  {isNewCustomer&&(<button type="button" onClick={()=>{setIsNewCustomer(false);setCustomerName("");setCustomerPhone("");setCustomerBirthday("");setCustomerAddress("");}} className="text-xs font-bold text-muted-foreground hover:text-foreground">Hủy</button>)}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-muted-foreground">Tên khách *</label>
                     <input type="text" required placeholder="Nguyễn Văn A..." value={customerName} onChange={(e)=>setCustomerName(e.target.value)}
@@ -583,6 +598,11 @@ export default function NewDocumentPage() {
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-muted-foreground">Ngày sinh</label>
                     <input type="date" value={customerBirthday} onChange={(e)=>setCustomerBirthday(e.target.value)}
+                      className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground">Địa chỉ</label>
+                    <input type="text" placeholder="Hà Nội, TP.HCM..." value={customerAddress} onChange={(e)=>setCustomerAddress(e.target.value)}
                       className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary" />
                   </div>
                 </div>

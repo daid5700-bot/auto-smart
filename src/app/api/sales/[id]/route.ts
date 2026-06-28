@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 
 // Helper to find or upsert a Customer
-async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null) {
+async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null, address?: string) {
   if (!phone || !name) return null;
   
   let birthday: Date | null = null;
@@ -21,7 +21,8 @@ async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: st
       where: { id: existing.id },
       data: {
         name,
-        ...(birthday ? { birthday } : {})
+        ...(birthday ? { birthday } : {}),
+        ...(address !== undefined ? { address } : {})
       }
     });
   } else {
@@ -31,7 +32,8 @@ async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: st
         phone,
         source: "WALKIN",
         birthday,
-        branchId
+        branchId,
+        address: address || null
       }
     });
   }
@@ -92,12 +94,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { 
       vin, model, variant, color, year, status, listPrice, floorPrice, image,
       bankStatus, plateStatus, plateCost, accessoriesJson, notes,
-      customerName, customerPhone, customerBirthday, saleType
+      customerName, customerPhone, customerBirthday, customerAddress, saleType
     } = body;
 
     let customerId = currentVehicle.customerId;
     if (customerPhone && customerName) {
-      const customer = await getOrCreateCustomer(customerName, customerPhone, customerBirthday, branchId);
+      const customer = await getOrCreateCustomer(customerName, customerPhone, customerBirthday, branchId, customerAddress);
       if (customer) {
         customerId = customer.id;
       }
