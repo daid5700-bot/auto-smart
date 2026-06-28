@@ -272,7 +272,8 @@ function InventoryContent() {
   const products = rawProducts;
 
   return (
-    <div className="space-y-6 stagger">
+    <>
+      <div className="space-y-6 stagger">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Danh mục phụ tùng</h2>
@@ -520,7 +521,7 @@ function InventoryContent() {
             </button>
           </div>
         </div>
-      )}
+      </div>
 
       {/* CRUD Modal */}
       {modalOpen && (
@@ -641,7 +642,7 @@ function InventoryContent() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
