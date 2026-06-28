@@ -38,7 +38,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!currentRo) return NextResponse.json({ error: "Lệnh sửa chữa không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
-    const newTotalAmount = (body.laborCost ?? Number(currentRo.laborCost)) + (body.partsCost ?? Number(currentRo.partsCost));
+    const redeemTx = await prisma.loyaltyTransaction.findFirst({
+      where: {
+        relatedRoId: id,
+        type: "REDEEM",
+        points: { lt: 0 },
+      },
+    });
+    const discount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
+    const rawTotalAmount = (body.laborCost ?? Number(currentRo.laborCost)) + (body.partsCost ?? Number(currentRo.partsCost));
+    const newTotalAmount = Math.max(0, rawTotalAmount - discount);
     const paidAmount = Number(currentRo.paidAmount || 0);
     const newDebtAmount = newTotalAmount - paidAmount;
     const debtDelta = newDebtAmount - Number(currentRo.debtAmount || 0);

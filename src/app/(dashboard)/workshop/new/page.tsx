@@ -53,6 +53,7 @@ export default function NewRepairOrderPage() {
   // Feedback states
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [alertConfig, setAlertConfig] = useState<{ title: string; message: string } | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -114,7 +115,13 @@ export default function NewRepairOrderPage() {
 
   // Requisition items actions
   const handleAddItem = () => {
-    if (products.length === 0) return;
+    if (products.length === 0) {
+      setAlertConfig({
+        title: "Không tìm thấy phụ tùng",
+        message: "Hiện chưa có bất kỳ sản phẩm phụ tùng nào được cấu hình trong hệ thống kho hoặc danh sách kho đang trống. Vui lòng thêm phụ tùng ở mục Quản lý kho trước."
+      });
+      return;
+    }
     const firstProduct = products[0];
     const retailPrice = Number(firstProduct.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
     setItems([
@@ -718,6 +725,31 @@ export default function NewRepairOrderPage() {
           </div>
         </div>
       </form>
+
+      {alertConfig && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card border border-border/85 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">{alertConfig.title}</h3>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{alertConfig.message}</p>
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setAlertConfig(null)}
+                className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
