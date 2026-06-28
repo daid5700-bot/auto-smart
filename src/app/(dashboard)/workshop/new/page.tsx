@@ -38,6 +38,11 @@ export default function NewRepairOrderPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [matchedPlates, setMatchedPlates] = useState<string[]>([]);
 
+  // Loyalty states
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState<number>(0);
+  const [pointsToRedeem, setPointsToRedeem] = useState<number | "">("");
+
   // Requisition items state
   const [items, setItems] = useState<RequisitionItemInput[]>([]);
 
@@ -51,7 +56,7 @@ export default function NewRepairOrderPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/crm?tab=customers").then((r) => r.json()),
+      fetch("/api/crm?tab=customers&allBranches=true").then((r) => r.json()),
       fetch("/api/technicians").then((r) => r.json()),
       fetch("/api/inventory?limit=100").then((r) => r.json()),
     ])
@@ -84,6 +89,9 @@ export default function NewRepairOrderPage() {
   const handleSelectSuggestedCustomer = (c: any) => {
     setPhone(c.phone);
     setCustomerName(c.name);
+    setSelectedCustomerId(c.id);
+    setCustomerLoyaltyPoints(c.loyaltyPoints || 0);
+    setPointsToRedeem("");
     if (c.vehiclePlates && c.vehiclePlates.length > 0) {
       setPlateNumber(c.vehiclePlates[0]);
     } else {
@@ -91,6 +99,18 @@ export default function NewRepairOrderPage() {
     }
     setShowSuggestions(false);
   };
+
+  useEffect(() => {
+    const matchedCustomer = customers.find((c) => c.phone.trim() === phone.trim());
+    if (matchedCustomer) {
+      setSelectedCustomerId(matchedCustomer.id);
+      setCustomerLoyaltyPoints(matchedCustomer.loyaltyPoints || 0);
+    } else {
+      setSelectedCustomerId(null);
+      setCustomerLoyaltyPoints(0);
+      setPointsToRedeem("");
+    }
+  }, [phone, customers]);
 
   // Requisition items actions
   const handleAddItem = () => {
@@ -139,8 +159,10 @@ export default function NewRepairOrderPage() {
 
   // Calculations
   const partsCostTotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
-  const totalAmount = (Number(laborCost) || 0) + partsCostTotal;
-  const vatEstimate = totalAmount * 0.1;
+  const subtotal = (Number(laborCost) || 0) + partsCostTotal;
+  const discountAmount = pointsToRedeem ? Number(pointsToRedeem) * 1000 : 0;
+  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const vatEstimate = finalTotal * 0.1;
 
   const totalPartsQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
@@ -179,6 +201,7 @@ export default function NewRepairOrderPage() {
           quantity: i.quantity,
           unitPrice: i.unitPrice,
         })),
+        pointsToRedeem: pointsToRedeem ? Number(pointsToRedeem) : 0,
       };
 
       const res = await fetch("/api/workshop/create-with-requisition", {
@@ -609,9 +632,48 @@ export default function NewRepairOrderPage() {
                   <span className="text-xs text-muted-foreground">Tiền phụ tùng:</span>
                   <span className="text-sm font-semibold">{formatCurrency(partsCostTotal)}</span>
                 </div>
+
+                {selectedCustomerId && customerLoyaltyPoints > 0 && (
+                  <div className="pt-3 border-t border-dashed border-border/40 space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">Điểm tích lũy hiện có:</span>
+                      <span className="font-bold text-amber-600">{customerLoyaltyPoints} điểm ({formatCurrency(customerLoyaltyPoints * 1000)})</span>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-muted-foreground uppercase">Quy đổi điểm giảm giá</label>
+                      <div className="relative flex items-center">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={pointsToRedeem}
+                          onChange={(e) => {
+                            const cleanVal = e.target.value.replace(/\D/g, "");
+                            if (cleanVal === "") {
+                              setPointsToRedeem("");
+                            } else {
+                              const numVal = Math.min(customerLoyaltyPoints, parseInt(cleanVal, 10));
+                              setPointsToRedeem(numVal);
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-secondary/30 border border-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-primary font-bold text-primary"
+                          placeholder={`Tối đa: ${customerLoyaltyPoints}`}
+                        />
+                        <span className="absolute right-2 text-[10px] font-bold text-muted-foreground">Điểm</span>
+                      </div>
+                    </div>
+                    {Number(pointsToRedeem) > 0 && (
+                      <div className="flex items-center justify-between text-xs text-success bg-success/5 border border-success/15 p-2 rounded-lg">
+                        <span className="font-semibold">Chiết khấu đổi điểm:</span>
+                        <span className="font-bold">-{formatCurrency(Number(pointsToRedeem) * 1000)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/40">
                   <span className="text-xs text-muted-foreground font-bold">Tổng thanh toán:</span>
-                  <span className="text-lg font-black text-primary tracking-tight">{formatCurrency(totalAmount)}</span>
+                  <span className="text-lg font-black text-primary tracking-tight">{formatCurrency(finalTotal)}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground/80">
                   <span>+ VAT (10% dự kiến):</span>

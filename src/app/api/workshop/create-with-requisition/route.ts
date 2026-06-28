@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       createdById,
       laborCost,
       items, // array of { productId, quantity, unitPrice }
+      pointsToRedeem,
     } = body;
 
     if (!phone) {
@@ -48,15 +49,29 @@ export async function POST(req: NextRequest) {
         if (plateNumber && !updatedPlates.includes(plateNumber)) {
           updatedPlates.push(plateNumber);
         }
+
+        // Deduct loyalty points if requested
+        let updatedPoints = customer.loyaltyPoints;
+        if (pointsToRedeem && pointsToRedeem > 0) {
+          if (customer.loyaltyPoints < pointsToRedeem) {
+            throw new Error(`Khách hàng chỉ có ${customer.loyaltyPoints} điểm, không đủ để quy đổi ${pointsToRedeem} điểm.`);
+          }
+          updatedPoints = customer.loyaltyPoints - pointsToRedeem;
+        }
+
         customer = await tx.customer.update({
           where: { id: customer.id },
           data: {
             name: customerName,
             vehiclePlates: updatedPlates,
+            loyaltyPoints: updatedPoints,
           },
         });
         finalCustomerId = customer.id;
       } else {
+        if (pointsToRedeem && pointsToRedeem > 0) {
+          throw new Error("Khách hàng mới chưa có điểm tích lũy để quy đổi.");
+        }
         const newCustomer = await tx.customer.create({
           data: {
             name: customerName,
@@ -74,6 +89,10 @@ export async function POST(req: NextRequest) {
         calculatedPartsCost += Number(item.unitPrice) * Number(item.quantity);
       }
 
+      const rawTotal = (Number(laborCost) || 0) + calculatedPartsCost;
+      const discount = pointsToRedeem ? Math.min(rawTotal, pointsToRedeem * 1000) : 0;
+      const finalTotalAmount = Math.max(0, rawTotal - discount);
+
       // Determine initial RO status: if there are parts, set to "WAITING_PARTS", otherwise "PENDING"
       const status = items.length > 0 ? "WAITING_PARTS" : "PENDING";
 
@@ -90,10 +109,35 @@ export async function POST(req: NextRequest) {
           createdById: createdById ? Number(createdById) : null,
           laborCost: Number(laborCost) || 0,
           partsCost: calculatedPartsCost,
-          totalAmount: (Number(laborCost) || 0) + calculatedPartsCost,
+          totalAmount: finalTotalAmount,
           branchId,
         },
       });
+
+      // If points were redeemed, log the LoyaltyTransaction \u0026 ZNS
+      if (pointsToRedeem && pointsToRedeem > 0) {
+        await tx.loyaltyTransaction.create({
+          data: {
+            customerId: finalCustomerId,
+            type: "REDEEM",
+            points: -pointsToRedeem,
+            description: `Khấu trừ ${pointsToRedeem} điểm giảm giá ${discount.toLocaleString("vi-VN")}đ trực tiếp khi tạo Lệnh sửa chữa #${ro.id}`,
+            branchId,
+            relatedRoId: ro.id,
+          },
+        });
+
+        await tx.znsLog.create({
+          data: {
+            customerId: finalCustomerId,
+            phone,
+            messageType: "PROMO",
+            content: `Khách hàng ${customerName} đã sử dụng ${pointsToRedeem} điểm để được giảm trực tiếp ${discount.toLocaleString("vi-VN")}đ khi tạo Lệnh sửa chữa #${ro.id}!`,
+            status: "SENT",
+            branchId,
+          },
+        });
+      }
 
       // Update technician status to WORKING if assigned
       if (technicianId) {

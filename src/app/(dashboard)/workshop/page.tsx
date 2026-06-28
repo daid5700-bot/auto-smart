@@ -687,6 +687,24 @@ export default function WorkshopPage() {
                       </td>
                       <td className="py-3 text-right font-medium">{formatCurrency(Number(printRo.partsCost))}</td>
                     </tr>
+                    {(() => {
+                      const labor = Number(printRo.laborCost) || 0;
+                      const parts = Number(printRo.partsCost) || 0;
+                      const total = Number(printRo.totalAmount) || 0;
+                      const discount = Math.round(labor + parts - total);
+                      if (discount >= 1000) {
+                        return (
+                          <tr className="border-b border-border/40 text-success">
+                            <td className="py-3">
+                              <p className="font-semibold">Chiết khấu đổi điểm (Loyalty Discount)</p>
+                              <p className="text-[10px] text-success">Khấu trừ từ điểm tích lũy của khách hàng</p>
+                            </td>
+                            <td className="py-3 text-right font-semibold text-success">-{formatCurrency(discount)}</td>
+                          </tr>
+                        );
+                      }
+                      return null;
+                    })()}
                     <tr className="font-bold text-sm">
                       <td className="py-4 text-right pr-4">Tổng cộng tạm tính (VND):</td>
                       <td className="py-4 text-right text-primary print:text-black text-base">{formatCurrency(Number(printRo.totalAmount))}</td>

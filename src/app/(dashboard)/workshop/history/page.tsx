@@ -269,6 +269,21 @@ export default function HistoryPage() {
                     <span className="text-muted-foreground">Tiền phụ tùng:</span>
                     <span className="font-semibold text-foreground">{formatCurrency(Number(selectedOrder.partsCost))}</span>
                   </div>
+                  {(() => {
+                    const labor = Number(selectedOrder.laborCost) || 0;
+                    const parts = Number(selectedOrder.partsCost) || 0;
+                    const total = Number(selectedOrder.totalAmount) || 0;
+                    const discount = Math.round(labor + parts - total);
+                    if (discount >= 1000) {
+                      return (
+                        <div className="flex justify-between text-xs text-success">
+                          <span className="font-medium">Giảm giá đổi điểm:</span>
+                          <span className="font-semibold">-{formatCurrency(discount)}</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   <div className="flex justify-between items-center pt-2.5 border-t border-dashed border-border/40">
                     <span className="text-xs font-bold text-foreground">Tổng chi phí:</span>
                     <span className="text-base font-black text-primary">{formatCurrency(Number(selectedOrder.totalAmount))}</span>

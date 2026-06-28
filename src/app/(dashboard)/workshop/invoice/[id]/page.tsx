@@ -152,6 +152,21 @@ export default function InvoicePage() {
             <span className="text-muted-foreground">Tiền phụ tùng</span>
             <span className="font-semibold">{formatCurrency(Number(ro.partsCost))}</span>
           </div>
+          {(() => {
+            const labor = Number(ro.laborCost) || 0;
+            const parts = Number(ro.partsCost) || 0;
+            const total = Number(ro.totalAmount) || 0;
+            const discount = Math.round(labor + parts - total);
+            if (discount >= 1000) {
+              return (
+                <div className="flex justify-between text-sm text-success font-medium">
+                  <span>Giảm giá đổi điểm</span>
+                  <span>-{formatCurrency(discount)}</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
           <div className="flex justify-between text-lg font-bold border-t border-border pt-2 mt-2">
             <span>TỔNG CỘNG</span>
             <span className="text-primary">{formatCurrency(Number(ro.totalAmount))}</span>
