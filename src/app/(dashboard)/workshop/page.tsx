@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate, statusText, statusBadge, handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 import { Wrench, Plus, CheckCircle2, AlertTriangle, Eye, Edit, Trash2, X, Loader2, Printer, ClipboardList } from "lucide-react";
 import { createPartsRequisition } from "@/app/actions";
 import { useAuth } from "@/lib/store";
@@ -529,13 +530,10 @@ export default function WorkshopPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số KM vào xưởng</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.kmIn === "" ? "" : Number(formData.kmIn).toLocaleString("vi-VN")}
-                    onChange={(e) => handleNumericInputChange(e, (c) => setFormData({ ...formData, kmIn: c === "" ? "" : parseInt(c, 10) }))}
+                    value={formData.kmIn}
+                    onChange={(c) => setFormData({ ...formData, kmIn: c === "" ? "" : parseInt(c, 10) })}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
@@ -568,25 +566,19 @@ export default function WorkshopPage() {
               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/40">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền công thợ</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.laborCost === "" ? "" : Number(formData.laborCost).toLocaleString("vi-VN")}
-                    onChange={(e) => handleNumericInputChange(e, (c) => setFormData({ ...formData, laborCost: c === "" ? "" : parseInt(c, 10) }))}
+                    value={formData.laborCost}
+                    onChange={(c) => setFormData({ ...formData, laborCost: c === "" ? "" : parseInt(c, 10) })}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền phụ tùng thay thế</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
+                  <NumericInput
                     required
-                    value={formData.partsCost === "" ? "" : Number(formData.partsCost).toLocaleString("vi-VN")}
-                    onChange={(e) => handleNumericInputChange(e, (c) => setFormData({ ...formData, partsCost: c === "" ? "" : parseInt(c, 10) }))}
+                    value={formData.partsCost}
+                    onChange={(c) => setFormData({ ...formData, partsCost: c === "" ? "" : parseInt(c, 10) })}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
@@ -873,14 +865,11 @@ export default function WorkshopPage() {
 
                         {/* Quantity Input */}
                         <div className="w-full md:w-24">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9.]*"
+                          <NumericInput
                             required
                             placeholder="SL"
-                            value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
-                            onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, { quantity: c === "" ? "" : parseInt(c, 10) }))}
+                            value={item.quantity}
+                            onChange={(c) => updateItem(idx, { quantity: c === "" ? "" : parseInt(c, 10) })}
                             className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none text-center font-bold"
                           />
                         </div>
@@ -900,13 +889,10 @@ export default function WorkshopPage() {
 
                         {/* Custom Unit Price */}
                         <div className="w-full md:w-36">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9.]*"
+                          <NumericInput
                             placeholder="Đơn giá"
-                            value={item.customUnitPrice === undefined || item.customUnitPrice === "" ? "" : Number(item.customUnitPrice).toLocaleString("vi-VN")}
-                            onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, { customUnitPrice: c === "" ? "" : parseInt(c, 10) }))}
+                            value={item.customUnitPrice === undefined ? "" : item.customUnitPrice}
+                            onChange={(c) => updateItem(idx, { customUnitPrice: c === "" ? "" : parseInt(c, 10) })}
                             className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none text-right font-semibold text-primary"
                           />
                         </div>

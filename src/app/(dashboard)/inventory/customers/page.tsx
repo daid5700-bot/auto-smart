@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Users, Search, MapPin, Phone, User, DollarSign, Receipt, Eye, X, Edit3 } from "lucide-react";
 import { handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 
 export default function CustomerDebtsPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -343,13 +344,10 @@ export default function CustomerDebtsPage() {
                 <div>
                   <label className="block text-sm font-bold mb-2">Tổng số tiền khách đã trả tới thời điểm này</label>
                   <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9.]*"
+                    <NumericInput
                       required
-                      value={paymentInput === "" ? "" : Number(paymentInput).toLocaleString("vi-VN")}
-                      onChange={(e) => handleNumericInputChange(e, setPaymentInput)}
+                      value={paymentInput}
+                      onChange={setPaymentInput}
                       className="w-full pl-4 pr-12 py-2.5 bg-background border border-border rounded-xl text-base font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                     />
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">VNĐ</div>

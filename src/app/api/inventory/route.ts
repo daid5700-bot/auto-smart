@@ -150,6 +150,28 @@ export async function POST(req: NextRequest) {
     const targetBranchId = (isAdmin && body.branchId) ? Number(body.branchId) : branchId;
     if (!targetBranchId) return NextResponse.json({ error: "Yêu cầu mã chi nhánh hoạt động" }, { status: 400 });
 
+    // Release SKUs of any old INACTIVE products to avoid unique constraint failures on new creations
+    try {
+      const oldInactive = await prisma.product.findMany({
+        where: {
+          status: "INACTIVE",
+          NOT: {
+            sku: {
+              startsWith: "INACTIVE-",
+            },
+          },
+        },
+      });
+      for (const p of oldInactive) {
+        await prisma.product.update({
+          where: { id: p.id },
+          data: { sku: `INACTIVE-${p.id}-${p.sku}` },
+        });
+      }
+    } catch (e) {
+      console.error("Error auto-releasing INACTIVE SKUs:", e);
+    }
+
     const product = await prisma.product.create({
       data: {
         sku: body.sku,

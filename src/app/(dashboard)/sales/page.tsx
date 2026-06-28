@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { formatCurrency, statusText, statusBadge, handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 import { Car, Plus, Search, Grid3X3, List, Eye, Edit, Trash2, X, Loader2, Upload } from "lucide-react";
 
 const COLOR_DOT: Record<string, string> = { "Đen": "bg-gray-800", "Trắng": "bg-white border border-border", "Bạc": "bg-gray-400", "Đỏ": "bg-red-500", "Xanh": "bg-blue-500" };
@@ -612,27 +613,21 @@ export default function SalesPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-amber-600 mb-1.5 uppercase">Giá nhập</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
-                    value={formData.importPrice === "" ? "" : Number(formData.importPrice).toLocaleString("vi-VN")}
-                    onChange={(e) => handleNumericInputChange(e, (cleanVal) => {
+                  <NumericInput
+                    value={formData.importPrice}
+                    onChange={(cleanVal) => {
                       setFormData({ ...formData, importPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    })}
+                    }}
                     className="w-full px-3 py-2 bg-amber-500/5 border border-amber-500/30 rounded-xl text-sm font-extrabold text-amber-600 focus:ring-2 focus:ring-amber-500/20 outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-emerald-600 mb-1.5 uppercase">Giá bán lẻ</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
-                    value={formData.listPrice === "" ? "" : Number(formData.listPrice).toLocaleString("vi-VN")}
-                    onChange={(e) => handleNumericInputChange(e, (cleanVal) => {
+                  <NumericInput
+                    value={formData.listPrice}
+                    onChange={(cleanVal) => {
                       setFormData({ ...formData, listPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    })}
+                    }}
                     className="w-full px-3 py-2 bg-emerald-500/5 border border-emerald-500/30 rounded-xl text-sm font-extrabold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                   />
                 </div>

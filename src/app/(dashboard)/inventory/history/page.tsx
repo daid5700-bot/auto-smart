@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 import { Loader2, DollarSign, X, Edit3, Eye, Search } from "lucide-react";
 
 export default function InventoryHistoryPage() {
@@ -493,13 +494,10 @@ export default function InventoryHistoryPage() {
                     Trả toàn bộ
                   </button>
                 </div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9.]*"
+                <NumericInput
                   required
-                  value={paymentInput === "" ? "" : Number(paymentInput).toLocaleString("vi-VN")}
-                  onChange={(e) => handleNumericInputChange(e, setPaymentInput)}
+                  value={paymentInput}
+                  onChange={setPaymentInput}
                   className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

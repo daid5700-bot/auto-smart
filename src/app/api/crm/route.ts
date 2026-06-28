@@ -243,6 +243,28 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const branchId = getActiveBranchId();
     if (body.type === "customer") {
+      // Release phone numbers of any old soft-deleted customers to avoid unique constraint failures
+      try {
+        const oldDeleted = await prisma.customer.findMany({
+          where: {
+            isDeleted: true,
+            NOT: {
+              phone: {
+                startsWith: "DELETED-",
+              },
+            },
+          },
+        });
+        for (const c of oldDeleted) {
+          await prisma.customer.update({
+            where: { id: c.id },
+            data: { phone: `DELETED-${c.id}-${c.phone}` },
+          });
+        }
+      } catch (e) {
+        console.error("Error auto-releasing customer phone:", e);
+      }
+
       const customer = await prisma.customer.create({
         data: {
           name: body.name,

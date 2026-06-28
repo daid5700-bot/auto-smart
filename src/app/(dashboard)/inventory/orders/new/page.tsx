@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 
 interface RequisitionItemInput {
   productId: string;
@@ -282,12 +283,9 @@ export default function NewInventoryOrderPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số tiền khách đã thanh toán</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9.]*"
-                  value={paidAmount === "" ? "" : Number(paidAmount).toLocaleString("vi-VN")}
-                  onChange={(e) => handleNumericInputChange(e, (c) => setPaidAmount(c === "" ? "" : parseInt(c, 10)))}
+                <NumericInput
+                  value={paidAmount}
+                  onChange={(c) => setPaidAmount(c === "" ? "" : parseInt(c, 10))}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 font-bold text-emerald-600 outline-none"
                   placeholder="VD: 500,000 (Để trống nếu chưa trả)"
                 />
@@ -397,22 +395,16 @@ export default function NewInventoryOrderPage() {
                             )}
                           </td>
                           <td className="p-2">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              pattern="[0-9.]*"
-                              value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
-                              onChange={(e) => handleNumericInputChange(e, (c) => handleItemQuantityChange(index, c === "" ? "" : parseInt(c, 10)))}
+                            <NumericInput
+                              value={item.quantity}
+                              onChange={(c) => handleItemQuantityChange(index, c === "" ? "" : parseInt(c, 10))}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-center outline-none"
                             />
                           </td>
                           <td className="p-2">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              pattern="[0-9.]*"
-                              value={item.unitPrice === "" ? "" : Number(item.unitPrice).toLocaleString("vi-VN")}
-                              onChange={(e) => handleNumericInputChange(e, (c) => handleItemPriceChange(index, c === "" ? "" : parseInt(c, 10)))}
+                            <NumericInput
+                              value={item.unitPrice}
+                              onChange={(c) => handleItemPriceChange(index, c === "" ? "" : parseInt(c, 10))}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-primary outline-none"
                             />
                           </td>

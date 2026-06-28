@@ -7,6 +7,7 @@ import {
   Sparkles, Receipt, Car, Trash2, ChevronDown
 } from "lucide-react";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 
 interface Accessory {
   id: number;
@@ -443,7 +444,7 @@ export default function NewDocumentPage() {
                 <div className="space-y-1.5"><label className="text-xs font-bold text-muted-foreground">Tiến độ tổng quan *</label><select value={status} onChange={(e)=>setStatus(e.target.value)} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary outline-none"><option value="RESERVED">ĐÃ CỌC (Reserved)</option><option value="SOLD">ĐÃ BÁN (Sold)</option></select></div>
                 <div className="space-y-1.5"><label className="text-xs font-bold text-muted-foreground">Tiến độ Ngân hàng</label><select value={bankStatus} onChange={(e)=>setBankStatus(e.target.value)} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary outline-none"><option value="NONE">Mua thẳng (Không vay)</option><option value="PENDING_APPROVAL">Chờ phê duyệt vay</option><option value="APPROVED">Đã ra thông báo vay</option><option value="DISBURSED">Đã giải ngân</option></select></div>
                 <div className="space-y-1.5"><label className="text-xs font-bold text-muted-foreground">Thủ tục bấm biển</label><select value={plateStatus} onChange={(e)=>setPlateStatus(e.target.value)} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary outline-none"><option value="PENDING">Chờ nộp thuế (Đợi biển)</option><option value="TAX_PAID">Đã nộp thuế trước bạ</option><option value="PLATE_DONE">Đã bấm biển &amp; Bàn giao xe</option></select></div>
-                <div className="space-y-1.5"><label className="text-xs font-bold text-primary">Giá bán thực tế (VNĐ) *</label><input type="text" inputMode="numeric" pattern="[0-9.]*" required placeholder="Nhập giá bán..." value={listPrice===""?"":Number(listPrice).toLocaleString("vi-VN")} onChange={(e)=>handleNumericInputChange(e, setListPrice)} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary font-bold text-primary"/></div>
+                <div className="space-y-1.5"><label className="text-xs font-bold text-primary">Giá bán thực tế (VNĐ) *</label><NumericInput required placeholder="Nhập giá bán..." value={listPrice} onChange={setListPrice} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary font-bold text-primary"/></div>
               </div>
             </>
           )}
@@ -490,9 +491,9 @@ export default function NewDocumentPage() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="relative">
-                            <input type="text" inputMode="numeric" pattern="[0-9.]*" placeholder="Giá bán..."
-                              value={wv.listPrice===""?"":Number(wv.listPrice).toLocaleString("vi-VN")}
-                              onChange={(e)=>handleNumericInputChange(e, (c)=>setWholesaleVehicles(wholesaleVehicles.map(x=>x.id===wv.id?{...x,listPrice:c}:x)))}
+                            <NumericInput placeholder="Giá bán..."
+                              value={wv.listPrice}
+                              onChange={(c)=>setWholesaleVehicles(wholesaleVehicles.map(x=>x.id===wv.id?{...x,listPrice:c}:x))}
                               className="w-36 px-2 py-1.5 border border-border rounded-lg bg-background text-xs font-bold focus:border-primary outline-none text-emerald-600 text-right pr-6" />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">đ</span>
                           </div>
@@ -620,9 +621,9 @@ export default function NewDocumentPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-muted-foreground">Chi phí làm biển (VNĐ)</label>
-                <input type="text" inputMode="numeric" pattern="[0-9.]*" placeholder="Tự điền chi phí biển..."
-                  value={plateCost===""?"":Number(plateCost).toLocaleString("vi-VN")}
-                  onChange={(e)=>handleNumericInputChange(e, setPlateCost)}
+                <NumericInput placeholder="Tự điền chi phí biển..."
+                  value={plateCost}
+                  onChange={setPlateCost}
                   className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary font-bold text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="space-y-1.5">
@@ -660,9 +661,9 @@ export default function NewDocumentPage() {
                     {selectedAccessories.map((a)=>(
                       <div key={a.id} className="flex items-center gap-2 text-xs bg-background p-2 rounded-lg border border-border">
                         <div className="flex-1 min-w-0"><p className="font-bold text-foreground truncate">{a.name}</p><p className="text-[10px] text-muted-foreground">{formatCurrency(a.price)}</p></div>
-                        <input type="text" inputMode="numeric" pattern="[0-9.]*"
-                          value={a.quantity===""?"":Number(a.quantity).toLocaleString("vi-VN")}
-                          onChange={(e)=>handleNumericInputChange(e, (c)=>handleUpdateAccessoryQty(a.id,c===""?"":parseInt(c,10)))}
+                        <NumericInput
+                          value={a.quantity}
+                          onChange={(c)=>handleUpdateAccessoryQty(a.id,c===""?"":parseInt(c,10))}
                           className="w-10 text-center py-0.5 border border-border rounded bg-secondary/30 text-xs font-bold shrink-0" />
                         <button type="button" onClick={()=>handleRemoveAccessory(a.id)} className="p-1 hover:bg-rose-500/10 text-rose-500 rounded shrink-0"><Trash2 size={13}/></button>
                       </div>

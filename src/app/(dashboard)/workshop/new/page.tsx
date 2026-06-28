@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown, X, User } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 import { useAuth } from "@/lib/store";
 
 interface RequisitionItemInput {
@@ -386,13 +387,10 @@ export default function NewRepairOrderPage() {
               {/* SỐ KM */}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số KM khi vào</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9.]*"
+                <NumericInput
                   required
-                  value={kmIn === "" ? "" : Number(kmIn).toLocaleString("vi-VN")}
-                  onChange={(e) => handleNumericInputChange(e, (c) => setKmIn(c === "" ? "" : parseInt(c, 10)))}
+                  value={kmIn}
+                  onChange={(c) => setKmIn(c === "" ? "" : parseInt(c, 10))}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   placeholder="VD: 45.000"
                 />
@@ -420,13 +418,10 @@ export default function NewRepairOrderPage() {
               {/* TIỀN CÔNG THỢ */}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền công thợ dự kiến</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9.]*"
+                <NumericInput
                   required
-                  value={laborCost === "" ? "" : Number(laborCost).toLocaleString("vi-VN")}
-                  onChange={(e) => handleNumericInputChange(e, (c) => setLaborCost(c === "" ? "" : parseInt(c, 10)))}
+                  value={laborCost}
+                  onChange={(c) => setLaborCost(c === "" ? "" : parseInt(c, 10))}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   placeholder="VD: 150.000"
                 />
@@ -568,22 +563,16 @@ export default function NewRepairOrderPage() {
                             )}
                           </td>
                           <td className="p-2">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              pattern="[0-9.]*"
-                              value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
-                              onChange={(e) => handleNumericInputChange(e, (c) => handleItemQuantityChange(index, c === "" ? "" : parseInt(c, 10)))}
+                            <NumericInput
+                              value={item.quantity}
+                              onChange={(c) => handleItemQuantityChange(index, c === "" ? "" : parseInt(c, 10))}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-center outline-none"
                             />
                           </td>
                           <td className="p-2">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              pattern="[0-9.]*"
-                              value={item.unitPrice === "" ? "" : Number(item.unitPrice).toLocaleString("vi-VN")}
-                              onChange={(e) => handleNumericInputChange(e, (c) => handleItemPriceChange(index, c === "" ? "" : parseInt(c, 10)))}
+                            <NumericInput
+                              value={item.unitPrice}
+                              onChange={(c) => handleItemPriceChange(index, c === "" ? "" : parseInt(c, 10))}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-primary outline-none"
                             />
                           </td>

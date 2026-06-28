@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Plus, Search, DollarSign, FileText, X } from "lucide-react";
 import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 
 export default function InventoryOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -199,13 +200,10 @@ export default function InventoryOrdersPage() {
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
                   Khách trả thêm
                 </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9.]*"
+                <NumericInput
                   required
-                  value={paymentAmount === "" ? "" : Number(paymentAmount).toLocaleString("vi-VN")}
-                  onChange={(e) => handleNumericInputChange(e, setPaymentAmount)}
+                  value={paymentAmount}
+                  onChange={setPaymentAmount}
                   className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

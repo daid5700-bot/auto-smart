@@ -12,6 +12,28 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const isAdmin = userRole === "ADMIN";
     const branchId = getActiveBranchId();
 
+    // Release SKUs of any old INACTIVE products to avoid unique constraint failures on update
+    try {
+      const oldInactive = await prisma.product.findMany({
+        where: {
+          status: "INACTIVE",
+          NOT: {
+            sku: {
+              startsWith: "INACTIVE-",
+            },
+          },
+        },
+      });
+      for (const p of oldInactive) {
+        await prisma.product.update({
+          where: { id: p.id },
+          data: { sku: `INACTIVE-${p.id}-${p.sku}` },
+        });
+      }
+    } catch (e) {
+      console.error("Error auto-releasing INACTIVE SKUs:", e);
+    }
+
     const currentProduct = await prisma.product.findFirst({
       where: {
         id,
@@ -90,7 +112,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     await prisma.product.update({
       where: { id },
-      data: { status: "INACTIVE" },
+      data: { 
+        status: "INACTIVE",
+        sku: currentProduct.sku.startsWith("INACTIVE-") ? currentProduct.sku : `INACTIVE-${currentProduct.id}-${currentProduct.sku}`
+      },
     });
     return NextResponse.json({ success: true, message: "Xóa phụ tùng thành công" });
   } catch (error: any) {

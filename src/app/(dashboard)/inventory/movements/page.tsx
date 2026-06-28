@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from "react";
 import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { NumericInput } from "@/components/NumericInput";
 import { useAuth } from "@/lib/store";
 import { 
   Loader2, ArrowDownToLine, ArrowUpFromLine, 
@@ -577,14 +578,10 @@ export default function MovementsPage() {
 
                       <div className="w-full lg:col-span-2">
                         <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Số lượng</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9.]*"
+                        <NumericInput
                           required
-                          onFocus={() => setFocusedIdx(idx)}
-                          value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
-                          onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, "quantity", c === "" ? "" : parseInt(c, 10)))}
+                          value={item.quantity}
+                          onChange={(c) => updateItem(idx, "quantity", c === "" ? "" : parseInt(c, 10))}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-center"
                         />
                       </div>
@@ -592,14 +589,10 @@ export default function MovementsPage() {
                       <div className="w-full lg:col-span-2">
                         <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Hệ số quy đổi</label>
                         <div className="relative">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9.]*"
+                          <NumericInput
                             required
-                            onFocus={() => setFocusedIdx(idx)}
-                            value={item.conversionFactor === "" ? "" : Number(item.conversionFactor).toLocaleString("vi-VN")}
-                            onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, "conversionFactor", c === "" ? "" : parseInt(c, 10)))}
+                            value={item.conversionFactor}
+                            onChange={(c) => updateItem(idx, "conversionFactor", c === "" ? "" : parseInt(c, 10))}
                             className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-center"
                           />
                         </div>
@@ -607,14 +600,10 @@ export default function MovementsPage() {
 
                       <div className="w-full lg:col-span-2">
                         <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Đơn giá</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9.]*"
+                        <NumericInput
                           required
-                          onFocus={() => setFocusedIdx(idx)}
-                          value={item.unitCost === "" ? "" : Number(item.unitCost).toLocaleString("vi-VN")}
-                          onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, "unitCost", c === "" ? "" : parseInt(c, 10)))}
+                          value={item.unitCost}
+                          onChange={(c) => updateItem(idx, "unitCost", c === "" ? "" : parseInt(c, 10))}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-primary font-semibold"
                         />
                       </div>
@@ -856,13 +845,10 @@ export default function MovementsPage() {
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
                   Khách trả thêm
                 </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9.]*"
+                <NumericInput
                   required
-                  value={paymentInput === "" ? "" : Number(paymentInput).toLocaleString("vi-VN")}
-                  onChange={(e) => handleNumericInputChange(e, setPaymentInput)}
+                  value={paymentInput}
+                  onChange={setPaymentInput}
                   className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

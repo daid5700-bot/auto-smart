@@ -10,6 +10,28 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const branchId = getActiveBranchId();
 
     if (body.type === "customer") {
+      // Release phone numbers of any old soft-deleted customers to avoid unique constraint failures on update
+      try {
+        const oldDeleted = await prisma.customer.findMany({
+          where: {
+            isDeleted: true,
+            NOT: {
+              phone: {
+                startsWith: "DELETED-",
+              },
+            },
+          },
+        });
+        for (const c of oldDeleted) {
+          await prisma.customer.update({
+            where: { id: c.id },
+            data: { phone: `DELETED-${c.id}-${c.phone}` },
+          });
+        }
+      } catch (e) {
+        console.error("Error auto-releasing customer phone:", e);
+      }
+
       const { type, ...updateData } = body;
       const currentCust = await prisma.customer.findFirst({
         where: {
@@ -74,7 +96,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       // Soft delete: keep all financial and repair history intact, just hide the customer from UI
       await prisma.customer.update({ 
         where: { id },
-        data: { isDeleted: true }
+        data: { 
+          isDeleted: true,
+          phone: currentCust.phone.startsWith("DELETED-") ? currentCust.phone : `DELETED-${currentCust.id}-${currentCust.phone}`
+        }
       });
       return NextResponse.json({ success: true, message: "Xóa Khách hàng thành công (ẩn khỏi hệ thống)" });
     } else {
