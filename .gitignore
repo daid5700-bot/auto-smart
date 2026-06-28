@@ -5,3 +5,9 @@ node_modules
 next-env.d.ts
 .env
 prisma/postgres_data
+dist
+Library
+.cache
+.npm
+.codegraph
+
