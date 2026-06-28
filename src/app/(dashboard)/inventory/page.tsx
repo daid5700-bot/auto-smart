@@ -521,6 +521,7 @@ function InventoryContent() {
             </button>
           </div>
         </div>
+      )}
       </div>
 
       {/* CRUD Modal */}
