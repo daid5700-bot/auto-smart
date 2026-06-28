@@ -6,7 +6,7 @@ import { getActiveBranchId } from "@/lib/branch";
 // Helper to find or upsert a Customer
 async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null, address?: string) {
   if (!phone || !name) return null;
-  
+
   let birthday: Date | null = null;
   if (birthdayStr) {
     birthday = new Date(birthdayStr);
@@ -91,7 +91,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: "Thông tin xe không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
     }
 
-    const { 
+    const {
       vin, sku, engineNumber, importPrice, importDate, stockCount, branchId: selectBranchId, warehouse,
       model, variant, color, year, status, listPrice, floorPrice, image,
       bankStatus, plateStatus, plateCost, accessoriesJson, notes,
@@ -129,7 +129,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (notes !== undefined) updateData.notes = notes;
     if (warehouse !== undefined) updateData.warehouse = warehouse;
     if (saleType !== undefined) updateData.saleType = saleType;
-    
+
     // Explicitly set customerId if it was resolved
     updateData.customerId = customerId;
 
@@ -139,7 +139,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const finalAcc = updateData.accessoriesJson ?? currentVehicle.accessoriesJson ?? "[]";
     const accessories = JSON.parse(finalAcc);
     const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
-    
+
     const newTotalAmount = finalListPrice + finalPlateCost + accCost;
     const paid = currentVehicle.paidAmount.toNumber();
     const newDebtAmount = newTotalAmount - paid;
@@ -156,7 +156,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // 2. Determine statuses
       const oldStatus = currentVehicle.status;
       const newStatus = updateData.status || oldStatus;
-      
+
+      if (newStatus === "CANCELLED") {
+        const targetVin = updateData.vin || currentVehicle.vin;
+        if (!targetVin.startsWith("CANCELLED-")) {
+          updateData.vin = `CANCELLED-${currentVehicle.id}-${targetVin}`;
+        }
+      }
+
       const wasActive = ["RESERVED", "SOLD"].includes(oldStatus);
       const isNowActive = ["RESERVED", "SOLD"].includes(newStatus);
 
@@ -195,7 +202,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         // Same customer: Calculate delta based on status transition and price changes
         let debtChange = 0;
         let spentChange = 0;
-        
+
         if (!wasActive && isNowActive) {
           // Transition to SOLD/RESERVED
           debtChange = newDebtAmount;
@@ -213,7 +220,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (debtChange !== 0 || spentChange !== 0) {
           await tx.customer.update({
             where: { id: newCustomerId },
-            data: { 
+            data: {
               totalDebt: { increment: debtChange },
               totalSpent: { increment: spentChange }
             }
@@ -278,7 +285,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
 
       return v;
-    });    
+    });
     return NextResponse.json(vehicle);
   } catch (error: any) {
     console.error("PATCH /api/sales/[id] error details:", error);
@@ -338,9 +345,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         });
       }
 
-      await tx.vehicle.update({ 
+      await tx.vehicle.update({
         where: { id },
-        data: { status: "CANCELLED" }
+        data: {
+          status: "CANCELLED",
+          vin: currentVehicle.vin.startsWith("CANCELLED-") ? currentVehicle.vin : `CANCELLED-${currentVehicle.id}-${currentVehicle.vin}`
+        }
       });
     });
     return NextResponse.json({ success: true, message: "Đã hủy (xóa mềm) hồ sơ xe thành công" });

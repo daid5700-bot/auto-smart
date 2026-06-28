@@ -143,7 +143,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
 
     fetchPendingCount();
-    const interval = setInterval(fetchPendingCount, 15000);
+    const interval = setInterval(fetchPendingCount, 60000); // Poll every 60 seconds to avoid flooding API calls
     return () => clearInterval(interval);
   }, [isAuth, activeBranch?.id]);
 

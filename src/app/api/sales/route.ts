@@ -6,7 +6,7 @@ import { getActiveBranchId } from "@/lib/branch";
 // Helper to find or upsert a Customer
 async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null) {
   if (!phone || !name) return null;
-  
+
   let birthday: Date | null = null;
   if (birthdayStr) {
     birthday = new Date(birthdayStr);
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const search = searchParams.get("search") || "";
   const status = searchParams.get("status") || "";
-  
+
   // Pagination params
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20")));
@@ -72,12 +72,12 @@ export async function GET(req: NextRequest) {
 
   // Run heavy queries in parallel
   const [vehicles, total, countAvailable, countReserved, countIncoming, countSold, remainingStats] = await Promise.all([
-    prisma.vehicle.findMany({ 
-      where, 
-      orderBy: { createdAt: "desc" }, 
+    prisma.vehicle.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
       skip,
       take: limit,
-      include: { customer: true } 
+      include: { customer: true }
     }),
     prisma.vehicle.count({ where }),
     prisma.vehicle.count({ where: { status: "AVAILABLE", ...(branchId ? { branchId } : {}) } }),
@@ -135,10 +135,10 @@ export async function GET(req: NextRequest) {
     remainingImportValue: Number(remainingStats._sum.importPrice || 0),
   };
 
-  return NextResponse.json({ 
-    vehicles: vehiclesWithExportStatus, 
-    counts, 
-    pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } 
+  return NextResponse.json({
+    vehicles: vehiclesWithExportStatus,
+    counts,
+    pagination: { total, page, limit, totalPages: Math.ceil(total / limit) }
   });
 }
 // POST /api/sales — add vehicle with linked customer
@@ -147,8 +147,30 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log("POST /api/sales body:", body);
     const branchId = body.branchId !== undefined ? (body.branchId ? Number(body.branchId) : null) : getActiveBranchId();
-    
-    const { 
+
+    // Release VINs of any old cancelled vehicles to avoid unique constraint failures on new creations
+    try {
+      const oldCancelled = await prisma.vehicle.findMany({
+        where: {
+          status: "CANCELLED",
+          NOT: {
+            vin: {
+              startsWith: "CANCELLED-",
+            },
+          },
+        },
+      });
+      for (const v of oldCancelled) {
+        await prisma.vehicle.update({
+          where: { id: v.id },
+          data: { vin: `CANCELLED-${v.id}-${v.vin}` },
+        });
+      }
+    } catch (e) {
+      console.error("Error auto-releasing cancelled VINs:", e);
+    }
+
+    const {
       vin, sku, engineNumber, importPrice, importDate, stockCount, warehouse,
       model, variant, color, year, status, listPrice, floorPrice, image,
       bankStatus, plateStatus, plateCost, accessoriesJson, notes,
@@ -198,7 +220,7 @@ export async function POST(req: NextRequest) {
         } as any,
         include: { customer: true }
       });
-      
+
       if (customerId && ["RESERVED", "SOLD"].includes(v.status)) {
         await tx.customer.update({
           where: { id: customerId },
@@ -233,7 +255,7 @@ export async function POST(req: NextRequest) {
 
       return v;
     });
-    
+
     return NextResponse.json(vehicle, { status: 201 });
   } catch (error: any) {
     console.error("POST /api/sales error details:", error);
