@@ -1,0 +1,28 @@
+name: Supabase Database Backup
+
+on:
+  schedule:
+    # Tự động chạy lúc 00:00 hàng ngày (giờ UTC, tức là 07:00 giờ Việt Nam)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Cho phép nhấn nút chạy thủ công trên GitHub UI
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run pg_dump
+        run: |
+          # Chạy lệnh backup
+          pg_dump "${{ secrets.SUPABASE_DB_URL }}" -F p -f backup.sql
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-database-backup
+          path: backup.sql
+          retention-days: 30 # Lưu trữ file backup 30 ngày trên GitHub Actions Artifacts
