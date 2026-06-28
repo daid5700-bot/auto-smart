@@ -6,7 +6,7 @@ import {
   Loader2, FileText, Plus, Edit, Trash2, Search, User, 
   Sparkles, Wrench, Check, Car, DollarSign, X, Eye
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 
 interface Accessory {
   id: number;
@@ -596,10 +596,7 @@ export default function DocumentsPage() {
                   pattern="[0-9.]*"
                   required
                   value={paymentAmount === "" ? "" : Number(paymentAmount).toLocaleString("vi-VN")}
-                  onChange={(e) => {
-                    const cleanVal = e.target.value.replace(/\D/g, "");
-                    setPaymentAmount(cleanVal);
-                  }}
+                  onChange={(e) => handleNumericInputChange(e, setPaymentAmount)}
                   className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

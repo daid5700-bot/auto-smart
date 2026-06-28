@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatCurrency, formatDate, statusText, statusBadge } from "@/lib/utils";
+import { formatCurrency, formatDate, statusText, statusBadge, handleNumericInputChange } from "@/lib/utils";
 import { Wrench, Plus, CheckCircle2, AlertTriangle, Eye, Edit, Trash2, X, Loader2, Printer, ClipboardList } from "lucide-react";
 import { createPartsRequisition } from "@/app/actions";
 import { useAuth } from "@/lib/store";
@@ -300,6 +300,17 @@ export default function WorkshopPage() {
     await handleUpdateStatus(parseInt(roId), targetStatus);
   };
 
+  const getFilteredProducts = (query: string) => {
+    const q = query.toLowerCase().trim();
+    if (!q) return branchProducts.slice(0, 10);
+    return branchProducts.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.category && p.category.toLowerCase().includes(q))
+    );
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   const repairOrders = data?.repairOrders || [];
@@ -524,10 +535,7 @@ export default function WorkshopPage() {
                     pattern="[0-9.]*"
                     required
                     value={formData.kmIn === "" ? "" : Number(formData.kmIn).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, kmIn: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    onChange={(e) => handleNumericInputChange(e, (c) => setFormData({ ...formData, kmIn: c === "" ? "" : parseInt(c, 10) }))}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
@@ -566,10 +574,7 @@ export default function WorkshopPage() {
                     pattern="[0-9.]*"
                     required
                     value={formData.laborCost === "" ? "" : Number(formData.laborCost).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, laborCost: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    onChange={(e) => handleNumericInputChange(e, (c) => setFormData({ ...formData, laborCost: c === "" ? "" : parseInt(c, 10) }))}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
@@ -581,10 +586,7 @@ export default function WorkshopPage() {
                     pattern="[0-9.]*"
                     required
                     value={formData.partsCost === "" ? "" : Number(formData.partsCost).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
-                      setFormData({ ...formData, partsCost: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    onChange={(e) => handleNumericInputChange(e, (c) => setFormData({ ...formData, partsCost: c === "" ? "" : parseInt(c, 10) }))}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
@@ -804,16 +806,7 @@ export default function WorkshopPage() {
                   {reqFormData.items.map((item, idx) => {
                     const selectedProduct = branchProducts.find((p) => p.id.toString() === item.productId);
                     
-                    const filteredProducts = (query: string) => {
-                      const q = query.toLowerCase().trim();
-                      if (!q) return branchProducts.slice(0, 10);
-                      return branchProducts.filter(
-                        (p) =>
-                          p.name.toLowerCase().includes(q) ||
-                          p.sku.toLowerCase().includes(q) ||
-                          (p.category && p.category.toLowerCase().includes(q))
-                      );
-                    };
+                    // getFilteredProducts is defined at component level to avoid recreation on every render
 
                     return (
                       <div key={idx} className="flex flex-col md:flex-row gap-3 p-3 bg-secondary/15 rounded-xl border border-border/40 relative">
@@ -844,7 +837,7 @@ export default function WorkshopPage() {
                             />
                             {item.showDropdown && (
                               <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
-                                {filteredProducts(item.searchQuery).map((p) => {
+                                {getFilteredProducts(item.searchQuery).map((p) => {
                                   const matchingPrice = p.prices.find((pr: any) => pr.type === item.priceType)?.amount || 0;
                                   return (
                                     <div
@@ -870,7 +863,7 @@ export default function WorkshopPage() {
                                     </div>
                                   );
                                 })}
-                                {filteredProducts(item.searchQuery).length === 0 && (
+                                {getFilteredProducts(item.searchQuery).length === 0 && (
                                   <p className="p-3 text-xs text-muted-foreground text-center">Không tìm thấy phụ tùng phù hợp</p>
                                 )}
                               </div>
@@ -887,10 +880,7 @@ export default function WorkshopPage() {
                             required
                             placeholder="SL"
                             value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
-                            onChange={(e) => {
-                              const cleanVal = e.target.value.replace(/\D/g, "");
-                              updateItem(idx, { quantity: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                            }}
+                            onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, { quantity: c === "" ? "" : parseInt(c, 10) }))}
                             className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none text-center font-bold"
                           />
                         </div>
@@ -916,10 +906,7 @@ export default function WorkshopPage() {
                             pattern="[0-9.]*"
                             placeholder="Đơn giá"
                             value={item.customUnitPrice === undefined || item.customUnitPrice === "" ? "" : Number(item.customUnitPrice).toLocaleString("vi-VN")}
-                            onChange={(e) => {
-                              const cleanVal = e.target.value.replace(/\D/g, "");
-                              updateItem(idx, { customUnitPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                            }}
+                            onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, { customUnitPrice: c === "" ? "" : parseInt(c, 10) }))}
                             className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none text-right font-semibold text-primary"
                           />
                         </div>

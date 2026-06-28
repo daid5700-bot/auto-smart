@@ -419,7 +419,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-600"><Car size={16} /></div>
                               <div>
                                 <p className="text-sm font-bold">{v.model} — <span className="text-xs font-mono text-muted-foreground font-normal">VIN: {v.vin}</span></p>
-                                <p className="text-[10px] text-muted-foreground">Màu: {v.color} | Năm sản xuất: {v.year}</p>
+                                <p className="text-[10px] text-muted-foreground">Màu: {v.color}</p>
                               </div>
                             </div>
                             <span className="text-[11px] text-primary font-bold">{formatCurrency(Number(v.listPrice))}</span>

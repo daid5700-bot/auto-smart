@@ -32,13 +32,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     // Validate all products exist (but don't check stock — stock is checked at approval time)
+    const productIds: number[] = accessories
+      .map((acc: any) => Number(acc.productId || acc.id))
+      .filter((id: number) => !isNaN(id));
+    const uniqueProductIds = Array.from(new Set(productIds)) as number[];
+    const products = await prisma.product.findMany({
+      where: { id: { in: uniqueProductIds } }
+    });
+    const foundProductMap = new Map(products.map(p => [p.id, p]));
+
     for (const acc of accessories) {
       const productId = Number(acc.productId || acc.id);
       if (isNaN(productId)) {
         return NextResponse.json({ error: "ID phụ tùng không hợp lệ trong dữ liệu xe" }, { status: 400 });
       }
-      const product = await prisma.product.findUnique({ where: { id: productId } });
-      if (!product) {
+      if (!foundProductMap.has(productId)) {
         return NextResponse.json({ error: `Phụ tùng ID ${productId} không tồn tại` }, { status: 400 });
       }
     }

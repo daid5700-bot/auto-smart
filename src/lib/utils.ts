@@ -118,3 +118,39 @@ export function exportToCsv(filename: string, headers: string[], rows: string[][
   link.click();
   document.body.removeChild(link);
 }
+
+export const handleNumericInputChange = (
+  e: React.ChangeEvent<HTMLInputElement>,
+  onChange: (cleanedValue: string) => void
+) => {
+  const input = e.target;
+  const originalValue = input.value;
+  const selectionStart = input.selectionStart;
+
+  // Clean value (only keep digits)
+  const cleanValue = originalValue.replace(/\D/g, "");
+  
+  // Format the cleaned value
+  const formattedValue = cleanValue === "" ? "" : Number(cleanValue).toLocaleString("vi-VN");
+
+  // Calculate the new cursor position
+  const cleanCharsBefore = originalValue.slice(0, selectionStart || 0).replace(/\D/g, "").length;
+
+  let newSelectionStart = 0;
+  let digitCount = 0;
+  while (newSelectionStart < formattedValue.length && digitCount < cleanCharsBefore) {
+    if (/\d/.test(formattedValue[newSelectionStart])) {
+      digitCount++;
+    }
+    newSelectionStart++;
+  }
+
+  // Update state with clean value
+  onChange(cleanValue);
+
+  // Restore selection start in the next animation frame
+  requestAnimationFrame(() => {
+    input.setSelectionRange(newSelectionStart, newSelectionStart);
+  });
+};
+

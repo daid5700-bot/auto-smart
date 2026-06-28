@@ -40,14 +40,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         throw new Error("Lệnh này đã được xử lý bởi người khác. Vui lòng tải lại trang.");
       }
 
+      const productIds = accessories
+        .map((acc: any) => Number(acc.productId || acc.id))
+        .filter((id: number) => !isNaN(id));
+
+      const pbs = await tx.productBranch.findMany({
+        where: {
+          productId: { in: productIds },
+          branchId
+        },
+        include: { product: true }
+      });
+      const pbMap = new Map(pbs.map(pb => [pb.productId, pb]));
+
       // Validate stock INSIDE the transaction (atomic check-then-act)
       for (const acc of accessories) {
         const productId = Number(acc.productId || acc.id);
         if (isNaN(productId)) continue;
-        const pb = await tx.productBranch.findUnique({
-          where: { productId_branchId: { productId, branchId } },
-          include: { product: true }
-        });
+        const pb = pbMap.get(productId);
         if (!pb) {
           throw new Error(`Sản phẩm ID ${productId} chưa cấu hình kho chi nhánh`);
         }
@@ -69,9 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (isNaN(productId)) continue;
         const quantity = Number(item.quantity);
 
-        const pb = await tx.productBranch.findUnique({
-          where: { productId_branchId: { productId, branchId } }
-        });
+        const pb = pbMap.get(productId);
         const cogsUnit = Number(pb?.movingAvgCost || 0);
 
         await tx.stockMovement.create({

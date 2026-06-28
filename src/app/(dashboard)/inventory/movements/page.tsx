@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { useAuth } from "@/lib/store";
 import { 
   Loader2, ArrowDownToLine, ArrowUpFromLine, 
@@ -584,10 +584,7 @@ export default function MovementsPage() {
                           required
                           onFocus={() => setFocusedIdx(idx)}
                           value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
-                          onChange={(e) => {
-                            const cleanVal = e.target.value.replace(/\D/g, "");
-                            updateItem(idx, "quantity", cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                          }}
+                          onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, "quantity", c === "" ? "" : parseInt(c, 10)))}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-center"
                         />
                       </div>
@@ -602,10 +599,7 @@ export default function MovementsPage() {
                             required
                             onFocus={() => setFocusedIdx(idx)}
                             value={item.conversionFactor === "" ? "" : Number(item.conversionFactor).toLocaleString("vi-VN")}
-                            onChange={(e) => {
-                              const cleanVal = e.target.value.replace(/\D/g, "");
-                              updateItem(idx, "conversionFactor", cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                            }}
+                            onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, "conversionFactor", c === "" ? "" : parseInt(c, 10)))}
                             className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-center"
                           />
                         </div>
@@ -620,10 +614,7 @@ export default function MovementsPage() {
                           required
                           onFocus={() => setFocusedIdx(idx)}
                           value={item.unitCost === "" ? "" : Number(item.unitCost).toLocaleString("vi-VN")}
-                          onChange={(e) => {
-                            const cleanVal = e.target.value.replace(/\D/g, "");
-                            updateItem(idx, "unitCost", cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                          }}
+                          onChange={(e) => handleNumericInputChange(e, (c) => updateItem(idx, "unitCost", c === "" ? "" : parseInt(c, 10)))}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-primary font-semibold"
                         />
                       </div>
@@ -871,10 +862,7 @@ export default function MovementsPage() {
                   pattern="[0-9.]*"
                   required
                   value={paymentInput === "" ? "" : Number(paymentInput).toLocaleString("vi-VN")}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "");
-                    setPaymentInput(val);
-                  }}
+                  onChange={(e) => handleNumericInputChange(e, setPaymentInput)}
                   className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

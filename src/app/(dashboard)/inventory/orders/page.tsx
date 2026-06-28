@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Plus, Search, DollarSign, FileText, X } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 
 export default function InventoryOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -205,10 +205,7 @@ export default function InventoryOrdersPage() {
                   pattern="[0-9.]*"
                   required
                   value={paymentAmount === "" ? "" : Number(paymentAmount).toLocaleString("vi-VN")}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "");
-                    setPaymentAmount(val === "" ? "" : Number(val).toString());
-                  }}
+                  onChange={(e) => handleNumericInputChange(e, setPaymentAmount)}
                   className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

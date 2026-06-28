@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown, X, User } from "lucide-react";
 import Link from "next/link";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { useAuth } from "@/lib/store";
 
 interface RequisitionItemInput {
@@ -392,10 +392,7 @@ export default function NewRepairOrderPage() {
                   pattern="[0-9.]*"
                   required
                   value={kmIn === "" ? "" : Number(kmIn).toLocaleString("vi-VN")}
-                  onChange={(e) => {
-                    const cleanVal = e.target.value.replace(/\D/g, "");
-                    setKmIn(cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                  }}
+                  onChange={(e) => handleNumericInputChange(e, (c) => setKmIn(c === "" ? "" : parseInt(c, 10)))}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   placeholder="VD: 45.000"
                 />
@@ -429,10 +426,7 @@ export default function NewRepairOrderPage() {
                   pattern="[0-9.]*"
                   required
                   value={laborCost === "" ? "" : Number(laborCost).toLocaleString("vi-VN")}
-                  onChange={(e) => {
-                    const cleanVal = e.target.value.replace(/\D/g, "");
-                    setLaborCost(cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                  }}
+                  onChange={(e) => handleNumericInputChange(e, (c) => setLaborCost(c === "" ? "" : parseInt(c, 10)))}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   placeholder="VD: 150.000"
                 />
@@ -579,10 +573,7 @@ export default function NewRepairOrderPage() {
                               inputMode="numeric"
                               pattern="[0-9.]*"
                               value={item.quantity === "" ? "" : Number(item.quantity).toLocaleString("vi-VN")}
-                              onChange={(e) => {
-                                const cleanVal = e.target.value.replace(/\D/g, "");
-                                handleItemQuantityChange(index, cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                              }}
+                              onChange={(e) => handleNumericInputChange(e, (c) => handleItemQuantityChange(index, c === "" ? "" : parseInt(c, 10)))}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-center outline-none"
                             />
                           </td>
@@ -592,10 +583,7 @@ export default function NewRepairOrderPage() {
                               inputMode="numeric"
                               pattern="[0-9.]*"
                               value={item.unitPrice === "" ? "" : Number(item.unitPrice).toLocaleString("vi-VN")}
-                              onChange={(e) => {
-                                const cleanVal = e.target.value.replace(/\D/g, "");
-                                handleItemPriceChange(index, cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                              }}
+                              onChange={(e) => handleNumericInputChange(e, (c) => handleItemPriceChange(index, c === "" ? "" : parseInt(c, 10)))}
                               className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-primary outline-none"
                             />
                           </td>

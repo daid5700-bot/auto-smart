@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Users, Search, Phone, User, DollarSign, Receipt, Eye, X, Edit3, Car } from "lucide-react";
+import { handleNumericInputChange } from "@/lib/utils";
 
 export default function SalesCustomerDebtsPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -365,10 +366,7 @@ export default function SalesCustomerDebtsPage() {
                       pattern="[0-9.]*"
                       required
                       value={paymentInput === "" ? "" : Number(paymentInput).toLocaleString("vi-VN")}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "");
-                        setPaymentInput(val);
-                      }}
+                      onChange={(e) => handleNumericInputChange(e, setPaymentInput)}
                       className="w-full pl-4 pr-12 py-2.5 bg-background border border-border rounded-xl text-base font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                     />
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">VNĐ</div>

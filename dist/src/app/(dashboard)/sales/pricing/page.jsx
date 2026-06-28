@@ -131,7 +131,6 @@ function VehiclePricingPage() {
               <th>Dòng xe</th>
               <th>Phiên bản</th>
               <th>Màu sắc</th>
-              <th>Năm sản xuất</th>
               <th>Trạng thái</th>
               <th>Giá niêm yết (VND)</th>
               <th>Giá sàn tối thiểu (VND)</th>
@@ -146,7 +145,6 @@ function VehiclePricingPage() {
                   <td className="font-semibold">{v.model}</td>
                   <td>{v.variant || "—"}</td>
                   <td>{v.color || "—"}</td>
-                  <td>{v.year}</td>
                   <td><span className={"badge ".concat((0, utils_1.statusBadge)(v.status))}>{(0, utils_1.statusText)(v.status)}</span></td>
                   <td>
                     {isEditing ? (<input type="number" value={listPrice} onChange={function (e) { return setListPrice(parseInt(e.target.value) || 0); }} className="w-32 px-2 py-1 bg-secondary/30 border border-border rounded text-sm focus:ring-1 focus:ring-primary outline-none"/>) : (<span className="font-bold text-primary">{(0, utils_1.formatCurrency)(Number(v.listPrice))}</span>)}

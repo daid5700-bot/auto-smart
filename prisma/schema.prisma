@@ -38,6 +38,7 @@ model UserBranch {
   branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@id([userId, branchId])
+  @@index([branchId])
 }
 
 model Branch {
@@ -222,6 +223,9 @@ model OrderItem {
   quantity      Float
   unitPrice     Decimal
   totalPrice    Decimal
+
+  @@index([repairOrderId])
+  @@index([productId])
 }
 
 model TechPerformance {
@@ -231,6 +235,9 @@ model TechPerformance {
   repairOrderId   Int
   commissionAmount Decimal
   date            DateTime   @default(now())
+
+  @@index([technicianId])
+  @@index([repairOrderId])
 }
 
 // ========== VEHICLE SALES ==========

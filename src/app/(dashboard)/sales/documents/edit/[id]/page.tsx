@@ -6,7 +6,7 @@ import {
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
   Sparkles, Receipt, Car, Trash2, ChevronDown
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
 
 interface Accessory {
   id: number;
@@ -274,7 +274,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
               </h3>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] text-muted-foreground">
                 <span><strong>Số khung (VIN):</strong> {vin}</span>
-                <span><strong>Năm sản xuất:</strong> {year}</span>
               </div>
             </div>
           </div>
@@ -328,10 +327,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                 required
                 placeholder="Nhập giá bán..."
                 value={listPrice === "" ? "" : Number(listPrice).toLocaleString("vi-VN")}
-                onChange={(e) => {
-                  const cleanVal = e.target.value.replace(/\D/g, "");
-                  setListPrice(cleanVal);
-                }}
+                onChange={(e) => handleNumericInputChange(e, setListPrice)}
                 className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-primary"
               />
             </div>
@@ -529,10 +525,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                 pattern="[0-9.]*"
                 placeholder="Tự điền chi phí biển..."
                 value={plateCost === "" ? "" : Number(plateCost).toLocaleString("vi-VN")}
-                onChange={(e) => {
-                  const cleanVal = e.target.value.replace(/\D/g, "");
-                  setPlateCost(cleanVal);
-                }}
+                onChange={(e) => handleNumericInputChange(e, setPlateCost)}
                 className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-emerald-600 dark:text-emerald-400"
               />
             </div>
@@ -608,10 +601,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                           inputMode="numeric"
                           pattern="[0-9.]*"
                           value={a.quantity === "" ? "" : Number(a.quantity).toLocaleString("vi-VN")}
-                          onChange={(e) => {
-                            const cleanVal = e.target.value.replace(/\D/g, "");
-                            handleUpdateAccessoryQty(a.id, cleanVal === "" ? "" : parseInt(cleanVal, 10));
-                          }}
+                          onChange={(e) => handleNumericInputChange(e, (c) => handleUpdateAccessoryQty(a.id, c === "" ? "" : parseInt(c, 10)))}
                           className="w-12 text-center py-0.5 border border-border rounded bg-secondary/30 text-xs font-bold"
                         />
                         <button

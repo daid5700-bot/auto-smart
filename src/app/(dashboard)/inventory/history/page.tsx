@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { Loader2, DollarSign, X, Edit3, Eye, Search } from "lucide-react";
 
 export default function InventoryHistoryPage() {
@@ -499,10 +499,7 @@ export default function InventoryHistoryPage() {
                   pattern="[0-9.]*"
                   required
                   value={paymentInput === "" ? "" : Number(paymentInput).toLocaleString("vi-VN")}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "");
-                    setPaymentInput(val);
-                  }}
+                  onChange={(e) => handleNumericInputChange(e, setPaymentInput)}
                   className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
               </div>

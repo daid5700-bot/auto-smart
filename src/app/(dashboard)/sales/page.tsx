@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { formatCurrency, statusText, statusBadge } from "@/lib/utils";
+import { formatCurrency, statusText, statusBadge, handleNumericInputChange } from "@/lib/utils";
 import { Car, Plus, Search, Grid3X3, List, Eye, Edit, Trash2, X, Loader2, Upload } from "lucide-react";
 
 const COLOR_DOT: Record<string, string> = { "Đen": "bg-gray-800", "Trắng": "bg-white border border-border", "Bạc": "bg-gray-400", "Đỏ": "bg-red-500", "Xanh": "bg-blue-500" };
@@ -363,10 +363,6 @@ export default function SalesPage() {
                 <span className={`badge ${statusBadge(v.status)} absolute top-2 right-2 text-[9px] px-1.5 py-0.5 shadow-sm backdrop-blur-md`}>
                   {statusText(v.status)}
                 </span>
-                {/* Year Label */}
-                <span className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-md text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-md">
-                  {v.year}
-                </span>
               </div>
 
               {/* Content Section */}
@@ -479,7 +475,7 @@ export default function SalesPage() {
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-primary">{v.model}</span>
                       <span className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                        {v.variant || "—"} · {v.color || "—"} · {v.year}
+                        {v.variant || "—"} · {v.color || "—"}
                       </span>
                     </div>
                   </td>
@@ -621,10 +617,9 @@ export default function SalesPage() {
                     inputMode="numeric"
                     pattern="[0-9.]*"
                     value={formData.importPrice === "" ? "" : Number(formData.importPrice).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
+                    onChange={(e) => handleNumericInputChange(e, (cleanVal) => {
                       setFormData({ ...formData, importPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    })}
                     className="w-full px-3 py-2 bg-amber-500/5 border border-amber-500/30 rounded-xl text-sm font-extrabold text-amber-600 focus:ring-2 focus:ring-amber-500/20 outline-none"
                   />
                 </div>
@@ -635,10 +630,9 @@ export default function SalesPage() {
                     inputMode="numeric"
                     pattern="[0-9.]*"
                     value={formData.listPrice === "" ? "" : Number(formData.listPrice).toLocaleString("vi-VN")}
-                    onChange={(e) => {
-                      const cleanVal = e.target.value.replace(/\D/g, "");
+                    onChange={(e) => handleNumericInputChange(e, (cleanVal) => {
                       setFormData({ ...formData, listPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
-                    }}
+                    })}
                     className="w-full px-3 py-2 bg-emerald-500/5 border border-emerald-500/30 rounded-xl text-sm font-extrabold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                   />
                 </div>
@@ -741,7 +735,7 @@ export default function SalesPage() {
                   </span>
                   <h2 className="text-xl font-extrabold text-foreground">{selectedVehicle.model}</h2>
                   <p className="text-sm text-muted-foreground font-medium">
-                    Phiên bản: {selectedVehicle.variant || "—"} | Đời xe: {selectedVehicle.year}
+                    Phiên bản: {selectedVehicle.variant || "—"}
                   </p>
                   <div className="pt-2 flex flex-wrap gap-2 justify-center sm:justify-start">
                     <span className={`badge ${statusBadge(selectedVehicle.status)} text-xs px-2.5 py-0.5`}>
@@ -772,10 +766,7 @@ export default function SalesPage() {
                       <span className="text-muted-foreground font-medium">Số Động cơ</span>
                       <code className="font-mono font-bold text-foreground">{selectedVehicle.engineNumber || "—"}</code>
                     </div>
-                    <div className="flex justify-between items-center text-sm py-1 border-b border-border/30">
-                      <span className="text-muted-foreground font-medium">Năm sản xuất</span>
-                      <span className="font-bold text-foreground">{selectedVehicle.year}</span>
-                    </div>
+
                     <div className="flex justify-between items-center text-sm py-1 border-b border-border/30">
                       <span className="text-muted-foreground font-medium">Số tồn kho (Mã)</span>
                       <span className="font-bold font-mono text-foreground">{selectedVehicle.stockCount || "—"}</span>
