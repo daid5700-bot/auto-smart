@@ -122,16 +122,22 @@ export async function GET(req: NextRequest) {
     const monthlyRevenue = await Promise.all(monthlyRevenuePromises);
 
     // --- Top selling products (from OrderItems in current period) ---
+    const matchingRepairOrders = await prisma.repairOrder.findMany({
+      where: {
+        ...baseWhere,
+        createdAt: { gte: startRange, lte: endRange },
+      },
+      select: { id: true },
+    });
+    const repairOrderIds = matchingRepairOrders.map((ro) => ro.id);
+
     const orderItemGroups = await prisma.orderItem.groupBy({
       by: ["productId"],
       _sum: { quantity: true, totalPrice: true },
       orderBy: { _sum: { totalPrice: "desc" } },
       take: 5,
       where: {
-        ...(branchId ? { repairOrder: { branchId } } : {}),
-        repairOrder: {
-          createdAt: { gte: startRange, lte: endRange }
-        }
+        repairOrderId: { in: repairOrderIds },
       },
     });
 
