@@ -6,6 +6,7 @@ import Link from "next/link";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useAuth } from "@/lib/store";
+import { Portal } from "@/components/Portal";
 
 interface RequisitionItemInput {
   productId: string;
@@ -745,28 +746,30 @@ export default function NewRepairOrderPage() {
       </form>
 
       {alertConfig && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-card border border-border/85 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
-                <AlertCircle size={20} />
+        <Portal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-card border border-border/85 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl space-y-4 animate-scale-up">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">{alertConfig.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{alertConfig.message}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">{alertConfig.title}</h3>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{alertConfig.message}</p>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAlertConfig(null)}
+                  className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-colors"
+                >
+                  Đóng
+                </button>
               </div>
-            </div>
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setAlertConfig(null)}
-                className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-colors"
-              >
-                Đóng
-              </button>
             </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

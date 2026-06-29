@@ -250,7 +250,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* MAIN */}
       <main className={cn("flex-1 flex flex-col overflow-hidden transition-all duration-300", collapsed ? "lg:ml-[72px]" : "lg:ml-64")}>
         {/* Header */}
-        <header className="relative z-30 h-16 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-4 lg:px-6 shrink-0">
+        <header className="relative h-16 border-b border-border bg-card flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => setMobileOpen(true)} className="lg:hidden text-muted-foreground hover:text-foreground"><Menu size={20} /></button>
             <h1 className="text-lg font-semibold">{currentItem?.title || "Dashboard"}</h1>
@@ -318,7 +318,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 bg-dot-pattern">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 lg:p-6 bg-dot-pattern relative">{children}</div>
       </main>
 
       {/* Global Search Command Palette Modal */}
