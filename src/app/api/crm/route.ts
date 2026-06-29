@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
       orderBy: { lastVisit: "desc" },
       include: {
         vehicles: true,
+        branch: true,
         repairOrders: {
           where: { status: { in: ["DONE", "DELIVERED"] } },
           include: {
@@ -102,6 +103,8 @@ export async function GET(req: NextRequest) {
         phone: c.phone,
         loyaltyPoints: c.loyaltyPoints,
         totalSpent: Number(c.totalSpent),
+        birthday: c.birthday ? c.birthday.toISOString() : null,
+        branch: c.branch ? { id: c.branch.id, name: c.branch.name } : null,
         lastRepairOrder: lastRo ? {
           id: lastRo.id,
           plateNumber: lastRo.plateNumber,

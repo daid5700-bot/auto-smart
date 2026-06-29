@@ -16,15 +16,31 @@ export function formatPhoneForZalo(phone: string): string {
 
 // Get credential from Database first, fallback to process.env and auto-cache to DB
 export async function getZaloCredential(key: string): Promise<string> {
+  const envValue = process.env[key] || "";
+
   try {
     const config = await prisma.systemConfig.findUnique({ where: { key } });
+    
+    // Auto-sync: If environment variable has changed from cached DB value, update DB
+    if (envValue && config?.value !== envValue) {
+      try {
+        await prisma.systemConfig.upsert({
+          where: { key },
+          update: { value: envValue },
+          create: { key, value: envValue },
+        });
+        console.log(`[ZALO] Synced Zalo config "${key}" from process.env to DB: ${envValue}`);
+      } catch (saveErr) {
+        console.warn(`[ZALO] Could not sync "${key}" to DB:`, saveErr);
+      }
+      return envValue;
+    }
+
     if (config?.value) return config.value;
   } catch (dbErr) {
     console.warn(`⚠️ Warning: Could not read ${key} from DB, falling back to process.env`);
   }
 
-  const envValue = process.env[key] || "";
-  
   if (envValue) {
     try {
       await prisma.systemConfig.upsert({
@@ -168,7 +184,7 @@ export async function sendZaloZns(
   if (templateId === "CRM_THANK_YOU_001") {
     const dbVal = await getZaloCredential("ZALO_TEMPLATE_THANK_YOU");
     if (dbVal) realTemplateId = dbVal;
-  } else if (templateId === "CRM_OIL_REMIND_002") {
+  } else if (templateId === "CRM_OIL_REMIND_002" || templateId === "CRM_SERVICE_REMIND_002") {
     const dbVal = await getZaloCredential("ZALO_TEMPLATE_OIL_REMIND");
     if (dbVal) realTemplateId = dbVal;
   } else if (templateId === "CRM_BIRTHDAY_003") {

@@ -27,16 +27,16 @@ const DEFAULT_TEMPLATES = [
     category: "THANK_YOU"
   },
   {
-    id: "CRM_SERVICE_REMIND_002",
-    name: "Nhắc hẹn chăm sóc",
-    content: "Anh/chị {{customerName}} ơi, xe {{vehiclePlate}} sắp đến hạn làm {{nextService}}. Hẹn gặp anh/chị tại garage!",
+    id: "CRM_OIL_REMIND_002",
+    name: "Nhắc thay dầu & bảo dưỡng",
+    content: "Đã đến hạn bảo dưỡng xe! Chào anh/chị {{customerName}}. Đã 3 tháng kể từ lần chăm sóc xe gần nhất (ngày {{orderDate}}), chiếc {{vehicleName}} biển số {{vehiclePlate}} của anh/chị đã đến định kỳ thay dầu máy và bảo dưỡng các hạng mục tiêu hao. Để xe luôn vận hành êm ái và tiết kiệm xăng, mời anh/chị mang xe qua xưởng dịch vụ {{storeName}} để đội ngũ Kỹ thuật viên kiểm tra tổng thể miễn phí 100%.",
     status: "ACTIVE",
     category: "MAINTENANCE"
   },
   {
     id: "CRM_BIRTHDAY_003",
     name: "Chúc mừng sinh nhật",
-    content: "Chúc mừng sinh nhật {{customerName}}! Garage tặng bạn voucher giảm 200k cho lần sửa chữa tiếp theo. HSD: 30 ngày.",
+    content: "Chúc Mừng Sinh Nhật Quý Khách {{customerName}}. Nhân dịp sinh nhật, Yamaha Town Toàn Thắng kính chúc quý khách {{customerName}} (SĐT: {{customerPhone}}) một tuổi mới thật nhiều sức khỏe, hạnh phúc và vạn sự hanh thông! QUÀ TẶNG ĐẶC QUYỀN TRONG TUẦN SINH NHẬT: Nhận ngay quà tặng đặc quyền tại xưởng dịch vụ. Hạn đến ngày {{expiryDate}}",
     status: "ACTIVE",
     category: "BIRTHDAY"
   }
@@ -97,12 +97,13 @@ export default function RemindersPage() {
   useEffect(() => {
     fetchData();
     // Load ZNS templates
-    const saved = localStorage.getItem("zns_templates");
+    const saved = localStorage.getItem("zns_templates_v2");
     if (saved) {
       setTemplates(JSON.parse(saved));
     } else {
-      localStorage.setItem("zns_templates", JSON.stringify(DEFAULT_TEMPLATES));
+      localStorage.setItem("zns_templates_v2", JSON.stringify(DEFAULT_TEMPLATES));
       setTemplates(DEFAULT_TEMPLATES);
+      localStorage.removeItem("zns_templates"); // Clean up old version
     }
   }, []);
 

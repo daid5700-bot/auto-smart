@@ -1032,24 +1032,62 @@ export async function sendCustomZnsAction(data: {
       : Number(customer.totalSpent).toLocaleString("vi-VN") + "đ";
 
     const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
-    const nextServiceDate = new Date();
-    nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
-    const nextServiceText = `${data.messageType === "GENERAL_INSPECT" ? "Kiểm tra" : "Thay dầu"} (${formatDateForZalo(nextServiceDate)})`;
 
-    // Zalo note field has a strict 30-character limit. Shorten and enforce truncation.
-    const actionLabel = data.messageType === "GENERAL_INSPECT" ? "Bảo dưỡng" : "Thay dầu";
-    const rawNote = `${actionLabel} xe ${plate}`;
-    const truncatedNote = rawNote.length > 29 ? rawNote.substring(0, 29) : rawNote;
-    const custName = customer.name;
-    const truncatedCustName = custName.length > 49 ? custName.substring(0, 49) : custName;
+    let templateData: Record<string, any> = {};
 
-    const templateData = {
-      customer_name: truncatedCustName,
-      order_date: formatDateForZalo(new Date()),
-      note: truncatedNote,
-      point: "0",
-      total_point: String(customer.loyaltyPoints || 0),
-    };
+    const cleanCustName = customer.name.trim();
+    const customerName30 = cleanCustName.length > 29 ? cleanCustName.substring(0, 29) : cleanCustName;
+    const customerName50 = cleanCustName.length > 49 ? cleanCustName.substring(0, 49) : cleanCustName;
+
+    if (data.templateId === "CRM_BIRTHDAY_003") {
+      let expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 7); // Default 1 week from today
+      if (customer.birthday) {
+        const bday = new Date(customer.birthday);
+        const today = new Date();
+        const bdayThisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+        bdayThisYear.setDate(bdayThisYear.getDate() + 7);
+        expiryDate = bdayThisYear;
+      }
+      templateData = {
+        customer_name: customerName30,
+        expiry_date: formatDateForZalo(expiryDate),
+        phone_number: customer.phone,
+      };
+    } else if (data.templateId === "CRM_OIL_REMIND_002" || data.templateId === "CRM_SERVICE_REMIND_002") {
+      const orderDate = lastRo?.createdAt || new Date();
+      const vehicleModel = lastRo?.vehicleModel || "xe máy";
+      const vehicleName200 = vehicleModel.length > 199 ? vehicleModel.substring(0, 199) : vehicleModel;
+      const licensePlate30 = plate.length > 29 ? plate.substring(0, 29) : plate;
+
+      const branchId = lastRo?.branchId || customer.branchId;
+      const branch = branchId ? await prisma.branch.findUnique({ where: { id: branchId } }) : null;
+      const storeName = branch?.name || "Yamaha Town Toàn Thắng";
+      const storeName200 = storeName.length > 199 ? storeName.substring(0, 199) : storeName;
+
+      templateData = {
+        customer_name: customerName30,
+        order_date: formatDateForZalo(orderDate),
+        vehicle_name: vehicleName200,
+        license_plate: licensePlate30,
+        store_name: storeName200,
+      };
+    } else {
+      const nextServiceDate = new Date();
+      nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
+
+      const actionLabel = data.messageType === "GENERAL_INSPECT" ? "Bảo dưỡng" : "Thay dầu";
+      const rawNote = `${actionLabel} xe ${plate}`;
+      const truncatedNote = rawNote.length > 29 ? rawNote.substring(0, 29) : rawNote;
+
+      templateData = {
+        customer_name: customerName50,
+        order_date: formatDateForZalo(new Date()),
+        note: truncatedNote,
+        point: "0",
+        total_point: String(customer.loyaltyPoints || 0),
+      };
+    }
 
     const result = await sendZaloZns(data.phone, data.templateId, templateData);
 
