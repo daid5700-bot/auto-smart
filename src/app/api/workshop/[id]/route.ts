@@ -38,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!currentRo) return NextResponse.json({ error: "Lệnh sửa chữa không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
+    const discountPercent = body.discountPercent !== undefined ? Number(body.discountPercent) : Number(currentRo.discountPercent || 0);
     const redeemTx = await prisma.loyaltyTransaction.findFirst({
       where: {
         relatedRoId: id,
@@ -45,9 +46,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         points: { lt: 0 },
       },
     });
-    const discount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
+    const pointsDiscount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
     const rawTotalAmount = (body.laborCost ?? Number(currentRo.laborCost)) + (body.partsCost ?? Number(currentRo.partsCost));
-    const newTotalAmount = Math.max(0, rawTotalAmount - discount);
+    const percentDiscountAmount = Math.round(rawTotalAmount * (discountPercent / 100));
+    const newTotalAmount = Math.max(0, rawTotalAmount - pointsDiscount - percentDiscountAmount);
     const paidAmount = Number(currentRo.paidAmount || 0);
     const newDebtAmount = newTotalAmount - paidAmount;
     const debtDelta = newDebtAmount - Number(currentRo.debtAmount || 0);
@@ -61,6 +63,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       technicianId: body.technicianId,
       laborCost: body.laborCost,
       partsCost: body.partsCost,
+      discountPercent: discountPercent,
+      discountAmount: percentDiscountAmount,
       totalAmount: newTotalAmount,
       debtAmount: newDebtAmount,
       photos: body.photos,

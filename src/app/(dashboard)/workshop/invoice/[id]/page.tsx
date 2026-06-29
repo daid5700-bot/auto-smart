@@ -156,16 +156,29 @@ export default function InvoicePage() {
             const labor = Number(ro.laborCost) || 0;
             const parts = Number(ro.partsCost) || 0;
             const total = Number(ro.totalAmount) || 0;
-            const discount = Math.round(labor + parts - total);
-            if (discount >= 1000) {
-              return (
-                <div className="flex justify-between text-sm text-success font-medium">
-                  <span>Giảm giá đổi điểm</span>
-                  <span>-{formatCurrency(discount)}</span>
-                </div>
-              );
-            }
-            return null;
+            
+            const pct = Number(ro.discountPercent || 0);
+            const pctAmount = Number(ro.discountAmount || 0);
+            
+            const totalDiscount = Math.round(labor + parts - total);
+            const loyaltyDiscount = Math.max(0, totalDiscount - pctAmount);
+
+            return (
+              <>
+                {pct > 0 && (
+                  <div className="flex justify-between text-sm text-destructive font-medium">
+                    <span>Chiết khấu hóa đơn ({pct}%)</span>
+                    <span>-{formatCurrency(pctAmount)}</span>
+                  </div>
+                )}
+                {loyaltyDiscount >= 1000 && (
+                  <div className="flex justify-between text-sm text-success font-medium">
+                    <span>Giảm giá đổi điểm</span>
+                    <span>-{formatCurrency(loyaltyDiscount)}</span>
+                  </div>
+                )}
+              </>
+            );
           })()}
           <div className="flex justify-between text-lg font-bold border-t border-border pt-2 mt-2">
             <span>TỔNG CỘNG</span>

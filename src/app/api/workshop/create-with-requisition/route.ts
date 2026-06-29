@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       laborCost,
       items, // array of { productId, quantity, unitPrice }
       pointsToRedeem,
+      discountPercent,
     } = body;
 
     if (!phone) {
@@ -38,7 +39,19 @@ export async function POST(req: NextRequest) {
 
     // Create the Repair Order and Requisition inside a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Find or create/update customer
+      // 1. Calculate parts total cost
+      let calculatedPartsCost = 0;
+      for (const item of items) {
+        calculatedPartsCost += Number(item.unitPrice) * Number(item.quantity);
+      }
+
+      const rawTotal = (Number(laborCost) || 0) + calculatedPartsCost;
+      const percentDiscountAmount = Math.round(rawTotal * ((Number(discountPercent) || 0) / 100));
+      const pointsDiscount = pointsToRedeem ? Math.min(Math.max(0, rawTotal - percentDiscountAmount), pointsToRedeem * 1000) : 0;
+      const actualPointsToRedeem = Math.ceil(pointsDiscount / 1000);
+      const finalTotalAmount = Math.max(0, rawTotal - percentDiscountAmount - pointsDiscount);
+
+      // 2. Find or create/update customer
       let customer = await tx.customer.findUnique({
         where: { phone },
       });
@@ -52,11 +65,11 @@ export async function POST(req: NextRequest) {
 
         // Deduct loyalty points if requested
         let updatedPoints = customer.loyaltyPoints;
-        if (pointsToRedeem && pointsToRedeem > 0) {
-          if (customer.loyaltyPoints < pointsToRedeem) {
-            throw new Error(`Khách hàng chỉ có ${customer.loyaltyPoints} điểm, không đủ để quy đổi ${pointsToRedeem} điểm.`);
+        if (actualPointsToRedeem > 0) {
+          if (customer.loyaltyPoints < actualPointsToRedeem) {
+            throw new Error(`Khách hàng chỉ có ${customer.loyaltyPoints} điểm, không đủ để quy đổi ${actualPointsToRedeem} điểm.`);
           }
-          updatedPoints = customer.loyaltyPoints - pointsToRedeem;
+          updatedPoints = customer.loyaltyPoints - actualPointsToRedeem;
         }
 
         customer = await tx.customer.update({
@@ -69,7 +82,7 @@ export async function POST(req: NextRequest) {
         });
         finalCustomerId = customer.id;
       } else {
-        if (pointsToRedeem && pointsToRedeem > 0) {
+        if (actualPointsToRedeem > 0) {
           throw new Error("Khách hàng mới chưa có điểm tích lũy để quy đổi.");
         }
         const newCustomer = await tx.customer.create({
@@ -82,16 +95,6 @@ export async function POST(req: NextRequest) {
         });
         finalCustomerId = newCustomer.id;
       }
-
-      // 2. Calculate parts total cost
-      let calculatedPartsCost = 0;
-      for (const item of items) {
-        calculatedPartsCost += Number(item.unitPrice) * Number(item.quantity);
-      }
-
-      const rawTotal = (Number(laborCost) || 0) + calculatedPartsCost;
-      const discount = pointsToRedeem ? Math.min(rawTotal, pointsToRedeem * 1000) : 0;
-      const finalTotalAmount = Math.max(0, rawTotal - discount);
 
       // Determine initial RO status: if there are parts, set to "WAITING_PARTS", otherwise "PENDING"
       const status = items.length > 0 ? "WAITING_PARTS" : "PENDING";
@@ -109,19 +112,21 @@ export async function POST(req: NextRequest) {
           createdById: createdById ? Number(createdById) : null,
           laborCost: Number(laborCost) || 0,
           partsCost: calculatedPartsCost,
+          discountPercent: Number(discountPercent) || 0,
+          discountAmount: percentDiscountAmount,
           totalAmount: finalTotalAmount,
           branchId,
         },
       });
 
-      // If points were redeemed, log the LoyaltyTransaction \u0026 ZNS
-      if (pointsToRedeem && pointsToRedeem > 0) {
+      // If points were redeemed, log the LoyaltyTransaction & ZNS
+      if (actualPointsToRedeem > 0) {
         await tx.loyaltyTransaction.create({
           data: {
             customerId: finalCustomerId,
             type: "REDEEM",
-            points: -pointsToRedeem,
-            description: `Khấu trừ ${pointsToRedeem} điểm giảm giá ${discount.toLocaleString("vi-VN")}đ trực tiếp khi tạo Lệnh sửa chữa #${ro.id}`,
+            points: -actualPointsToRedeem,
+            description: `Khấu trừ ${actualPointsToRedeem} điểm giảm giá ${pointsDiscount.toLocaleString("vi-VN")}đ trực tiếp khi tạo Lệnh sửa chữa #${ro.id}`,
             branchId,
             relatedRoId: ro.id,
           },
@@ -132,7 +137,7 @@ export async function POST(req: NextRequest) {
             customerId: finalCustomerId,
             phone,
             messageType: "PROMO",
-            content: `Khách hàng ${customerName} đã sử dụng ${pointsToRedeem} điểm để được giảm trực tiếp ${discount.toLocaleString("vi-VN")}đ khi tạo Lệnh sửa chữa #${ro.id}!`,
+            content: `Khách hàng ${customerName} đã sử dụng ${actualPointsToRedeem} điểm để được giảm trực tiếp ${pointsDiscount.toLocaleString("vi-VN")}đ khi tạo Lệnh sửa chữa #${ro.id}!`,
             status: "SENT",
             branchId,
           },

@@ -43,6 +43,7 @@ export default function NewRepairOrderPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState<number>(0);
   const [pointsToRedeem, setPointsToRedeem] = useState<number | "">("");
+  const [discountPercent, setDiscountPercent] = useState<number | "">("");
 
   // Requisition items state
   const [items, setItems] = useState<RequisitionItemInput[]>([]);
@@ -168,9 +169,18 @@ export default function NewRepairOrderPage() {
   // Calculations
   const partsCostTotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
   const subtotal = (Number(laborCost) || 0) + partsCostTotal;
-  const discountAmount = pointsToRedeem ? Number(pointsToRedeem) * 1000 : 0;
-  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const percentDiscountAmount = Math.round(subtotal * ((Number(discountPercent) || 0) / 100));
+  const maxPointsAllowed = Math.floor((subtotal - percentDiscountAmount) / 1000);
+  const pointsDiscountAmount = pointsToRedeem ? Math.min(Math.max(0, subtotal - percentDiscountAmount), Number(pointsToRedeem) * 1000) : 0;
+  const finalTotal = Math.max(0, subtotal - percentDiscountAmount - pointsDiscountAmount);
   const vatEstimate = finalTotal * 0.1;
+
+  useEffect(() => {
+    const maxPoints = Math.floor((subtotal - percentDiscountAmount) / 1000);
+    if (pointsToRedeem !== "" && Number(pointsToRedeem) > maxPoints) {
+      setPointsToRedeem(maxPoints > 0 ? maxPoints : "");
+    }
+  }, [subtotal, percentDiscountAmount, pointsToRedeem]);
 
   const totalPartsQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
@@ -210,6 +220,7 @@ export default function NewRepairOrderPage() {
           unitPrice: i.unitPrice,
         })),
         pointsToRedeem: pointsToRedeem ? Number(pointsToRedeem) : 0,
+        discountPercent: discountPercent ? Number(discountPercent) : 0,
       };
 
       const res = await fetch("/api/workshop/create-with-requisition", {
@@ -426,6 +437,28 @@ export default function NewRepairOrderPage() {
                   placeholder="VD: 150.000"
                 />
               </div>
+
+              {/* GIẢM GIÁ % HÓA ĐƠN */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giảm giá tổng hóa đơn (%)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={discountPercent}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, "");
+                    if (cleanVal === "") {
+                      setDiscountPercent("");
+                    } else {
+                      const numVal = Math.min(100, parseInt(cleanVal, 10));
+                      setDiscountPercent(numVal);
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-destructive focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="VD: 10 (%)"
+                />
+              </div>
             </div>
 
             {/* YÊU CẦU KHÁCH / TRIỆU CHỨNG */}
@@ -617,6 +650,13 @@ export default function NewRepairOrderPage() {
                   <span className="text-sm font-semibold">{formatCurrency(partsCostTotal)}</span>
                 </div>
 
+                {Number(discountPercent) > 0 && (
+                  <div className="flex items-center justify-between text-xs text-destructive bg-destructive/5 border border-destructive/15 p-2 rounded-lg">
+                    <span className="font-semibold">Giảm giá hóa đơn ({discountPercent}%):</span>
+                    <span className="font-bold">-{formatCurrency(percentDiscountAmount)}</span>
+                  </div>
+                )}
+
                 {selectedCustomerId && customerLoyaltyPoints > 0 && (
                   <div className="pt-3 border-t border-dashed border-border/40 space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
@@ -636,12 +676,13 @@ export default function NewRepairOrderPage() {
                             if (cleanVal === "") {
                               setPointsToRedeem("");
                             } else {
-                              const numVal = Math.min(customerLoyaltyPoints, parseInt(cleanVal, 10));
-                              setPointsToRedeem(numVal);
+                              const maxPoints = Math.max(0, Math.floor((subtotal - percentDiscountAmount) / 1000));
+                              const numVal = Math.min(customerLoyaltyPoints, maxPoints, parseInt(cleanVal, 10));
+                              setPointsToRedeem(numVal > 0 ? numVal : "");
                             }
                           }}
                           className="w-full px-2.5 py-1.5 bg-secondary/30 border border-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-primary font-bold text-primary"
-                          placeholder={`Tối đa: ${customerLoyaltyPoints}`}
+                          placeholder={`Tối đa: ${Math.min(customerLoyaltyPoints, Math.max(0, Math.floor((subtotal - percentDiscountAmount) / 1000)))}`}
                         />
                         <span className="absolute right-2 text-[10px] font-bold text-muted-foreground">Điểm</span>
                       </div>
@@ -649,7 +690,7 @@ export default function NewRepairOrderPage() {
                     {Number(pointsToRedeem) > 0 && (
                       <div className="flex items-center justify-between text-xs text-success bg-success/5 border border-success/15 p-2 rounded-lg">
                         <span className="font-semibold">Chiết khấu đổi điểm:</span>
-                        <span className="font-bold">-{formatCurrency(Number(pointsToRedeem) * 1000)}</span>
+                        <span className="font-bold">-{formatCurrency(pointsDiscountAmount)}</span>
                       </div>
                     )}
                   </div>

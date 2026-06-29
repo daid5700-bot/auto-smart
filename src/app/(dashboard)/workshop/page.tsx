@@ -413,7 +413,23 @@ export default function WorkshopPage() {
                 </td>
                 <td>{ro.customer?.name}</td><td>{ro.technician?.name || "Chưa giao"}</td>
                 <td className="text-xs text-muted-foreground max-w-xs truncate">{ro.symptoms}</td>
-                <td className="font-semibold">{formatCurrency(Number(ro.totalAmount))}</td>
+                <td>
+                  <div className="font-semibold">{formatCurrency(Number(ro.totalAmount))}</div>
+                  {(() => {
+                    const labor = Number(ro.laborCost) || 0;
+                    const parts = Number(ro.partsCost) || 0;
+                    const total = Number(ro.totalAmount) || 0;
+                    const discount = Math.round(labor + parts - total);
+                    if (discount >= 1000) {
+                      return (
+                        <div className="text-[10px] text-success font-bold mt-0.5" title="Hóa đơn có giảm giá">
+                          Giảm: -{formatCurrency(discount)}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </td>
                 <td>
                   <select
                     value={ro.status}
@@ -685,19 +701,35 @@ export default function WorkshopPage() {
                       const labor = Number(printRo.laborCost) || 0;
                       const parts = Number(printRo.partsCost) || 0;
                       const total = Number(printRo.totalAmount) || 0;
-                      const discount = Math.round(labor + parts - total);
-                      if (discount >= 1000) {
-                        return (
-                          <tr className="border-b border-border/40 text-success">
-                            <td className="py-3">
-                              <p className="font-semibold">Chiết khấu đổi điểm (Loyalty Discount)</p>
-                              <p className="text-[10px] text-success">Khấu trừ từ điểm tích lũy của khách hàng</p>
-                            </td>
-                            <td className="py-3 text-right font-semibold text-success">-{formatCurrency(discount)}</td>
-                          </tr>
-                        );
-                      }
-                      return null;
+                      
+                      const pct = Number(printRo.discountPercent || 0);
+                      const pctAmount = Number(printRo.discountAmount || 0);
+                      
+                      const totalDiscount = Math.round(labor + parts - total);
+                      const loyaltyDiscount = Math.max(0, totalDiscount - pctAmount);
+
+                      return (
+                        <>
+                          {pct > 0 && (
+                            <tr className="border-b border-border/40 text-destructive/80">
+                              <td className="py-3">
+                                <p className="font-semibold">Chiết khấu giảm giá hóa đơn ({pct}%)</p>
+                                <p className="text-[10px] text-muted-foreground">Áp dụng trực tiếp vào tổng hóa đơn</p>
+                              </td>
+                              <td className="py-3 text-right font-semibold text-destructive/80">-{formatCurrency(pctAmount)}</td>
+                            </tr>
+                          )}
+                          {loyaltyDiscount >= 1000 && (
+                            <tr className="border-b border-border/40 text-success">
+                              <td className="py-3">
+                                <p className="font-semibold">Chiết khấu đổi điểm (Loyalty Discount)</p>
+                                <p className="text-[10px] text-success">Khấu trừ từ điểm tích lũy của khách hàng</p>
+                              </td>
+                              <td className="py-3 text-right font-semibold text-success">-{formatCurrency(loyaltyDiscount)}</td>
+                            </tr>
+                          )}
+                        </>
+                      );
                     })()}
                     <tr className="font-bold text-sm">
                       <td className="py-4 text-right pr-4">Tổng cộng tạm tính (VND):</td>

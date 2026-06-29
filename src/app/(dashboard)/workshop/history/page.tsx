@@ -98,7 +98,23 @@ export default function HistoryPage() {
                   <td className="p-4 text-foreground/80">{o.technician?.name || "Chưa giao việc"}</td>
                   <td className="p-4 text-foreground/80">{formatCurrency(Number(o.laborCost))}</td>
                   <td className="p-4 text-foreground/80">{formatCurrency(Number(o.partsCost))}</td>
-                  <td className="p-4 font-extrabold text-primary">{formatCurrency(Number(o.totalAmount))}</td>
+                  <td className="p-4">
+                    <div className="font-extrabold text-primary">{formatCurrency(Number(o.totalAmount))}</div>
+                    {(() => {
+                      const labor = Number(o.laborCost) || 0;
+                      const parts = Number(o.partsCost) || 0;
+                      const total = Number(o.totalAmount) || 0;
+                      const discount = Math.round(labor + parts - total);
+                      if (discount >= 1000) {
+                        return (
+                          <div className="text-[10px] text-success font-bold mt-0.5" title="Hóa đơn có giảm giá">
+                            Giảm: -{formatCurrency(discount)}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </td>
                   <td className="p-4">
                     <span className={`badge ${statusBadge(o.status)}`}>
                       {statusText(o.status)}
@@ -273,16 +289,29 @@ export default function HistoryPage() {
                     const labor = Number(selectedOrder.laborCost) || 0;
                     const parts = Number(selectedOrder.partsCost) || 0;
                     const total = Number(selectedOrder.totalAmount) || 0;
-                    const discount = Math.round(labor + parts - total);
-                    if (discount >= 1000) {
-                      return (
-                        <div className="flex justify-between text-xs text-success">
-                          <span className="font-medium">Giảm giá đổi điểm:</span>
-                          <span className="font-semibold">-{formatCurrency(discount)}</span>
-                        </div>
-                      );
-                    }
-                    return null;
+                    
+                    const pct = Number(selectedOrder.discountPercent || 0);
+                    const pctAmount = Number(selectedOrder.discountAmount || 0);
+                    
+                    const totalDiscount = Math.round(labor + parts - total);
+                    const loyaltyDiscount = Math.max(0, totalDiscount - pctAmount);
+
+                    return (
+                      <>
+                        {pct > 0 && (
+                          <div className="flex justify-between text-xs text-destructive">
+                            <span className="font-medium">Giảm giá hóa đơn ({pct}%):</span>
+                            <span className="font-semibold">-{formatCurrency(pctAmount)}</span>
+                          </div>
+                        )}
+                        {loyaltyDiscount >= 1000 && (
+                          <div className="flex justify-between text-xs text-success">
+                            <span className="font-medium">Giảm giá đổi điểm:</span>
+                            <span className="font-semibold">-{formatCurrency(loyaltyDiscount)}</span>
+                          </div>
+                        )}
+                      </>
+                    );
                   })()}
                   <div className="flex justify-between items-center pt-2.5 border-t border-dashed border-border/40">
                     <span className="text-xs font-bold text-foreground">Tổng chi phí:</span>

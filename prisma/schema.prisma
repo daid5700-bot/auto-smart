@@ -195,6 +195,8 @@ model RepairOrder {
   items         OrderItem[]
   laborCost     Decimal       @default(0)
   partsCost     Decimal       @default(0)
+  discountPercent Int         @default(0)
+  discountAmount  Decimal     @default(0)
   totalAmount   Decimal       @default(0)
   paidAmount    Decimal       @default(0)
   debtAmount    Decimal       @default(0)
