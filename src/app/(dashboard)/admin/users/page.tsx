@@ -15,7 +15,7 @@ export default function UsersPage() {
     name: "",
     email: "",
     password: "",
-    role: "CRM" as UserRole,
+    role: "SALES" as UserRole,
     branchIds: [] as number[],
   });
 
@@ -73,7 +73,7 @@ export default function UsersPage() {
       name: "",
       email: "",
       password: "",
-      role: "CRM",
+      role: "SALES",
       branchIds: [],
     });
     setModalOpen(true);
@@ -235,7 +235,6 @@ export default function UsersPage() {
                   <option value="WAREHOUSE">Nhân viên Kho phụ tùng</option>
                   <option value="WORKSHOP">Cố vấn / KTV Xưởng dịch vụ</option>
                   <option value="SALES">Nhân viên Kinh doanh xe</option>
-                  <option value="CRM">Nhân viên CSKH / Marketing</option>
                 </select>
               </div>
 

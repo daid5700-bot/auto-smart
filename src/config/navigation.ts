@@ -36,10 +36,10 @@ const NAV: NavSection[] = [
   ]},
   { title: "Khách hàng (CRM)", items: [
     { title: "Quản lý Lead", href: "/crm", icon: Users, perm: "crm.view" },
-    { title: "Khách hàng", href: "/crm/customers", icon: Users, perm: "crm.view" },
+    { title: "Khách hàng", href: "/crm/customers", icon: Users, perm: "crm.customers" },
     { title: "Zalo ZNS", href: "/crm/zns", icon: MessageSquare, perm: "crm.zns" },
     { title: "Tích điểm", href: "/crm/loyalty", icon: Gift, perm: "crm.loyalty" },
-    { title: "Nhắc lịch", href: "/crm/reminders", icon: Bell, perm: "crm.zns" },
+    { title: "Nhắc lịch", href: "/crm/reminders", icon: Bell, perm: "crm.reminders" },
   ]},
   { title: "Hệ thống", items: [
     { title: "Báo cáo", href: "/admin/reports", icon: BarChart3, perm: "admin.reports" },

@@ -15,5 +15,13 @@ if (process.env.NODE_ENV !== "production") {
     prisma.$executeRawUnsafe('ALTER TABLE "Vehicle" ADD COLUMN IF NOT EXISTS "image" TEXT;')
       .then(() => console.log("Runtime migration: Column 'image' checked/created."))
       .catch((err) => console.error("Runtime migration failed:", err));
+
+    prisma.$executeRawUnsafe('UPDATE "User" SET role = \'SALES\' WHERE role::text = \'CRM\';')
+      .then((count) => {
+        if (count > 0) {
+          console.log(`Runtime migration: Migrated ${count} users from CRM to SALES role.`);
+        }
+      })
+      .catch((err) => console.error("Runtime user role migration failed:", err));
   }
 }

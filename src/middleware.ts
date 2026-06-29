@@ -6,9 +6,8 @@ import { verifyRole } from "@/lib/auth";
 const ROLE_PATHS: Record<string, string[]> = {
   ADMIN: ["/admin", "/inventory", "/workshop", "/sales", "/crm", "/api"],
   WAREHOUSE: ["/inventory", "/api/inventory", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
-  WORKSHOP: ["/workshop", "/inventory", "/api/workshop", "/api/inventory", "/api/stats", "/api/technicians", "/api/dashboard", "/api/search", "/api/config"],
+  WORKSHOP: ["/workshop", "/inventory", "/crm", "/api/workshop", "/api/inventory", "/api/crm", "/api/stats", "/api/technicians", "/api/dashboard", "/api/search", "/api/config"],
   SALES: ["/sales", "/crm", "/api/sales", "/api/crm", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
-  CRM: ["/crm", "/api/crm", "/api/dashboard", "/api/search", "/api/config"],
 };
 
 export async function middleware(request: NextRequest) {

@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         name: body.name,
         email: body.email,
         password: hashedPassword,
-        role: body.role || "CRM",
+        role: body.role || "SALES",
         branches: {
           create: branchIds.map((branchId: number) => ({
             branchId,

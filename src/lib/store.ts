@@ -34,7 +34,6 @@ const ROLE_ACCOUNTS: Record<UserRole, { email: string; password: string }> = {
   WAREHOUSE: { email: "kho@autosmart.vn", password: "kho123" },
   WORKSHOP: { email: "xuong@autosmart.vn", password: "xuong123" },
   SALES: { email: "sales@autosmart.vn", password: "sales123" },
-  CRM: { email: "cskh@autosmart.vn", password: "cskh123" },
 };
 
 export const useAuth = create<AuthState>((set) => ({
