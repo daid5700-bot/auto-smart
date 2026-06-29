@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
         repairOrder: {
           include: {
             customer: true,
+            technician: true,
           }
         },
         items: {

@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
             paidAmount: accCost,
             debtAmount: 0,
             status: "PENDING",
-            reason: `Xuất phụ kiện bán kèm xe VIN: ${vin}`,
+            reason: `Xuất phụ kiện bán kèm xe VIN: ${v.vin}`,
             branchId: branchId,
             createdBy: "Hệ thống (Bán Xe)",
           }
