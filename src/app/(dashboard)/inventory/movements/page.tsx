@@ -753,7 +753,7 @@ export default function MovementsPage() {
                 <div className="border-t border-zinc-300 pt-4 flex justify-between items-start">
                   <div className="text-xs text-zinc-500 italic max-w-sm">
                     {selectedReceipt.type === "IMPORT" 
-                      ? "* Giá trị trên đã bao gồm thuế VAT (nếu có) và được tính theo đơn giá trung bình nhập kho thực tế."
+                      ? "* Giá trị trên được tính theo đơn giá trung bình nhập kho thực tế."
                       : "* Giá trị xuất kho được tính dựa theo hình thức bán (Bán lẻ hoặc Bán buôn)."}
                   </div>
                   <div className="text-right">
