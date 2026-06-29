@@ -16,7 +16,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "admin.dashboard","admin.users","admin.reports",
   ],
   WAREHOUSE: ["inventory.view","inventory.manage","inventory.pricing"],
-  WORKSHOP: ["workshop.view","workshop.manage","workshop.commission","inventory.view","crm.customers"],
+  WORKSHOP: [
+    "workshop.view","workshop.manage","workshop.commission",
+    "inventory.view",
+    "crm.view","crm.manage","crm.zns","crm.loyalty","crm.reminders","crm.customers"
+  ],
   SALES: ["sales.view","sales.manage","sales.pricing","crm.view","crm.customers","crm.reminders"],
 };
 

@@ -45,6 +45,7 @@ export default function NewRepairOrderPage() {
   const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState<number>(0);
   const [pointsToRedeem, setPointsToRedeem] = useState<number | "">("");
   const [discountPercent, setDiscountPercent] = useState<number | "">("");
+  const [birthday, setBirthday] = useState("");
 
   // Requisition items state
   const [items, setItems] = useState<RequisitionItemInput[]>([]);
@@ -101,6 +102,7 @@ export default function NewRepairOrderPage() {
     } else {
       setPlateNumber("");
     }
+    setBirthday(c.birthday ? c.birthday.substring(0, 10) : "");
     setShowSuggestions(false);
   };
 
@@ -109,10 +111,12 @@ export default function NewRepairOrderPage() {
     if (matchedCustomer) {
       setSelectedCustomerId(matchedCustomer.id);
       setCustomerLoyaltyPoints(matchedCustomer.loyaltyPoints || 0);
+      setBirthday(matchedCustomer.birthday ? matchedCustomer.birthday.substring(0, 10) : "");
     } else {
       setSelectedCustomerId(null);
       setCustomerLoyaltyPoints(0);
       setPointsToRedeem("");
+      setBirthday("");
     }
   }, [phone, customers]);
 
@@ -222,6 +226,7 @@ export default function NewRepairOrderPage() {
         })),
         pointsToRedeem: pointsToRedeem ? Number(pointsToRedeem) : 0,
         discountPercent: discountPercent ? Number(discountPercent) : 0,
+        birthday: birthday || undefined,
       };
 
       const res = await fetch("/api/workshop/create-with-requisition", {
@@ -289,7 +294,7 @@ export default function NewRepairOrderPage() {
               Thông tin tiếp nhận
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* SỐ ĐIỆN THOẠI */}
               <div className="relative">
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại *</label>
@@ -346,6 +351,17 @@ export default function NewRepairOrderPage() {
                   onChange={(e) => setCustomerName(e.target.value)}
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                   placeholder="VD: Nguyễn Văn A"
+                />
+              </div>
+
+              {/* NGÀY SINH KHÁCH HÀNG */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Ngày sinh khách hàng</label>
+                <input
+                  type="date"
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                 />
               </div>
             </div>

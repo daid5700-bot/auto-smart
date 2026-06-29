@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       items, // array of { productId, quantity, unitPrice }
       pointsToRedeem,
       discountPercent,
+      birthday,
     } = body;
 
     if (!phone) {
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
             name: customerName,
             vehiclePlates: updatedPlates,
             loyaltyPoints: updatedPoints,
+            ...(birthday ? { birthday: new Date(birthday) } : {}),
           },
         });
         finalCustomerId = customer.id;
@@ -91,6 +93,7 @@ export async function POST(req: NextRequest) {
             phone,
             vehiclePlates: plateNumber ? [plateNumber] : [],
             branchId,
+            ...(birthday ? { birthday: new Date(birthday) } : {}),
           },
         });
         finalCustomerId = newCustomer.id;
