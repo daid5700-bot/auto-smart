@@ -61,6 +61,7 @@ export default function RemindersPage() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"overdue" | "upcoming" | "farther" | "reminded">("overdue");
 
   // ZNS Send Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -297,12 +298,17 @@ export default function RemindersPage() {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold">Lịch chăm sóc khách hàng</h2>
-        </div>
+      </div>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Overdue */}
-        <div className="p-4 bg-card border-l-4 border-red-500 rounded-xl shadow-md flex justify-between items-center">
+        <div 
+          onClick={() => setActiveTab("overdue")}
+          className={`p-4 bg-card border-l-4 border-red-500 rounded-xl shadow-md flex justify-between items-center cursor-pointer transition-all hover:scale-[1.02] ${
+            activeTab === "overdue" ? "ring-2 ring-red-500/25 bg-red-500/5" : ""
+          }`}
+        >
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-muted-foreground uppercase">Quá hạn</span>
             <p className="text-3xl font-extrabold text-red-500">{overdueCount}</p>
@@ -311,7 +317,12 @@ export default function RemindersPage() {
         </div>
 
         {/* Upcoming */}
-        <div className="p-4 bg-card border-l-4 border-amber-500 rounded-xl shadow-md flex justify-between items-center">
+        <div 
+          onClick={() => setActiveTab("upcoming")}
+          className={`p-4 bg-card border-l-4 border-amber-500 rounded-xl shadow-md flex justify-between items-center cursor-pointer transition-all hover:scale-[1.02] ${
+            activeTab === "upcoming" ? "ring-2 ring-amber-500/25 bg-amber-500/5" : ""
+          }`}
+        >
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-muted-foreground uppercase">Sắp đến (≤14 ngày)</span>
             <p className="text-3xl font-extrabold text-amber-500">{upcomingCount}</p>
@@ -320,7 +331,12 @@ export default function RemindersPage() {
         </div>
 
         {/* Farther */}
-        <div className="p-4 bg-card border-l-4 border-slate-500 rounded-xl shadow-md flex justify-between items-center">
+        <div 
+          onClick={() => setActiveTab("farther")}
+          className={`p-4 bg-card border-l-4 border-slate-500 rounded-xl shadow-md flex justify-between items-center cursor-pointer transition-all hover:scale-[1.02] ${
+            activeTab === "farther" ? "ring-2 ring-slate-500/25 bg-slate-500/5" : ""
+          }`}
+        >
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-muted-foreground uppercase">Xa hơn</span>
             <p className="text-3xl font-extrabold text-slate-700 dark:text-slate-300">{fartherCount}</p>
@@ -329,7 +345,12 @@ export default function RemindersPage() {
         </div>
 
         {/* Reminded */}
-        <div className="p-4 bg-card border-l-4 border-emerald-500 rounded-xl shadow-md flex justify-between items-center">
+        <div 
+          onClick={() => setActiveTab("reminded")}
+          className={`p-4 bg-card border-l-4 border-emerald-500 rounded-xl shadow-md flex justify-between items-center cursor-pointer transition-all hover:scale-[1.02] ${
+            activeTab === "reminded" ? "ring-2 ring-emerald-500/25 bg-emerald-500/5" : ""
+          }`}
+        >
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-muted-foreground uppercase">Đã nhắc</span>
             <p className="text-3xl font-extrabold text-emerald-500">{remindedCount}</p>
@@ -338,63 +359,116 @@ export default function RemindersPage() {
         </div>
       </div>
 
-      {/* Search Filter Bar */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Tìm kiếm khách hàng, biển số xe, số điện thoại..."
-          className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
-        />
+      {/* Search Filter and Tab Selector Bar */}
+      <div className="space-y-4">
+        <div className="relative">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm kiếm khách hàng, biển số xe, số điện thoại..."
+            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+          />
+        </div>
+
+        <div className="flex border-b border-border gap-1 overflow-x-auto pb-px">
+          <button
+            onClick={() => setActiveTab("overdue")}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 flex items-center gap-2 ${
+              activeTab === "overdue"
+                ? "border-red-500 text-red-500"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <AlertTriangle size={14} />
+            <span>QUÁ HẠN ({overdueItems.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("upcoming")}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 flex items-center gap-2 ${
+              activeTab === "upcoming"
+                ? "border-amber-500 text-amber-500"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Clock size={14} />
+            <span>SẮP ĐẾN HẠN ({upcomingItems.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("farther")}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 flex items-center gap-2 ${
+              activeTab === "farther"
+                ? "border-slate-500 text-slate-500"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Calendar size={14} />
+            <span>XA HƠN ({fartherItems.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("reminded")}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 flex items-center gap-2 ${
+              activeTab === "reminded"
+                ? "border-emerald-500 text-emerald-500"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CheckCircle2 size={14} />
+            <span>ĐÃ NHẮC GẦN ĐÂY ({remindedItems.length})</span>
+          </button>
+        </div>
       </div>
 
-      {/* Sections */}
-      <div className="space-y-6">
-        {/* Overdue Section */}
-        <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
-          <div className="px-5 py-3 bg-red-950/95 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={15} className="text-red-300" />
-              <h3 className="text-xs font-bold uppercase tracking-wider">Quá hạn • {overdueItems.length}</h3>
+      {/* Tab Contents */}
+      <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
+        {activeTab === "overdue" && (
+          <>
+            <div className="px-5 py-3 bg-red-950/95 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={15} className="text-red-300" />
+                <h3 className="text-xs font-bold uppercase tracking-wider">Danh sách quá hạn ({overdueItems.length})</h3>
+              </div>
             </div>
-          </div>
-          {renderTable(overdueItems, "Không có lịch quá hạn")}
-        </div>
+            {renderTable(overdueItems, "Không có lịch quá hạn")}
+          </>
+        )}
 
-        {/* Upcoming Section */}
-        <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
-          <div className="px-5 py-3 bg-orange-700 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock size={15} className="text-orange-200" />
-              <h3 className="text-xs font-bold uppercase tracking-wider">Sắp đến hạn (≤14 ngày) • {upcomingItems.length}</h3>
+        {activeTab === "upcoming" && (
+          <>
+            <div className="px-5 py-3 bg-orange-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock size={15} className="text-orange-200" />
+                <h3 className="text-xs font-bold uppercase tracking-wider">Danh sách sắp đến hạn ({upcomingItems.length})</h3>
+              </div>
             </div>
-          </div>
-          {renderTable(upcomingItems, "Không có lịch sắp đến hạn")}
-        </div>
+            {renderTable(upcomingItems, "Không có lịch sắp đến hạn")}
+          </>
+        )}
 
-        {/* Farther Section */}
-        <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
-          <div className="px-5 py-3 bg-slate-800 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar size={15} className="text-slate-300" />
-              <h3 className="text-xs font-bold uppercase tracking-wider">Xa hơn • {fartherItems.length}</h3>
+        {activeTab === "farther" && (
+          <>
+            <div className="px-5 py-3 bg-slate-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar size={15} className="text-slate-300" />
+                <h3 className="text-xs font-bold uppercase tracking-wider">Danh sách cần chăm sóc xa hơn ({fartherItems.length})</h3>
+              </div>
             </div>
-          </div>
-          {renderTable(fartherItems, "Không có lịch cần chăm sóc xa hơn")}
-        </div>
+            {renderTable(fartherItems, "Không có lịch cần chăm sóc xa hơn")}
+          </>
+        )}
 
-        {/* Reminded Section */}
-        <div className="glass-card rounded-2xl overflow-hidden border border-border shadow-xl">
-          <div className="px-5 py-3 bg-emerald-850 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={15} className="text-emerald-300" />
-              <h3 className="text-xs font-bold uppercase tracking-wider">Đã nhắc gần đây • {remindedItems.length}</h3>
+        {activeTab === "reminded" && (
+          <>
+            <div className="px-5 py-3 bg-emerald-850 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={15} className="text-emerald-300" />
+                <h3 className="text-xs font-bold uppercase tracking-wider">Danh sách đã nhắc trong 30 ngày qua ({remindedItems.length})</h3>
+              </div>
             </div>
-          </div>
-          {renderTable(remindedItems, "Không có khách hàng nào đã được nhắc trong 30 ngày qua")}
-        </div>
+            {renderTable(remindedItems, "Không có khách hàng nào đã được nhắc trong 30 ngày qua")}
+          </>
+        )}
       </div>
 
       {/* ZNS Send Modal with Template Selection */}
