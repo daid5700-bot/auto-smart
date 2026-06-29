@@ -178,7 +178,6 @@ export default function NewRepairOrderPage() {
   const maxPointsAllowed = Math.floor((subtotal - percentDiscountAmount) / 1000);
   const pointsDiscountAmount = pointsToRedeem ? Math.min(Math.max(0, subtotal - percentDiscountAmount), Number(pointsToRedeem) * 1000) : 0;
   const finalTotal = Math.max(0, subtotal - percentDiscountAmount - pointsDiscountAmount);
-  const vatEstimate = finalTotal * 0.1;
 
   useEffect(() => {
     const maxPoints = Math.floor((subtotal - percentDiscountAmount) / 1000);
@@ -716,10 +715,6 @@ export default function NewRepairOrderPage() {
                 <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/40">
                   <span className="text-xs text-muted-foreground font-bold">Tổng thanh toán:</span>
                   <span className="text-lg font-black text-primary tracking-tight">{formatCurrency(finalTotal)}</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground/80">
-                  <span>+ VAT (10% dự kiến):</span>
-                  <span>{formatCurrency(vatEstimate)}</span>
                 </div>
               </div>
             </div>
