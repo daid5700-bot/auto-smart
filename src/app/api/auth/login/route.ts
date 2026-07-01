@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { signRole } from "@/lib/auth";
+import { signRole, signData } from "@/lib/auth";
 
 // POST /api/auth/login — simple auth (replace with NextAuth in production)
 export async function POST(req: NextRequest) {
@@ -51,6 +51,22 @@ export async function POST(req: NextRequest) {
       maxAge: 86400,
       httpOnly: false, // client needs to check layout role visibility, but cannot forge it
     });
+
+    const branchIdsStr = safeUser.role === "ADMIN" ? "ALL" : userBranches.map((b: any) => b.id).join(",");
+    const signedBranches = await signData(branchIdsStr);
+    response.cookies.set("allowed_branches", signedBranches, {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: true, // secure from JS manipulation
+    });
+
+    if (userBranches.length === 1) {
+      response.cookies.set("active_branch_id", String(userBranches[0].id), {
+        path: "/",
+        maxAge: 86400,
+        httpOnly: false, // client needs to read it
+      });
+    }
 
     return response;
   } catch (error: any) {

@@ -133,7 +133,12 @@ export const useAuth = create<AuthState>((set) => ({
         try {
           const user = JSON.parse(savedUser);
           const branches = savedBranches ? JSON.parse(savedBranches) : [];
-          const activeBranch = savedActive ? JSON.parse(savedActive) : null;
+          let activeBranch = savedActive ? JSON.parse(savedActive) : null;
+          if (!activeBranch && branches.length === 1) {
+            activeBranch = branches[0];
+            localStorage.setItem("active_branch", JSON.stringify(activeBranch));
+            document.cookie = `active_branch_id=${activeBranch.id}; path=/; max-age=86400`;
+          }
           set({ user, branches, activeBranch, isAuth: true });
         } catch {
           // ignore

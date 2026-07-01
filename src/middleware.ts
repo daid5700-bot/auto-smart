@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyRole } from "@/lib/auth";
+import { verifyRole, verifyData } from "@/lib/auth";
 
 // Role-to-allowed-paths mapping for RBAC middleware
 const ROLE_PATHS: Record<string, string[]> = {
@@ -41,6 +41,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  // Verify allowed branches for this user session
+  const allowedBranchesCookie = request.cookies.get("allowed_branches")?.value;
+  const allowedBranchesStr = await verifyData(allowedBranchesCookie);
+  if (!allowedBranchesStr) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Session invalid or expired. Please login again." }, { status: 401 });
+    }
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
   // Role checking for ALL paths (including APIs)
   const allowed = ROLE_PATHS[userRole] || [];
   const isAllowed = allowed.some((p) => pathname.startsWith(p));
@@ -51,6 +61,35 @@ export async function middleware(request: NextRequest) {
     }
     const defaultRedirect = allowed[0] || "/login";
     return NextResponse.redirect(new URL(defaultRedirect, request.url));
+  }
+
+  // Branch access check for active_branch_id
+  const activeBranchIdStr = request.cookies.get("active_branch_id")?.value;
+  if (!activeBranchIdStr) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Please select an active branch first." }, { status: 400 });
+    }
+    return NextResponse.redirect(new URL("/select-branch", request.url));
+  }
+
+  const activeBranchId = parseInt(activeBranchIdStr, 10);
+  if (isNaN(activeBranchId)) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Invalid active branch ID." }, { status: 400 });
+    }
+    return NextResponse.redirect(new URL("/select-branch", request.url));
+  }
+
+  if (allowedBranchesStr !== "ALL") {
+    const allowedBranchIds = allowedBranchesStr.split(",").map((id) => parseInt(id, 10));
+    if (!allowedBranchIds.includes(activeBranchId)) {
+      if (pathname.startsWith("/api")) {
+        return NextResponse.json({ error: "Access denied. You do not have access to this branch." }, { status: 403 });
+      }
+      const response = NextResponse.redirect(new URL("/select-branch", request.url));
+      response.cookies.delete("active_branch_id");
+      return response;
+    }
   }
 
   return NextResponse.next();
