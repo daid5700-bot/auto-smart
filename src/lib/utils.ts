@@ -154,3 +154,45 @@ export const handleNumericInputChange = (
   });
 };
 
+export interface ServiceItem {
+  name: string;
+  cost: number;
+}
+
+export interface SymptomsData {
+  summary: string;
+  services: ServiceItem[];
+  serviceDiscountPercent: number;
+  partsDiscountPercent: number;
+}
+
+export function parseSymptoms(symptomsStr: string | null | undefined): SymptomsData {
+  const defaultVal: SymptomsData = {
+    summary: "",
+    services: [],
+    serviceDiscountPercent: 0,
+    partsDiscountPercent: 0,
+  };
+  if (!symptomsStr) return defaultVal;
+  try {
+    const parsed = JSON.parse(symptomsStr);
+    if (parsed && typeof parsed === "object") {
+      return {
+        summary: parsed.summary || "",
+        services: Array.isArray(parsed.services) ? parsed.services : [],
+        serviceDiscountPercent: Number(parsed.serviceDiscountPercent) || 0,
+        partsDiscountPercent: Number(parsed.partsDiscountPercent) || 0,
+      };
+    }
+  } catch {
+    // Treat as raw text for backward compatibility
+    return {
+      summary: symptomsStr,
+      services: [],
+      serviceDiscountPercent: 0,
+      partsDiscountPercent: 0,
+    };
+  }
+  return defaultVal;
+}
+

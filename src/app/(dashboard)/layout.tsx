@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/store";
 import { getNavForRole } from "@/config/navigation";
 import { roleName, roleColor } from "@/config/rbac";
 import { Car, ChevronLeft, ChevronRight, LogOut, Bell, Search, Menu, ChevronDown, Loader2, X, Wrench, User, Sparkles, Building2 } from "lucide-react";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, parseSymptoms } from "@/lib/utils";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -369,7 +369,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600"><Wrench size={16} /></div>
                               <div>
                                 <p className="text-sm font-bold">{ro.plateNumber} — <span className="text-xs text-muted-foreground font-normal">{ro.vehicleModel}</span></p>
-                                <p className="text-[10px] text-muted-foreground">Khách hàng: {ro.customer?.name} | Triệu chứng: {ro.symptoms}</p>
+                                <p className="text-[10px] text-muted-foreground">Khách hàng: {ro.customer?.name} | Triệu chứng: {parseSymptoms(ro.symptoms).summary}</p>
                               </div>
                             </div>
                             <span className="text-[10px] bg-secondary border border-border px-2 py-0.5 rounded font-bold uppercase">{ro.status}</span>

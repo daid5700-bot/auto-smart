@@ -38,7 +38,59 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!currentRo) return NextResponse.json({ error: "Lệnh sửa chữa không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
-    const discountPercent = body.discountPercent !== undefined ? Number(body.discountPercent) : Number(currentRo.discountPercent || 0);
+    let finalSymptoms = body.symptoms;
+    let serviceDiscountPercent = 0;
+    let partsDiscountPercent = 0;
+    let isJson = false;
+
+    // Check if the current symptoms in DB is JSON
+    if (currentRo.symptoms) {
+      try {
+        const parsed = JSON.parse(currentRo.symptoms);
+        if (parsed && typeof parsed === "object") {
+          isJson = true;
+          if (body.symptoms) {
+            try {
+              const incomingParsed = JSON.parse(body.symptoms);
+              if (incomingParsed && typeof incomingParsed === "object") {
+                // Incoming is JSON (sent from new RO or frontend update)
+                serviceDiscountPercent = Number(incomingParsed.serviceDiscountPercent) || 0;
+                partsDiscountPercent = Number(incomingParsed.partsDiscountPercent) || 0;
+              } else {
+                // Incoming is plain text (e.g. from simple edit modal), wrap it in the JSON structure
+                parsed.summary = body.symptoms;
+                finalSymptoms = JSON.stringify(parsed);
+                serviceDiscountPercent = Number(parsed.serviceDiscountPercent) || 0;
+                partsDiscountPercent = Number(parsed.partsDiscountPercent) || 0;
+              }
+            } catch {
+              // Incoming is plain text
+              parsed.summary = body.symptoms;
+              finalSymptoms = JSON.stringify(parsed);
+              serviceDiscountPercent = Number(parsed.serviceDiscountPercent) || 0;
+              partsDiscountPercent = Number(parsed.partsDiscountPercent) || 0;
+            }
+          } else {
+            // Incoming has no symptoms field, keep current JSON
+            serviceDiscountPercent = Number(parsed.serviceDiscountPercent) || 0;
+            partsDiscountPercent = Number(parsed.partsDiscountPercent) || 0;
+          }
+        }
+      } catch {}
+    }
+
+    // If current was NOT JSON, but incoming IS JSON:
+    if (!isJson && body.symptoms) {
+      try {
+        const parsed = JSON.parse(body.symptoms);
+        if (parsed && typeof parsed === "object") {
+          isJson = true;
+          serviceDiscountPercent = Number(parsed.serviceDiscountPercent) || 0;
+          partsDiscountPercent = Number(parsed.partsDiscountPercent) || 0;
+        }
+      } catch {}
+    }
+
     const redeemTx = await prisma.loyaltyTransaction.findFirst({
       where: {
         relatedRoId: id,
@@ -47,9 +99,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
     });
     const pointsDiscount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
-    const rawTotalAmount = (body.laborCost ?? Number(currentRo.laborCost)) + (body.partsCost ?? Number(currentRo.partsCost));
-    const percentDiscountAmount = Math.round(rawTotalAmount * (discountPercent / 100));
-    const newTotalAmount = Math.max(0, rawTotalAmount - pointsDiscount - percentDiscountAmount);
+    const labor = body.laborCost !== undefined ? Number(body.laborCost) : Number(currentRo.laborCost);
+    const parts = body.partsCost !== undefined ? Number(body.partsCost) : Number(currentRo.partsCost);
+
+    let totalDiscountAmount = 0;
+    let discountPercentVal = 0;
+    if (isJson) {
+      const serviceDiscountAmount = Math.round(labor * (serviceDiscountPercent / 100));
+      const partsDiscountAmount = Math.round(parts * (partsDiscountPercent / 100));
+      totalDiscountAmount = serviceDiscountAmount + partsDiscountAmount;
+      discountPercentVal = serviceDiscountPercent; // We store service discount percent in discountPercent
+    } else {
+      // Old format: fallback to standard total discount percent
+      discountPercentVal = body.discountPercent !== undefined ? Number(body.discountPercent) : Number(currentRo.discountPercent || 0);
+      totalDiscountAmount = Math.round((labor + parts) * (discountPercentVal / 100));
+    }
+
+    const newTotalAmount = Math.max(0, (labor + parts) - pointsDiscount - totalDiscountAmount);
     const paidAmount = Number(currentRo.paidAmount || 0);
     const newDebtAmount = newTotalAmount - paidAmount;
     const debtDelta = newDebtAmount - Number(currentRo.debtAmount || 0);
@@ -58,13 +124,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       plateNumber: body.plateNumber,
       vehicleModel: body.vehicleModel,
       kmIn: body.kmIn,
-      symptoms: body.symptoms,
+      symptoms: finalSymptoms,
       status: body.status,
       technicianId: body.technicianId,
-      laborCost: body.laborCost,
-      partsCost: body.partsCost,
-      discountPercent: discountPercent,
-      discountAmount: percentDiscountAmount,
+      laborCost: labor,
+      partsCost: parts,
+      discountPercent: discountPercentVal,
+      discountAmount: totalDiscountAmount,
       totalAmount: newTotalAmount,
       debtAmount: newDebtAmount,
       photos: body.photos,

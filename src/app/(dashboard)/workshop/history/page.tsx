@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { formatCurrency, formatDate, statusText, statusBadge } from "@/lib/utils";
+import { formatCurrency, formatDate, statusText, statusBadge, parseSymptoms } from "@/lib/utils";
 import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle } from "lucide-react";
 
 export default function HistoryPage() {
@@ -220,9 +220,26 @@ export default function HistoryPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-secondary/5 border border-border/40 rounded-2xl">
                   <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Triệu chứng & Yêu cầu của khách</h4>
-                  <p className="text-sm text-foreground/90 font-medium whitespace-pre-wrap leading-relaxed">
-                    {selectedOrder.symptoms || "Không ghi chú triệu chứng"}
-                  </p>
+                  {(() => {
+                    const parsed = parseSymptoms(selectedOrder.symptoms);
+                    return (
+                      <div className="space-y-2 text-xs">
+                        <p className="text-sm text-foreground/90 font-semibold">{parsed.summary || "Không ghi chú triệu chứng"}</p>
+                        {parsed.services.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Hạng mục công việc:</p>
+                            <ul className="list-disc list-inside space-y-0.5 pl-1">
+                              {parsed.services.map((srv: any, i: number) => (
+                                <li key={i} className="text-foreground/80">
+                                  {srv.name} — <span className="font-bold text-primary">{formatCurrency(Number(srv.cost))}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="p-4 bg-secondary/5 border border-border/40 rounded-2xl">
@@ -286,22 +303,28 @@ export default function HistoryPage() {
                     <span className="font-semibold text-foreground">{formatCurrency(Number(selectedOrder.partsCost))}</span>
                   </div>
                   {(() => {
+                    const parsed = parseSymptoms(selectedOrder.symptoms);
                     const labor = Number(selectedOrder.laborCost) || 0;
                     const parts = Number(selectedOrder.partsCost) || 0;
                     const total = Number(selectedOrder.totalAmount) || 0;
                     
-                    const pct = Number(selectedOrder.discountPercent || 0);
-                    const pctAmount = Number(selectedOrder.discountAmount || 0);
-                    
+                    const serviceDiscountAmount = Math.round(labor * (parsed.serviceDiscountPercent / 100));
+                    const partsDiscountAmount = Math.round(parts * (parsed.partsDiscountPercent / 100));
                     const totalDiscount = Math.round(labor + parts - total);
-                    const loyaltyDiscount = Math.max(0, totalDiscount - pctAmount);
+                    const loyaltyDiscount = Math.max(0, totalDiscount - (serviceDiscountAmount + partsDiscountAmount));
 
                     return (
                       <>
-                        {pct > 0 && (
+                        {serviceDiscountAmount > 0 && (
                           <div className="flex justify-between text-xs text-destructive">
-                            <span className="font-medium">Giảm giá hóa đơn ({pct}%):</span>
-                            <span className="font-semibold">-{formatCurrency(pctAmount)}</span>
+                            <span className="font-medium">Giảm giá dịch vụ ({parsed.serviceDiscountPercent}%):</span>
+                            <span className="font-semibold">-{formatCurrency(serviceDiscountAmount)}</span>
+                          </div>
+                        )}
+                        {partsDiscountAmount > 0 && (
+                          <div className="flex justify-between text-xs text-destructive">
+                            <span className="font-medium">Giảm giá phụ tùng ({parsed.partsDiscountPercent}%):</span>
+                            <span className="font-semibold">-{formatCurrency(partsDiscountAmount)}</span>
                           </div>
                         )}
                         {loyaltyDiscount >= 1000 && (

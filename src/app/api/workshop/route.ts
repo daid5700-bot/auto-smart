@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         kmIn: body.kmIn || 0,
         symptoms: body.symptoms,
         photos: body.photos || [],
-        status: "PENDING",
+        status: body.status || "DOING",
         technicianId: body.technicianId,
         createdById: body.createdById,
         laborCost: body.laborCost || 0,

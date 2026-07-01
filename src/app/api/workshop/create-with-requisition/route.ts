@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
@@ -46,11 +47,27 @@ export async function POST(req: NextRequest) {
         calculatedPartsCost += Number(item.unitPrice) * Number(item.quantity);
       }
 
-      const rawTotal = (Number(laborCost) || 0) + calculatedPartsCost;
-      const percentDiscountAmount = Math.round(rawTotal * ((Number(discountPercent) || 0) / 100));
-      const pointsDiscount = pointsToRedeem ? Math.min(Math.max(0, rawTotal - percentDiscountAmount), pointsToRedeem * 1000) : 0;
+      let serviceDiscountPercent = 0;
+      let partsDiscountPercent = 0;
+      if (symptoms) {
+        try {
+          const parsed = JSON.parse(symptoms);
+          if (parsed && typeof parsed === "object") {
+            serviceDiscountPercent = Number(parsed.serviceDiscountPercent) || 0;
+            partsDiscountPercent = Number(parsed.partsDiscountPercent) || 0;
+          }
+        } catch {}
+      }
+
+      const laborCostNum = Number(laborCost) || 0;
+      const serviceDiscountAmount = Math.round(laborCostNum * (serviceDiscountPercent / 100));
+      const partsDiscountAmount = Math.round(calculatedPartsCost * (partsDiscountPercent / 100));
+      const totalDiscountAmount = serviceDiscountAmount + partsDiscountAmount;
+
+      const rawTotal = laborCostNum + calculatedPartsCost;
+      const pointsDiscount = pointsToRedeem ? Math.min(Math.max(0, rawTotal - totalDiscountAmount), pointsToRedeem * 1000) : 0;
       const actualPointsToRedeem = Math.ceil(pointsDiscount / 1000);
-      const finalTotalAmount = Math.max(0, rawTotal - percentDiscountAmount - pointsDiscount);
+      const finalTotalAmount = Math.max(0, rawTotal - totalDiscountAmount - pointsDiscount);
 
       // 2. Find or create/update customer
       let customer = await tx.customer.findUnique({
@@ -99,8 +116,8 @@ export async function POST(req: NextRequest) {
         finalCustomerId = newCustomer.id;
       }
 
-      // Determine initial RO status: if there are parts, set to "WAITING_PARTS", otherwise "PENDING"
-      const status = items.length > 0 ? "WAITING_PARTS" : "PENDING";
+      // Determine initial RO status: if there are parts, set to "WAITING_PARTS", otherwise "DOING"
+      const status = items.length > 0 ? "WAITING_PARTS" : "DOING";
 
       // 3. Create the RO
       const ro = await tx.repairOrder.create({
@@ -113,10 +130,10 @@ export async function POST(req: NextRequest) {
           status,
           technicianId: technicianId ? Number(technicianId) : null,
           createdById: createdById ? Number(createdById) : null,
-          laborCost: Number(laborCost) || 0,
+          laborCost: laborCostNum,
           partsCost: calculatedPartsCost,
-          discountPercent: Number(discountPercent) || 0,
-          discountAmount: percentDiscountAmount,
+          discountPercent: serviceDiscountPercent,
+          discountAmount: totalDiscountAmount,
           totalAmount: finalTotalAmount,
           branchId,
         },

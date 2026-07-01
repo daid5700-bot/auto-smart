@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatCurrency, formatDate, statusText, statusBadge, handleNumericInputChange } from "@/lib/utils";
+import { formatCurrency, formatDate, statusText, statusBadge, handleNumericInputChange, parseSymptoms } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Wrench, Plus, CheckCircle2, AlertTriangle, Eye, Edit, Trash2, X, Loader2, Printer, ClipboardList } from "lucide-react";
 import { createPartsRequisition } from "@/app/actions";
@@ -212,7 +212,7 @@ export default function WorkshopPage() {
       vehicleModel: "",
       kmIn: "",
       symptoms: "",
-      status: "PENDING",
+      status: "DOING",
       technicianId: data?.technicians?.[0]?.id?.toString() || "",
       laborCost: "",
       partsCost: "",
@@ -228,7 +228,7 @@ export default function WorkshopPage() {
       plateNumber: ro.plateNumber,
       vehicleModel: ro.vehicleModel,
       kmIn: ro.kmIn,
-      symptoms: ro.symptoms,
+      symptoms: parseSymptoms(ro.symptoms).summary,
       status: ro.status,
       technicianId: ro.technicianId?.toString() || "",
       laborCost: Number(ro.laborCost),
@@ -382,7 +382,7 @@ export default function WorkshopPage() {
                       </div>
                       <p className="text-xs font-medium text-foreground mb-1">{ro.vehicleModel}</p>
                       <p className="text-[10px] text-muted-foreground mb-2 line-clamp-1">Khách: {ro.customer?.name}</p>
-                      <p className="text-[10px] text-muted-foreground italic mb-2 line-clamp-2">" {ro.symptoms} "</p>
+                      <p className="text-[10px] text-muted-foreground italic mb-2 line-clamp-2">" {parseSymptoms(ro.symptoms).summary} "</p>
                       {ro.photos?.[0] && <p className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100/60 mb-2 truncate">⚠️ Tình trạng: {ro.photos[0]}</p>}
                       <div className="flex items-center justify-between pt-2 border-t border-border/30">
                         <span className="text-[10px] text-muted-foreground">KTV: {ro.technician?.name || "Chưa giao"}</span>
@@ -412,7 +412,7 @@ export default function WorkshopPage() {
                   </div>
                 </td>
                 <td>{ro.customer?.name}</td><td>{ro.technician?.name || "Chưa giao"}</td>
-                <td className="text-xs text-muted-foreground max-w-xs truncate">{ro.symptoms}</td>
+                <td className="text-xs text-muted-foreground max-w-xs truncate">{parseSymptoms(ro.symptoms).summary}</td>
                 <td>
                   <div className="font-semibold">{formatCurrency(Number(ro.totalAmount))}</div>
                   {(() => {
@@ -444,8 +444,6 @@ export default function WorkshopPage() {
                       "bg-secondary text-secondary-foreground border-border"
                     }`}
                   >
-                    <option value="PENDING" className="bg-card text-foreground">Chờ tiếp nhận</option>
-                    <option value="DIAGNOSING" className="bg-card text-foreground">Chẩn đoán</option>
                     <option value="WAITING_PARTS" className="bg-card text-foreground">Chờ phụ tùng</option>
                     <option value="DOING" className="bg-card text-foreground">Đang sửa</option>
                     <option value="DONE" className="bg-card text-foreground">Hoàn thành</option>
@@ -571,8 +569,6 @@ export default function WorkshopPage() {
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Trạng thái sửa chữa</label>
                   <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                    <option value="PENDING">Chờ sửa (Pending)</option>
-                    <option value="DIAGNOSING">Chẩn đoán (Diagnosing)</option>
                     <option value="DOING">Đang sửa (Doing)</option>
                     <option value="WAITING_PARTS">Chờ phụ tùng (Waiting Parts)</option>
                     <option value="DONE">Hoàn thành (Done)</option>
@@ -661,64 +657,95 @@ export default function WorkshopPage() {
                 </div>
               </div>
 
-              <div>
-                <h4 className="text-xs font-bold text-muted-foreground uppercase mb-1 print:text-black">Triệu chứng & Tình trạng xe lúc nhận</h4>
-                <div className="bg-card border border-border p-3 rounded-lg text-xs space-y-1.5 print:bg-white print:text-black">
-                  <p><strong>Triệu chứng của khách:</strong> {printRo.symptoms || "Không ghi nhận"}</p>
-                  {printRo.photos?.[0] && (
-                    <p className="text-amber-600 dark:text-amber-400 print:text-black font-semibold">
-                      <strong>⚠️ Tình trạng ngoại thất (Trầy xước/Móp méo):</strong> {printRo.photos[0]}
-                    </p>
-                  )}
-                </div>
-              </div>
+              {(() => {
+                const parsed = parseSymptoms(printRo.symptoms);
+                const labor = Number(printRo.laborCost) || 0;
+                const parts = Number(printRo.partsCost) || 0;
+                const total = Number(printRo.totalAmount) || 0;
 
-              <div>
-                <h4 className="text-xs font-bold text-muted-foreground uppercase mb-2 print:text-black">Chi tiết báo giá dịch vụ</h4>
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-border/80 text-muted-foreground uppercase font-semibold">
-                      <th className="py-2">Hạng mục công việc</th>
-                      <th className="py-2 text-right">Chi phí ước tính</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-border/40">
-                      <td className="py-3">
-                        <p className="font-semibold">Tiền công thợ (Labor Fee)</p>
-                        <p className="text-[10px] text-muted-foreground print:text-black">Thực hiện bởi KTV: {printRo.technician?.name || "Chưa phân phối"}</p>
-                      </td>
-                      <td className="py-3 text-right font-medium">{formatCurrency(Number(printRo.laborCost))}</td>
-                    </tr>
-                    <tr className="border-b border-border/40">
-                      <td className="py-3">
-                        <p className="font-semibold">Chi phí phụ tùng thay thế (Parts Cost)</p>
-                        <p className="text-[10px] text-muted-foreground print:text-black">Vật tư chính hãng Auto-Smart</p>
-                      </td>
-                      <td className="py-3 text-right font-medium">{formatCurrency(Number(printRo.partsCost))}</td>
-                    </tr>
-                    {(() => {
-                      const labor = Number(printRo.laborCost) || 0;
-                      const parts = Number(printRo.partsCost) || 0;
-                      const total = Number(printRo.totalAmount) || 0;
-                      
-                      const pct = Number(printRo.discountPercent || 0);
-                      const pctAmount = Number(printRo.discountAmount || 0);
-                      
-                      const totalDiscount = Math.round(labor + parts - total);
-                      const loyaltyDiscount = Math.max(0, totalDiscount - pctAmount);
+                const serviceDiscountAmount = Math.round(labor * (parsed.serviceDiscountPercent / 100));
+                const partsDiscountAmount = Math.round(parts * (parsed.partsDiscountPercent / 100));
+                const totalDiscount = Math.round(labor + parts - total);
+                const loyaltyDiscount = Math.max(0, totalDiscount - (serviceDiscountAmount + partsDiscountAmount));
 
-                      return (
-                        <>
-                          {pct > 0 && (
-                            <tr className="border-b border-border/40 text-destructive/80">
+                return (
+                  <>
+                    <div>
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase mb-1 print:text-black">Triệu chứng & Tình trạng xe lúc nhận</h4>
+                      <div className="bg-card border border-border p-3 rounded-lg text-xs space-y-1.5 print:bg-white print:text-black">
+                        <p><strong>Triệu chứng của khách:</strong> {parsed.summary || "Không ghi nhận"}</p>
+                        {printRo.photos?.[0] && (
+                          <p className="text-amber-600 dark:text-amber-400 print:text-black font-semibold">
+                            <strong>⚠️ Tình trạng ngoại thất (Trầy xước/Móp méo):</strong> {printRo.photos[0]}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase mb-2 print:text-black">Chi tiết báo giá dịch vụ</h4>
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-border/80 text-muted-foreground uppercase font-semibold">
+                            <th className="py-2">Hạng mục công việc / Phụ tùng</th>
+                            <th className="py-2 text-right">Chi phí ước tính</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parsed.services.length > 0 ? (
+                            parsed.services.map((srv: any, idx: number) => (
+                              <tr key={idx} className="border-b border-border/40">
+                                <td className="py-3">
+                                  <p className="font-semibold">{srv.name}</p>
+                                  {idx === 0 && (
+                                    <p className="text-[10px] text-muted-foreground print:text-black">
+                                      Thực hiện bởi KTV: {printRo.technician?.name || "Chưa phân phối"}
+                                    </p>
+                                  )}
+                                </td>
+                                <td className="py-3 text-right font-medium">{formatCurrency(Number(srv.cost))}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr className="border-b border-border/40">
                               <td className="py-3">
-                                <p className="font-semibold">Chiết khấu giảm giá hóa đơn ({pct}%)</p>
-                                <p className="text-[10px] text-muted-foreground">Áp dụng trực tiếp vào tổng hóa đơn</p>
+                                <p className="font-semibold">Tiền công thợ (Labor Fee)</p>
+                                <p className="text-[10px] text-muted-foreground print:text-black">
+                                  Thực hiện bởi KTV: {printRo.technician?.name || "Chưa phân phối"}
+                                </p>
                               </td>
-                              <td className="py-3 text-right font-semibold text-destructive/80">-{formatCurrency(pctAmount)}</td>
+                              <td className="py-3 text-right font-medium">{formatCurrency(labor)}</td>
                             </tr>
                           )}
+
+                          <tr className="border-b border-border/40">
+                            <td className="py-3">
+                              <p className="font-semibold">Chi phí phụ tùng thay thế (Parts Cost)</p>
+                              <p className="text-[10px] text-muted-foreground print:text-black">Vật tư chính hãng Auto-Smart</p>
+                            </td>
+                            <td className="py-3 text-right font-medium">{formatCurrency(parts)}</td>
+                          </tr>
+
+                          {serviceDiscountAmount > 0 && (
+                            <tr className="border-b border-border/40 text-destructive/80">
+                              <td className="py-3">
+                                <p className="font-semibold">Chiết khấu giảm giá dịch vụ ({parsed.serviceDiscountPercent}%)</p>
+                                <p className="text-[10px] text-muted-foreground">Áp dụng trực tiếp vào phí dịch vụ</p>
+                              </td>
+                              <td className="py-3 text-right font-semibold text-destructive/80">-{formatCurrency(serviceDiscountAmount)}</td>
+                            </tr>
+                          )}
+
+                          {partsDiscountAmount > 0 && (
+                            <tr className="border-b border-border/40 text-destructive/80">
+                              <td className="py-3">
+                                <p className="font-semibold">Chiết khấu giảm giá phụ tùng ({parsed.partsDiscountPercent}%)</p>
+                                <p className="text-[10px] text-muted-foreground">Áp dụng trực tiếp vào tiền phụ tùng</p>
+                              </td>
+                              <td className="py-3 text-right font-semibold text-destructive/80">-{formatCurrency(partsDiscountAmount)}</td>
+                            </tr>
+                          )}
+
                           {loyaltyDiscount >= 1000 && (
                             <tr className="border-b border-border/40 text-success">
                               <td className="py-3">
@@ -728,16 +755,17 @@ export default function WorkshopPage() {
                               <td className="py-3 text-right font-semibold text-success">-{formatCurrency(loyaltyDiscount)}</td>
                             </tr>
                           )}
-                        </>
-                      );
-                    })()}
-                    <tr className="font-bold text-sm">
-                      <td className="py-4 text-right pr-4">Tổng cộng tạm tính (VND):</td>
-                      <td className="py-4 text-right text-primary print:text-black text-base">{formatCurrency(Number(printRo.totalAmount))}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+
+                          <tr className="font-bold text-sm">
+                            <td className="py-4 text-right pr-4">Tổng cộng tạm tính (VND):</td>
+                            <td className="py-4 text-right text-primary print:text-black text-base">{formatCurrency(total)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div className="grid grid-cols-2 gap-4 text-center text-xs pt-8 border-t border-border/40">
                 <div>

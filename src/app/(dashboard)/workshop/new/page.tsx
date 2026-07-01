@@ -14,6 +14,11 @@ interface RequisitionItemInput {
   unitPrice: number | "";
 }
 
+interface ServiceInput {
+  name: string;
+  cost: number | "";
+}
+
 export default function NewRepairOrderPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -31,8 +36,7 @@ export default function NewRepairOrderPage() {
   const [vehicleModel, setVehicleModel] = useState("");
   const [kmIn, setKmIn] = useState<number | "">("");
   const [technicianId, setTechnicianId] = useState("");
-  const [laborCost, setLaborCost] = useState<number | "">("");
-  const [symptoms, setSymptoms] = useState("");
+  const [services, setServices] = useState<ServiceInput[]>([{ name: "", cost: "" }]);
   const [carCondition, setCarCondition] = useState("");
 
   // Search/Suggestions states
@@ -44,7 +48,8 @@ export default function NewRepairOrderPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState<number>(0);
   const [pointsToRedeem, setPointsToRedeem] = useState<number | "">("");
-  const [discountPercent, setDiscountPercent] = useState<number | "">("");
+  const [serviceDiscountPercent, setServiceDiscountPercent] = useState<number | "">("");
+  const [partsDiscountPercent, setPartsDiscountPercent] = useState<number | "">("");
   const [birthday, setBirthday] = useState("");
 
   // Requisition items state
@@ -171,20 +176,40 @@ export default function NewRepairOrderPage() {
     setItems(updated);
   };
 
+  const handleAddService = () => {
+    setServices([...services, { name: "", cost: "" }]);
+  };
+
+  const handleRemoveService = (index: number) => {
+    const updated = services.filter((_, i) => i !== index);
+    setServices(updated.length > 0 ? updated : [{ name: "", cost: "" }]);
+  };
+
+  const handleServiceChange = (index: number, field: keyof ServiceInput, value: any) => {
+    const updated = [...services];
+    updated[index] = { ...updated[index], [field]: value };
+    setServices(updated);
+  };
+
   // Calculations
+  const totalServiceCost = services.reduce((sum, s) => sum + (Number(s.cost) || 0), 0);
   const partsCostTotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
-  const subtotal = (Number(laborCost) || 0) + partsCostTotal;
-  const percentDiscountAmount = Math.round(subtotal * ((Number(discountPercent) || 0) / 100));
-  const maxPointsAllowed = Math.floor((subtotal - percentDiscountAmount) / 1000);
-  const pointsDiscountAmount = pointsToRedeem ? Math.min(Math.max(0, subtotal - percentDiscountAmount), Number(pointsToRedeem) * 1000) : 0;
-  const finalTotal = Math.max(0, subtotal - percentDiscountAmount - pointsDiscountAmount);
+  const subtotal = totalServiceCost + partsCostTotal;
+
+  const serviceDiscountAmount = Math.round(totalServiceCost * ((Number(serviceDiscountPercent) || 0) / 100));
+  const partsDiscountAmount = Math.round(partsCostTotal * ((Number(partsDiscountPercent) || 0) / 100));
+  const totalDiscountAmount = serviceDiscountAmount + partsDiscountAmount;
+
+  const maxPointsAllowed = Math.floor((subtotal - totalDiscountAmount) / 1000);
+  const pointsDiscountAmount = pointsToRedeem ? Math.min(Math.max(0, subtotal - totalDiscountAmount), Number(pointsToRedeem) * 1000) : 0;
+  const finalTotal = Math.max(0, subtotal - totalDiscountAmount - pointsDiscountAmount);
 
   useEffect(() => {
-    const maxPoints = Math.floor((subtotal - percentDiscountAmount) / 1000);
+    const maxPoints = Math.floor((subtotal - totalDiscountAmount) / 1000);
     if (pointsToRedeem !== "" && Number(pointsToRedeem) > maxPoints) {
       setPointsToRedeem(maxPoints > 0 ? maxPoints : "");
     }
-  }, [subtotal, percentDiscountAmount, pointsToRedeem]);
+  }, [subtotal, totalDiscountAmount, pointsToRedeem]);
 
   const totalPartsQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
@@ -203,28 +228,41 @@ export default function NewRepairOrderPage() {
       return;
     }
 
+    const activeServices = services.filter(s => s.name.trim() !== "");
+    if (activeServices.length === 0) {
+      setErrorMsg("Vui lòng nhập ít nhất một triệu chứng/dịch vụ.");
+      return;
+    }
+
     setSubmitting(true);
     setErrorMsg("");
 
     try {
+      const symptomsJson = JSON.stringify({
+        summary: activeServices.map(s => s.name).join(", "),
+        serviceDiscountPercent: serviceDiscountPercent ? Number(serviceDiscountPercent) : 0,
+        partsDiscountPercent: partsDiscountPercent ? Number(partsDiscountPercent) : 0,
+        services: activeServices.map(s => ({ name: s.name, cost: Number(s.cost) || 0 })),
+      });
+
       const payload = {
         customerName: customerName.trim(),
         phone: phone.trim(),
         plateNumber: plateNumber.trim(),
         vehicleModel,
         kmIn,
-        symptoms,
+        symptoms: symptomsJson,
         carCondition,
         technicianId: technicianId || undefined,
         createdById: user?.id,
-        laborCost,
+        laborCost: totalServiceCost,
         items: items.map((i) => ({
           productId: parseInt(i.productId),
           quantity: i.quantity,
           unitPrice: i.unitPrice,
         })),
         pointsToRedeem: pointsToRedeem ? Number(pointsToRedeem) : 0,
-        discountPercent: discountPercent ? Number(discountPercent) : 0,
+        discountPercent: serviceDiscountPercent ? Number(serviceDiscountPercent) : 0,
         birthday: birthday || undefined,
       };
 
@@ -440,55 +478,6 @@ export default function NewRepairOrderPage() {
                 </select>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* TIỀN CÔNG THỢ */}
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tiền công thợ dự kiến</label>
-                <NumericInput
-                  required
-                  value={laborCost}
-                  onChange={(c) => setLaborCost(c === "" ? "" : parseInt(c, 10))}
-                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
-                  placeholder="VD: 150.000"
-                />
-              </div>
-
-              {/* GIẢM GIÁ % HÓA ĐƠN */}
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giảm giá tổng hóa đơn (%)</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={discountPercent}
-                  onChange={(e) => {
-                    const cleanVal = e.target.value.replace(/\D/g, "");
-                    if (cleanVal === "") {
-                      setDiscountPercent("");
-                    } else {
-                      const numVal = Math.min(100, parseInt(cleanVal, 10));
-                      setDiscountPercent(numVal);
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm font-semibold text-destructive focus:ring-2 focus:ring-primary/20 outline-none"
-                  placeholder="VD: 10 (%)"
-                />
-              </div>
-            </div>
-
-            {/* YÊU CẦU KHÁCH / TRIỆU CHỨNG */}
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Yêu cầu của khách / Triệu chứng</label>
-              <textarea
-                required
-                value={symptoms}
-                onChange={(e) => setSymptoms(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[70px]"
-                placeholder="VD: Máy kêu to, bảo dưỡng 40,000 km..."
-              />
-            </div>
-
             {/* TÌNH TRẠNG XE */}
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tình trạng xe khi vào</label>
@@ -498,6 +487,93 @@ export default function NewRepairOrderPage() {
                 className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[70px]"
                 placeholder="VD: Trầy xước nhẹ mâm xe bên phải, kính xe sạch..."
               />
+            </div>
+          </div>
+
+          {/* Services/Labor items list */}
+          <div className="glass-card rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-border/40 pb-2">
+              <h3 className="text-sm font-bold uppercase text-muted-foreground tracking-wider">
+                Các công việc thực hiện
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddService}
+                className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Plus size={13} /> Thêm dịch vụ / công việc
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground font-semibold bg-secondary/15">
+                    <th className="p-3">Triệu chứng / Nội dung sửa chữa</th>
+                    <th className="p-3 w-48 text-right">Phí làm (tiền công thợ)</th>
+                    <th className="p-3 w-12 text-center">Xóa</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {services.map((srv, idx) => (
+                    <tr key={idx} className="hover:bg-secondary/5 transition-colors">
+                      <td className="p-2">
+                        <input
+                          required
+                          type="text"
+                          value={srv.name}
+                          onChange={(e) => handleServiceChange(idx, "name", e.target.value)}
+                          className="w-full px-3 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="VD: Thay dầu máy, bảo dưỡng phanh..."
+                        />
+                      </td>
+                      <td className="p-2 text-right">
+                        <NumericInput
+                          required
+                          value={srv.cost}
+                          onChange={(val) => handleServiceChange(idx, "cost", val === "" ? "" : parseInt(val, 10))}
+                          className="w-full px-3 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-right text-primary outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="VD: 150.000"
+                        />
+                      </td>
+                      <td className="p-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveService(idx)}
+                          disabled={services.length === 1 && srv.name === "" && srv.cost === ""}
+                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Discount for Services */}
+            <div className="flex justify-end pt-2 border-t border-border/40">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-muted-foreground uppercase shrink-0">Giảm giá dịch vụ (%)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={serviceDiscountPercent}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, "");
+                    if (cleanVal === "") {
+                      setServiceDiscountPercent("");
+                    } else {
+                      const numVal = Math.min(100, parseInt(cleanVal, 10));
+                      setServiceDiscountPercent(numVal);
+                    }
+                  }}
+                  className="w-24 px-3 py-1.5 bg-secondary/30 border border-border rounded-xl text-xs font-bold text-destructive text-center outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="VD: 10 (%)"
+                />
+              </div>
             </div>
           </div>
 
@@ -528,7 +604,7 @@ export default function NewRepairOrderPage() {
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto min-h-[350px]">
+              <div className={`overflow-x-auto transition-all duration-200 ${openDropdownIdx !== null ? "min-h-[320px]" : "min-h-0"}`}>
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-border text-muted-foreground font-semibold bg-secondary/15">
@@ -644,6 +720,32 @@ export default function NewRepairOrderPage() {
                 </table>
               </div>
             )}
+
+            {/* Discount for Parts */}
+            {items.length > 0 && (
+              <div className="flex justify-end pt-2 border-t border-border/40">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase shrink-0">Giảm giá phụ tùng (%)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={partsDiscountPercent}
+                    onChange={(e) => {
+                      const cleanVal = e.target.value.replace(/\D/g, "");
+                      if (cleanVal === "") {
+                        setPartsDiscountPercent("");
+                      } else {
+                        const numVal = Math.min(100, parseInt(cleanVal, 10));
+                        setPartsDiscountPercent(numVal);
+                      }
+                    }}
+                    className="w-24 px-3 py-1.5 bg-secondary/30 border border-border rounded-xl text-xs font-bold text-destructive text-center outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="VD: 10 (%)"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -659,17 +761,22 @@ export default function NewRepairOrderPage() {
               <div className="space-y-3.5 pt-4 border-t border-border/40">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Tiền công thợ:</span>
-                  <span className="text-sm font-semibold">{formatCurrency(Number(laborCost) || 0)}</span>
+                  <span className="text-sm font-semibold">{formatCurrency(totalServiceCost)}</span>
                 </div>
+                {serviceDiscountAmount > 0 && (
+                  <div className="flex items-center justify-between text-[11px] text-destructive bg-destructive/5 border border-destructive/15 px-2.5 py-1.5 rounded-lg">
+                    <span className="font-semibold">Giảm giá công thợ ({serviceDiscountPercent}%):</span>
+                    <span className="font-bold">-{formatCurrency(serviceDiscountAmount)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Tiền phụ tùng:</span>
                   <span className="text-sm font-semibold">{formatCurrency(partsCostTotal)}</span>
                 </div>
-
-                {Number(discountPercent) > 0 && (
-                  <div className="flex items-center justify-between text-xs text-destructive bg-destructive/5 border border-destructive/15 p-2 rounded-lg">
-                    <span className="font-semibold">Giảm giá hóa đơn ({discountPercent}%):</span>
-                    <span className="font-bold">-{formatCurrency(percentDiscountAmount)}</span>
+                {partsDiscountAmount > 0 && (
+                  <div className="flex items-center justify-between text-[11px] text-destructive bg-destructive/5 border border-destructive/15 px-2.5 py-1.5 rounded-lg">
+                    <span className="font-semibold">Giảm giá phụ tùng ({partsDiscountPercent}%):</span>
+                    <span className="font-bold">-{formatCurrency(partsDiscountAmount)}</span>
                   </div>
                 )}
 
@@ -692,13 +799,13 @@ export default function NewRepairOrderPage() {
                             if (cleanVal === "") {
                               setPointsToRedeem("");
                             } else {
-                              const maxPoints = Math.max(0, Math.floor((subtotal - percentDiscountAmount) / 1000));
+                              const maxPoints = Math.max(0, Math.floor((subtotal - totalDiscountAmount) / 1000));
                               const numVal = Math.min(customerLoyaltyPoints, maxPoints, parseInt(cleanVal, 10));
                               setPointsToRedeem(numVal > 0 ? numVal : "");
                             }
                           }}
                           className="w-full px-2.5 py-1.5 bg-secondary/30 border border-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-primary font-bold text-primary"
-                          placeholder={`Tối đa: ${Math.min(customerLoyaltyPoints, Math.max(0, Math.floor((subtotal - percentDiscountAmount) / 1000)))}`}
+                          placeholder={`Tối đa: ${Math.min(customerLoyaltyPoints, Math.max(0, Math.floor((subtotal - totalDiscountAmount) / 1000)))}`}
                         />
                         <span className="absolute right-2 text-[10px] font-bold text-muted-foreground">Điểm</span>
                       </div>
@@ -712,8 +819,15 @@ export default function NewRepairOrderPage() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/40">
-                  <span className="text-xs text-muted-foreground font-bold">Tổng thanh toán:</span>
+                {totalDiscountAmount + pointsDiscountAmount > 0 && (
+                  <div className="pt-2.5 border-t border-dashed border-border/40 flex items-center justify-between text-[11px] font-bold text-destructive">
+                    <span>Tổng tiền được giảm:</span>
+                    <span>-{formatCurrency(totalDiscountAmount + pointsDiscountAmount)}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/40 font-bold">
+                  <span className="text-xs text-muted-foreground">Tổng thanh toán:</span>
                   <span className="text-lg font-black text-primary tracking-tight">{formatCurrency(finalTotal)}</span>
                 </div>
               </div>

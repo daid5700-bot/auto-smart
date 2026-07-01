@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, Printer, ArrowLeft } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, parseSymptoms } from "@/lib/utils";
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Chờ xử lý",
@@ -107,13 +107,40 @@ export default function InvoicePage() {
           </div>
         </div>
 
-        {/* Symptom */}
-        {ro.symptoms && (
-          <div className="mb-6">
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Triệu chứng / Yêu cầu</p>
-            <p className="text-sm bg-secondary/30 rounded-lg p-3">{ro.symptoms}</p>
-          </div>
-        )}
+        {/* Symptom / Services list */}
+        {(() => {
+          const parsed = parseSymptoms(ro.symptoms);
+          return (
+            <div className="mb-6 space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Triệu chứng / Yêu cầu</p>
+                <p className="text-sm bg-secondary/30 rounded-lg p-3">{parsed.summary || "Không ghi nhận"}</p>
+              </div>
+
+              {parsed.services.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Chi tiết dịch vụ / công việc thực hiện</p>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 font-semibold text-xs text-muted-foreground">Nội dung công việc</th>
+                        <th className="text-right py-2 font-semibold text-xs text-muted-foreground">Chi phí</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsed.services.map((srv: any, idx: number) => (
+                        <tr key={idx} className="border-b border-border/30">
+                          <td className="py-2">{srv.name}</td>
+                          <td className="py-2 text-right font-semibold">{formatCurrency(Number(srv.cost))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Parts table */}
         {ro.items && ro.items.length > 0 && (
@@ -143,48 +170,55 @@ export default function InvoicePage() {
         )}
 
         {/* Cost summary */}
-        <div className="space-y-2 border-t border-border pt-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Tiền công sửa chữa</span>
-            <span className="font-semibold">{formatCurrency(Number(ro.laborCost))}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Tiền phụ tùng</span>
-            <span className="font-semibold">{formatCurrency(Number(ro.partsCost))}</span>
-          </div>
-          {(() => {
-            const labor = Number(ro.laborCost) || 0;
-            const parts = Number(ro.partsCost) || 0;
-            const total = Number(ro.totalAmount) || 0;
-            
-            const pct = Number(ro.discountPercent || 0);
-            const pctAmount = Number(ro.discountAmount || 0);
-            
-            const totalDiscount = Math.round(labor + parts - total);
-            const loyaltyDiscount = Math.max(0, totalDiscount - pctAmount);
+        {(() => {
+          const parsed = parseSymptoms(ro.symptoms);
+          const hasServicesDiscount = parsed.serviceDiscountPercent > 0;
+          const hasPartsDiscount = parsed.partsDiscountPercent > 0;
 
-            return (
-              <>
-                {pct > 0 && (
-                  <div className="flex justify-between text-sm text-destructive font-medium">
-                    <span>Chiết khấu hóa đơn ({pct}%)</span>
-                    <span>-{formatCurrency(pctAmount)}</span>
-                  </div>
-                )}
-                {loyaltyDiscount >= 1000 && (
-                  <div className="flex justify-between text-sm text-success font-medium">
-                    <span>Giảm giá đổi điểm</span>
-                    <span>-{formatCurrency(loyaltyDiscount)}</span>
-                  </div>
-                )}
-              </>
-            );
-          })()}
-          <div className="flex justify-between text-lg font-bold border-t border-border pt-2 mt-2">
-            <span>TỔNG CỘNG</span>
-            <span className="text-primary">{formatCurrency(Number(ro.totalAmount))}</span>
-          </div>
-        </div>
+          const labor = Number(ro.laborCost) || 0;
+          const parts = Number(ro.partsCost) || 0;
+          const total = Number(ro.totalAmount) || 0;
+
+          const serviceDiscountAmount = Math.round(labor * (parsed.serviceDiscountPercent / 100));
+          const partsDiscountAmount = Math.round(parts * (parsed.partsDiscountPercent / 100));
+          const totalDiscount = Math.round(labor + parts - total);
+          const loyaltyDiscount = Math.max(0, totalDiscount - (serviceDiscountAmount + partsDiscountAmount));
+
+          return (
+            <div className="space-y-2 border-t border-border pt-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Tiền công sửa chữa</span>
+                <span className="font-semibold">{formatCurrency(labor)}</span>
+              </div>
+              {hasServicesDiscount && (
+                <div className="flex justify-between text-xs text-destructive font-medium pl-4">
+                  <span>Giảm giá dịch vụ ({parsed.serviceDiscountPercent}%)</span>
+                  <span>-{formatCurrency(serviceDiscountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Tiền phụ tùng</span>
+                <span className="font-semibold">{formatCurrency(parts)}</span>
+              </div>
+              {hasPartsDiscount && (
+                <div className="flex justify-between text-xs text-destructive font-medium pl-4">
+                  <span>Giảm giá phụ tùng ({parsed.partsDiscountPercent}%)</span>
+                  <span>-{formatCurrency(partsDiscountAmount)}</span>
+                </div>
+              )}
+              {loyaltyDiscount >= 1000 && (
+                <div className="flex justify-between text-sm text-success font-medium">
+                  <span>Giảm giá đổi điểm</span>
+                  <span>-{formatCurrency(loyaltyDiscount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-lg font-bold border-t border-border pt-2 mt-2">
+                <span>TỔNG CỘNG</span>
+                <span className="text-primary">{formatCurrency(total)}</span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Dates */}
         <div className="flex justify-between text-xs text-muted-foreground mt-8 pt-4 border-t border-border">

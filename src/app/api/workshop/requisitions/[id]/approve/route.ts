@@ -93,8 +93,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
 
       // 4. Transition Repair Order status:
-      // If technician is assigned -> "DOING" (Đang sửa chữa), otherwise "PENDING" (Chờ sửa)
-      const roStatus = requisition.repairOrder.technicianId ? "DOING" : "PENDING";
+      // Always transition to "DOING" when requisition is approved
+      const roStatus = "DOING";
       await tx.repairOrder.update({
         where: { id: requisition.repairOrderId },
         data: { status: roStatus }

@@ -325,7 +325,7 @@ export default function NewInventoryOrderPage() {
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto min-h-[300px]">
+              <div className={`overflow-x-auto transition-all duration-200 ${openDropdownIdx !== null ? "min-h-[320px]" : "min-h-0"}`}>
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-border text-muted-foreground font-semibold bg-secondary/15">

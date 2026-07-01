@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatDate, formatCurrency } from "@/lib/utils";
+import { formatDate, formatCurrency, parseSymptoms } from "@/lib/utils";
 import { 
   Bell, 
   Loader2, 
@@ -663,7 +663,9 @@ export default function RemindersPage() {
                       {historyReminder.customer.lastRepairOrder.symptoms && (
                         <div className="col-span-2">
                           <span className="text-muted-foreground">Yêu cầu / Triệu chứng của khách:</span>
-                          <p className="font-medium text-foreground bg-secondary/15 p-2 rounded mt-0.5">{historyReminder.customer.lastRepairOrder.symptoms}</p>
+                          <p className="font-medium text-foreground bg-secondary/15 p-2 rounded mt-0.5">
+                            {parseSymptoms(historyReminder.customer.lastRepairOrder.symptoms).summary || "Không ghi chú triệu chứng"}
+                          </p>
                         </div>
                       )}
                     </div>

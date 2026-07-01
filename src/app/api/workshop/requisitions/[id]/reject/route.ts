@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: {
           partsCost: 0,
           totalAmount: finalTotalAmount, // Reset total amount with discount applied
-          status: "PENDING" // Reset status back to pending
+          status: "DOING" // Reset status back to doing
         }
       });
 
