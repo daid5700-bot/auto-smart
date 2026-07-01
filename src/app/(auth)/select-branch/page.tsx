@@ -19,7 +19,7 @@ export default function SelectBranchPage() {
 
   useEffect(() => {
     if (mounted && user) {
-      if (user.role === "ADMIN") {
+      if (user.role === "ADMIN" && branches.length === 0) {
         fetch("/api/branches")
           .then((res) => res.json())
           .then((data) => {

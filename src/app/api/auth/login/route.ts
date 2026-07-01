@@ -33,13 +33,11 @@ export async function POST(req: NextRequest) {
     if (!isMatch) return NextResponse.json({ error: "Mật khẩu không đúng" }, { status: 401 });
 
     const { password: _, branches, ...safeUser } = user as any;
-    let userBranches;
-    if (user.role === "ADMIN") {
+    let userBranches = (branches as any[] || []).map((b: any) => b.branch);
+    if (user.role === "ADMIN" && userBranches.length === 0) {
       userBranches = await prisma.branch.findMany({
         orderBy: { createdAt: "desc" },
       });
-    } else {
-      userBranches = (branches as any[] || []).map((b: any) => b.branch);
     }
 
     const response = NextResponse.json({ user: safeUser, branches: userBranches });
@@ -52,7 +50,9 @@ export async function POST(req: NextRequest) {
       httpOnly: false, // client needs to check layout role visibility, but cannot forge it
     });
 
-    const branchIdsStr = safeUser.role === "ADMIN" ? "ALL" : userBranches.map((b: any) => b.id).join(",");
+    const branchIdsStr = (safeUser.role === "ADMIN" && (branches as any[] || []).length === 0)
+      ? "ALL"
+      : userBranches.map((b: any) => b.id).join(",");
     const signedBranches = await signData(branchIdsStr);
     response.cookies.set("allowed_branches", signedBranches, {
       path: "/",

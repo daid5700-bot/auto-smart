@@ -40,7 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (hydrated && user) {
-      if (user.role === "ADMIN") {
+      if (user.role === "ADMIN" && branches.length === 0) {
         fetch("/api/branches")
           .then((res) => res.json())
           .then((data) => {
