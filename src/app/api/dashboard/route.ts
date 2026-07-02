@@ -1,25 +1,75 @@
 export const dynamic = "force-dynamic";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 
-// --- In-memory cache (L1) — 60-second TTL per branchId ---
-// Prevents 10+ DB queries firing on every page load.
-// Replace with Redis when available for multi-instance deployments.
+// --- In-memory cache (L1) — 60-second TTL per branchId & date range ---
 const dashboardCache = new Map<string, { data: any; expiresAt: number }>();
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
-// GET /api/dashboard — aggregate stats
-export async function GET() {
+// GET /api/dashboard — aggregate stats with optional date filtering
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = req.nextUrl;
+    const startDateStr = searchParams.get("startDate");
+    const endDateStr = searchParams.get("endDate");
+
+    let startDate: Date | undefined = undefined;
+    let endDate: Date | undefined = undefined;
+
+    if (startDateStr) {
+      const parsed = new Date(startDateStr);
+      if (!isNaN(parsed.getTime())) {
+        startDate = parsed;
+      }
+    }
+    if (endDateStr) {
+      const parsed = new Date(endDateStr);
+      if (!isNaN(parsed.getTime())) {
+        endDate = parsed;
+        endDate.setHours(23, 59, 59, 999);
+      }
+    }
+    if (startDate && endDate && startDate > endDate) {
+      const temp = startDate;
+      startDate = endDate;
+      endDate = temp;
+    }
+
     const branchId = getActiveBranchId();
-    const cacheKey = `dashboard_${branchId ?? "all"}`;
+    const cacheKey = `dashboard_${branchId ?? "all"}_${startDateStr ?? ""}_${endDateStr ?? ""}`;
 
     // Return cached data if still fresh
     const cached = dashboardCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return NextResponse.json(cached.data);
     }
+
+    // Dynamic date filters for transactional metrics
+    const dateFilter = (startDate || endDate) ? {
+      createdAt: {
+        ...(startDate ? { gte: startDate } : {}),
+        ...(endDate ? { lte: endDate } : {}),
+      }
+    } : {};
+
+    const znsDateFilter = (startDate || endDate) ? {
+      sentAt: {
+        ...(startDate ? { gte: startDate } : {}),
+        ...(endDate ? { lte: endDate } : {}),
+      }
+    } : {
+      sentAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+    };
+
+    const roTodayFilter = (startDate || endDate) ? {
+      createdAt: {
+        ...(startDate ? { gte: startDate } : {}),
+        ...(endDate ? { lte: endDate } : {}),
+      }
+    } : {
+      createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+    };
 
     // 1. Basic counts
     const [
@@ -35,14 +85,59 @@ export async function GET() {
       totalTechnicians,
     ] = await Promise.all([
       prisma.product.count({ where: branchId ? { productBranches: { some: { branchId } } } : {} }),
-      prisma.customer.count({ where: { isDeleted: false, ...(branchId ? { branchId } : {}) } }),
-      prisma.lead.count({ where: branchId ? { branchId } : {} }),
-      prisma.lead.count({ where: { status: "NEW", ...(branchId ? { branchId } : {}) } }),
-      prisma.repairOrder.count({ where: { status: { notIn: ["DONE", "DELIVERED"] }, ...(branchId ? { branchId } : {}) } }),
-      prisma.repairOrder.count({ where: { status: "WAITING_PARTS", ...(branchId ? { branchId } : {}) } }),
-      prisma.vehicle.count({ where: branchId ? { branchId } : {} }),
-      prisma.znsLog.count({ where: { sentAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }, ...(branchId ? { branchId } : {}) } }),
-      prisma.repairOrder.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }, ...(branchId ? { branchId } : {}) } }),
+      prisma.customer.count({ 
+        where: { 
+          isDeleted: false, 
+          ...(branchId ? { branchId } : {}),
+          ...((startDate || endDate) ? { createdAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
+        } 
+      }),
+      prisma.lead.count({ 
+        where: {
+          ...(branchId ? { branchId } : {}),
+          ...dateFilter,
+        }
+      }),
+      prisma.lead.count({ 
+        where: { 
+          status: "NEW", 
+          ...(branchId ? { branchId } : {}),
+          ...dateFilter,
+        } 
+      }),
+      prisma.repairOrder.count({ 
+        where: { 
+          status: { notIn: ["DONE", "DELIVERED"] }, 
+          ...(branchId ? { branchId } : {}),
+          ...dateFilter,
+        } 
+      }),
+      prisma.repairOrder.count({ 
+        where: { 
+          status: "WAITING_PARTS", 
+          ...(branchId ? { branchId } : {}),
+          ...dateFilter,
+        } 
+      }),
+      prisma.vehicle.count({ 
+        where: {
+          ...(branchId ? { branchId } : {}),
+          // We keep totalVehicles as master data count unless filtered explicitly by date
+          ...dateFilter,
+        }
+      }),
+      prisma.znsLog.count({ 
+        where: { 
+          ...(branchId ? { branchId } : {}),
+          ...znsDateFilter,
+        } 
+      }),
+      prisma.repairOrder.count({ 
+        where: { 
+          ...(branchId ? { branchId } : {}),
+          ...roTodayFilter,
+        } 
+      }),
       prisma.technician.count({ where: branchId ? { branchId } : {} }),
     ]);
 
@@ -70,35 +165,47 @@ export async function GET() {
       console.error(e);
     }
 
-    // 3. 30 Days Revenue, Previous 30 Days Revenue, Trend & Closed ROs
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    // 3. Dynamic Revenue, Previous Period Revenue, Trend & Closed ROs
+    let currentROsFilter: any = {
+      status: { in: ["DONE", "DELIVERED"] },
+      ...(branchId ? { branchId } : {}),
+    };
+    let previousROsFilter: any = {
+      status: { in: ["DONE", "DELIVERED"] },
+      ...(branchId ? { branchId } : {}),
+    };
 
-    const [current30DaysROs, previous30DaysROs] = await Promise.all([
+    if (startDate && endDate) {
+      const diffTime = endDate.getTime() - startDate.getTime();
+      const prevStartDate = new Date(startDate.getTime() - diffTime);
+      const prevEndDate = new Date(startDate.getTime() - 1);
+
+      currentROsFilter.completedAt = { gte: startDate, lte: endDate };
+      previousROsFilter.completedAt = { gte: prevStartDate, lte: prevEndDate };
+    } else {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+      currentROsFilter.completedAt = { gte: thirtyDaysAgo };
+      previousROsFilter.completedAt = { gte: sixtyDaysAgo, lt: thirtyDaysAgo };
+    }
+
+    const [currentROs, previousROs] = await Promise.all([
       prisma.repairOrder.findMany({
-        where: {
-          status: { in: ["DONE", "DELIVERED"] },
-          completedAt: { gte: thirtyDaysAgo },
-          ...(branchId ? { branchId } : {}),
-        },
+        where: currentROsFilter,
         select: { totalAmount: true },
       }),
       prisma.repairOrder.findMany({
-        where: {
-          status: { in: ["DONE", "DELIVERED"] },
-          completedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
-          ...(branchId ? { branchId } : {}),
-        },
+        where: previousROsFilter,
         select: { totalAmount: true },
       })
     ]);
 
-    const revenue30Days = current30DaysROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
-    const closedROsCount = current30DaysROs.length;
-
-    const previous30DaysRevenue = previous30DaysROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+    const revenue30Days = currentROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+    const closedROsCount = currentROs.length;
+    const previous30DaysRevenue = previousROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
     
     // Calculate trend percentage
     let trendPercentage = 0;
@@ -108,16 +215,24 @@ export async function GET() {
       trendPercentage = 100;
     }
 
-    // 4. Top 5 Technicians by completed RO total amount
+    // 4. Top 5 Technicians by completed RO total amount in period
+    let techROWhere: any = {
+      status: { in: ["DONE", "DELIVERED"] },
+    };
+    if (startDate && endDate) {
+      techROWhere.completedAt = { gte: startDate, lte: endDate };
+    }
+
     const techs = await prisma.technician.findMany({
       where: branchId ? { branchId } : {},
       include: {
         repairOrders: {
-          where: { status: { in: ["DONE", "DELIVERED"] } },
+          where: techROWhere,
           select: { totalAmount: true },
         },
       },
     });
+
     const topKtv = techs.map((t) => {
       const completedOrders = t.repairOrders.length;
       const totalRevenue = t.repairOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
@@ -134,6 +249,7 @@ export async function GET() {
       where: {
         status: { notIn: ["DONE", "DELIVERED"] },
         ...(branchId ? { branchId } : {}),
+        ...dateFilter,
       },
       orderBy: { createdAt: "desc" },
       take: 5,
@@ -162,36 +278,61 @@ export async function GET() {
       };
     }).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0, 5);
 
-    // 7. Last 12 months revenue (Optimized: 1 query instead of 12)
+    // 7. Last 12 months revenue or selected months range
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setDate(1);
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
     twelveMonthsAgo.setHours(0, 0, 0, 0);
 
+    const startRange = startDate || twelveMonthsAgo;
+    const endRange = endDate || new Date();
+
     const allYearROs = await prisma.repairOrder.findMany({
       where: {
         status: { in: ["DONE", "DELIVERED"] },
-        completedAt: { gte: twelveMonthsAgo },
+        completedAt: { gte: startRange, lte: endRange },
         ...(branchId ? { branchId } : {}),
       },
       select: { completedAt: true, totalAmount: true },
     });
 
     const monthlyRevenue = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(1);
-      d.setMonth(d.getMonth() - i);
-      const monthLabel = `T${d.getMonth() + 1}`;
-      
-      const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
-      
-      const total = allYearROs
-        .filter(ro => ro.completedAt && ro.completedAt >= startOfMonth && ro.completedAt <= endOfMonth)
-        .reduce((sum, ro) => sum + Number(ro.totalAmount) / 1000000, 0); // in millions VND
-      
-      monthlyRevenue.push({ label: monthLabel, value: Number(total.toFixed(1)) });
+    if (startDate && endDate) {
+      let current = new Date(startDate);
+      current.setDate(1);
+      current.setHours(0, 0, 0, 0);
+      const endLimit = new Date(endDate);
+      endLimit.setDate(1);
+      endLimit.setHours(0, 0, 0, 0);
+
+      while (current <= endLimit) {
+        const y = current.getFullYear();
+        const m = current.getMonth();
+        const start = new Date(y, m, 1, 0, 0, 0);
+        const end = new Date(y, m + 1, 0, 23, 59, 59);
+        const label = `T${m + 1}/${y.toString().slice(-2)}`;
+        const total = allYearROs
+          .filter(ro => ro.completedAt && ro.completedAt >= start && ro.completedAt <= end)
+          .reduce((sum, ro) => sum + Number(ro.totalAmount) / 1000000, 0);
+        monthlyRevenue.push({ label, value: Number(total.toFixed(1)) });
+        current.setMonth(current.getMonth() + 1);
+      }
+    } else {
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - i);
+        const monthLabel = `T${d.getMonth() + 1}`;
+        
+        const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+        const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+        
+        const total = allYearROs
+          .filter(ro => ro.completedAt && ro.completedAt >= startOfMonth && ro.completedAt <= endOfMonth)
+          .reduce((sum, ro) => sum + Number(ro.totalAmount) / 1000000, 0);
+        
+        monthlyRevenue.push({ label: monthLabel, value: Number(total.toFixed(1)) });
+      }
     }
 
     const responseData = {

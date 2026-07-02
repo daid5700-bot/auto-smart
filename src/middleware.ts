@@ -19,7 +19,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/select-branch") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/dashboard/debug") ||
     pathname.startsWith("/uploads") ||
     pathname.startsWith("/zalo_verifier") ||
     pathname.startsWith("/VT-E6ON10") ||

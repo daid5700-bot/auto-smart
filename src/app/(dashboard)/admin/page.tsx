@@ -4,7 +4,7 @@ import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/store";
 import {
   Wrench, Users, ShoppingCart, AlertTriangle, TrendingUp, TrendingDown, Plus,
-  Calendar, DollarSign, Car, MessageSquare, ShieldCheck, Loader2
+  Calendar, DollarSign, Car, MessageSquare, ShieldCheck, Loader2, RefreshCw, X
 } from "lucide-react";
 import Link from "next/link";
 
@@ -12,14 +12,25 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-  useEffect(() => {
-    fetch("/api/dashboard")
+  const fetchDashboardData = () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    
+    fetch(`/api/dashboard?${params.toString()}`)
       .then((r) => r.json())
       .then(setData)
       .catch((e) => console.error("Error loading dashboard data:", e))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [startDate, endDate]);
 
   if (loading) {
     return (
@@ -80,7 +91,8 @@ export default function AdminDashboard() {
   const paddingY = 40;
 
   const points = monthlyRevenue.map((m: any, index: number) => {
-    const x = (index / 11) * chartWidth + paddingX;
+    const divisor = Math.max(monthlyRevenue.length - 1, 1);
+    const x = (index / divisor) * chartWidth + paddingX;
     const y = chartHeight - (m.value / maxVal) * (chartHeight - 40) + paddingY;
     return { x, y, label: m.label, value: m.value };
   });
@@ -107,13 +119,45 @@ export default function AdminDashboard() {
           <h2 className="text-3xl font-extrabold tracking-tight mt-1">
             Xin chào, {greetingName}.
           </h2>
+        </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl px-3 py-1.5 shadow-sm text-xs font-semibold">
+            <span className="text-muted-foreground">Từ:</span>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={e => setStartDate(e.target.value)} 
+              className="bg-transparent border-none outline-none text-foreground w-[125px] text-xs"
+            />
+            <span className="text-muted-foreground border-l border-border pl-2">Đến:</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={e => setEndDate(e.target.value)} 
+              className="bg-transparent border-none outline-none text-foreground w-[125px] text-xs"
+            />
+            {(startDate || endDate) && (
+              <button 
+                onClick={() => { setStartDate(""); setEndDate(""); }} 
+                className="text-muted-foreground hover:text-destructive ml-1"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
-        <Link
-          href="/workshop"
-          className="gradient-primary text-white px-5 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-95 shadow-lg shadow-primary/20 shrink-0 w-full md:w-auto"
-        >
-          <Wrench size={16} /> Tạo lệnh sửa chữa
-        </Link>
+          <button 
+            onClick={fetchDashboardData} 
+            className="p-2.5 hover:bg-secondary rounded-xl text-primary border border-border bg-card transition-colors flex items-center justify-center"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <Link
+            href="/workshop"
+            className="gradient-primary text-white px-5 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-95 shadow-lg shadow-primary/20 shrink-0 w-full md:w-auto"
+          >
+            <Wrench size={16} /> Tạo lệnh sửa chữa
+          </Link>
+        </div>
       </div>
 
       {/* Row of 4 KPI cards */}
@@ -134,7 +178,7 @@ export default function AdminDashboard() {
         {/* Doanh thu 30 ngày */}
         <div className="glass-card rounded-xl p-5 border-l-4 border-l-emerald-500 hover:-translate-y-0.5 transition-transform">
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-            DOANH THU 30 NGÀY
+            {startDate || endDate ? "DOANH THU KỲ CHỌN" : "DOANH THU 30 NGÀY"}
           </p>
           <p className="text-4xl font-extrabold mt-2 tracking-tight">
             {formatCurrency(data.revenue30Days)}
@@ -181,7 +225,7 @@ export default function AdminDashboard() {
                 DOANH THU SỬA CHỮA
               </p>
               <h3 className="text-xl font-bold tracking-tight mt-0.5">
-                12 tháng gần nhất · triệu đồng
+                {startDate || endDate ? "Kỳ lọc" : "12 tháng gần nhất"} · triệu đồng
               </h3>
             </div>
             {trend >= 0 ? (
