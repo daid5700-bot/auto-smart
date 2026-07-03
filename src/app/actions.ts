@@ -646,21 +646,29 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
   }
 
   const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
-  const nextServiceDate = new Date();
-  nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
-  const nextServiceText = `Thay dầu (${formatDateForZalo(nextServiceDate)})`;
+  const lastRo = await prisma.repairOrder.findFirst({
+    where: { customerId: data.customerId },
+    orderBy: { createdAt: "desc" },
+  });
 
-  const rawNote = `Thay dầu xe ${data.plateNumber}`;
-  const truncatedNote = rawNote.length > 29 ? rawNote.substring(0, 29) : rawNote;
-  const custName = customer.name;
-  const truncatedCustName = custName.length > 49 ? custName.substring(0, 49) : custName;
+  const orderDate = lastRo?.createdAt || new Date();
+  const vehicleModel = lastRo?.vehicleModel || "xe máy";
+  const vehicleName200 = vehicleModel.length > 199 ? vehicleModel.substring(0, 199) : vehicleModel;
+  const licensePlate30 = data.plateNumber.length > 29 ? data.plateNumber.substring(0, 29) : data.plateNumber;
+
+  const branch = branchId ? await prisma.branch.findUnique({ where: { id: branchId } }) : null;
+  const storeName = branch?.name || "Yamaha Town Toàn Thắng";
+  const storeName200 = storeName.length > 199 ? storeName.substring(0, 199) : storeName;
+
+  const cleanCustName = customer.name.trim();
+  const customerName30 = cleanCustName.length > 29 ? cleanCustName.substring(0, 29) : cleanCustName;
 
   const templateData = {
-    customer_name: truncatedCustName,
-    order_date: formatDateForZalo(new Date()),
-    note: truncatedNote,
-    point: "0",
-    total_point: String(customer.loyaltyPoints || 0),
+    customer_name: customerName30,
+    order_date: formatDateForZalo(orderDate),
+    vehicle_name: vehicleName200,
+    license_plate: licensePlate30,
+    store_name: storeName200,
   };
 
   const result = await sendZaloZns(data.phone, "CRM_OIL_REMIND_002", templateData);
