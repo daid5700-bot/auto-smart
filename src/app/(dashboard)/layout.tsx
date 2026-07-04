@@ -172,9 +172,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex h-screen overflow-hidden">
       {/* SIDEBAR */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
+        "fixed inset-y-0 left-0 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
         collapsed ? "w-[72px]" : "w-64",
-        mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        mobileOpen ? "translate-x-0 z-50" : "-translate-x-full lg:translate-x-0 z-20"
       )}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border shrink-0">
@@ -328,7 +328,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 bg-dot-pattern relative">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 lg:p-6 bg-dot-pattern">{children}</div>
       </main>
 
       {/* Global Search Command Palette Modal */}

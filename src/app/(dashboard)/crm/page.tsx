@@ -34,20 +34,34 @@ export default function CRMPage() {
     tags: "",
   });
 
-  const fetchStats = () => {
-    fetch("/api/crm?tab=stats").then((r) => r.json()).then(setStats);
+  const fetchStats = async () => {
+    try {
+      const r = await fetch("/api/crm?tab=stats");
+      if (!r.ok) { console.warn("[CRM] fetchStats HTTP error:", r.status); return; }
+      const text = await r.text();
+      if (!text.trim()) { console.warn("[CRM] fetchStats: empty response"); return; }
+      setStats(JSON.parse(text));
+    } catch (e) {
+      console.error("[CRM] fetchStats failed:", e);
+    }
   };
 
-  const fetchTabData = () => {
+  const fetchTabData = async () => {
     setLoading(true);
-    // FIX #8: Use limit=100 and track pagination for lead pipeline overflow
-    fetch(`/api/crm?tab=${tab}&limit=100`)
-      .then((r) => r.json())
-      .then((data) => {
-        setTabData(data);
-        if (data.pagination) setLeadPagination(data.pagination);
-      })
-      .finally(() => setLoading(false));
+    try {
+      // Use limit=100 and track pagination for lead pipeline overflow
+      const r = await fetch(`/api/crm?tab=${tab}&limit=100`);
+      if (!r.ok) { console.warn("[CRM] fetchTabData HTTP error:", r.status); return; }
+      const text = await r.text();
+      if (!text.trim()) { console.warn("[CRM] fetchTabData: empty response"); return; }
+      const data = JSON.parse(text);
+      setTabData(data);
+      if (data.pagination) setLeadPagination(data.pagination);
+    } catch (e) {
+      console.error("[CRM] fetchTabData failed:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchStats(); }, []);

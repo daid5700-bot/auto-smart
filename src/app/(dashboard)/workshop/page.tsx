@@ -6,6 +6,7 @@ import { NumericInput } from "@/components/NumericInput";
 import { Wrench, Plus, CheckCircle2, AlertTriangle, Eye, Edit, Trash2, X, Loader2, Printer, ClipboardList } from "lucide-react";
 import { createPartsRequisition } from "@/app/actions";
 import { useAuth } from "@/lib/store";
+import { ModalPortal } from "@/components/modal-portal";
 
 const RO_COLS = [
   { status: "WAITING_PARTS", label: "Chờ phụ tùng", border: "border-t-rose-500/50" },
@@ -80,18 +81,28 @@ export default function WorkshopPage() {
   const fetchRequisitions = () => {
     setReqLoading(true);
     fetch("/api/workshop/requisitions")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const text = await r.text();
+        if (!text) throw new Error("Empty response");
+        return JSON.parse(text);
+      })
       .then((d) => setRequisitions(d.requisitions || []))
-      .catch((err) => console.error(err))
+      .catch((err) => console.error("Requisitions fetch error:", err))
       .finally(() => setReqLoading(false));
   };
 
   const fetchBranchProducts = () => {
     setProductsLoading(true);
     fetch("/api/inventory?scope=current")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const text = await r.text();
+        if (!text) throw new Error("Empty response");
+        return JSON.parse(text);
+      })
       .then((d) => setBranchProducts(d.products || []))
-      .catch((err) => console.error(err))
+      .catch((err) => console.error("Products fetch error:", err))
       .finally(() => setProductsLoading(false));
   };
 
@@ -184,8 +195,14 @@ export default function WorkshopPage() {
 
   const fetchData = () => {
     fetch("/api/workshop")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const text = await r.text();
+        if (!text) throw new Error("Empty response");
+        return JSON.parse(text);
+      })
       .then(setData)
+      .catch((e) => console.error("Workshop fetch error:", e))
       .finally(() => setLoading(false));
   };
 
@@ -524,7 +541,8 @@ export default function WorkshopPage() {
 
       {/* CRUD Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-lg bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="text-lg font-bold">{editingId ? "Cập nhật lệnh sửa chữa (RO)" : "Tạo Lệnh sửa chữa mới (RO)"}</h3>
@@ -612,11 +630,13 @@ export default function WorkshopPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Print Preview Modal */}
       {printOpen && printRo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm print:p-0 print:bg-white animate-fade-in">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm print:p-0 print:bg-white animate-fade-in">
           <div className="w-full max-w-2xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl print:border-none print:shadow-none print:bg-white print:w-full print:max-w-none print:h-full flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border print:hidden bg-secondary/10">
               <h3 className="text-lg font-bold flex items-center gap-2">
@@ -798,11 +818,13 @@ export default function WorkshopPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Requisition Creation Modal */}
       {reqModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-6xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[90vh] max-h-[95vh] animate-slide-in-bottom">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/10">
               <div>
@@ -1000,11 +1022,13 @@ export default function WorkshopPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Detail / Print Requisition Modal */}
       {detailReqOpen && detailReq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm print:p-0 print:bg-white animate-fade-in">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm print:p-0 print:bg-white animate-fade-in">
           <div className="w-full max-w-5xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl print:border-none print:shadow-none print:bg-white print:w-full print:max-w-none print:h-full flex flex-col h-[85vh] max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border print:hidden bg-secondary/10">
               <h3 className="text-lg font-bold flex items-center gap-2">
@@ -1100,6 +1124,7 @@ export default function WorkshopPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

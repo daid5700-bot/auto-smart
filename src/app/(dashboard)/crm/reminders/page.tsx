@@ -149,18 +149,49 @@ export default function RemindersPage() {
   const compileContent = (templateText: string, reminder: ReminderItem) => {
     const pointsStr = String(reminder.customer.loyaltyPoints || 0);
     const finalTotalStr = formatCurrency(Number(reminder.customer.totalSpent || 0));
-    
     const nextServiceText = `${reminder.serviceLabel} (${formatDate(reminder.dueDate.toISOString())})`;
 
+    // Lấy ngày dịch vụ lần trước từ lastRepairOrder
+    const lastRo = reminder.customer.lastRepairOrder;
+    const orderDateStr = lastRo?.createdAt
+      ? formatDate(lastRo.createdAt)
+      : formatDate(new Date(reminder.dueDate.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()); // fallback: dueDate - 3 tháng
+
+    // Tên xe từ lastRepairOrder hoặc lastVehicle
+    const vehicleName =
+      lastRo?.vehicleModel ||
+      (reminder.customer.lastVehicle
+        ? `${reminder.customer.lastVehicle.model}${reminder.customer.lastVehicle.variant ? " " + reminder.customer.lastVehicle.variant : ""}`
+        : "xe máy");
+
+    // Tên chi nhánh
+    const storeName = reminder.customer.branch?.name || "Yamaha Town Toàn Thắng";
+
     const result = templateText
+      // Double-brace style: {{variableName}}
       .replace(/\{\{customerName\}\}/g, reminder.customer.name)
+      .replace(/\{\{customer_name\}\}/g, reminder.customer.name)
       .replace(/\{\{vehiclePlate\}\}/g, reminder.plate)
+      .replace(/\{\{license_plate\}\}/g, reminder.plate)
+      .replace(/\{\{vehicleName\}\}/g, vehicleName)
+      .replace(/\{\{vehicle_name\}\}/g, vehicleName)
+      .replace(/\{\{orderDate\}\}/g, orderDateStr)
+      .replace(/\{\{order_date\}\}/g, orderDateStr)
+      .replace(/\{\{storeName\}\}/g, storeName)
+      .replace(/\{\{store_name\}\}/g, storeName)
       .replace(/\{\{nextService\}\}/g, nextServiceText)
       .replace(/\{\{finalTotal\}\}/g, finalTotalStr)
-      .replace(/\{\{points\}\}/g, pointsStr);
+      .replace(/\{\{points\}\}/g, pointsStr)
+      // Zalo angle-bracket style: <variable_name>
+      .replace(/<customer_name>/g, reminder.customer.name)
+      .replace(/<license_plate>/g, reminder.plate)
+      .replace(/<vehicle_name>/g, vehicleName)
+      .replace(/<order_date>/g, orderDateStr)
+      .replace(/<store_name>/g, storeName);
 
     setCompiledContent(result);
   };
+
 
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplateId(templateId);

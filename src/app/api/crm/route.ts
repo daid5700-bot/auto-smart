@@ -61,13 +61,14 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Fetch up to 150 most recent active customers
+    // Fetch up to 500 most recent active customers (configurable via ?limit=N, max 1000)
+    const reminderLimit = Math.min(1000, Math.max(50, parseInt(req.nextUrl.searchParams.get("limit") || "500")));
     const customers = await prisma.customer.findMany({
       where: {
         isDeleted: false,
         ...(branchId ? { branchId } : {}),
       } as any,
-      take: 150, // Limit to prevent massive memory usage
+      take: reminderLimit,
       orderBy: { lastVisit: "desc" },
       include: {
         vehicles: true,
@@ -193,7 +194,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       reminders,
-      warning: totalCustomers > 150 ? `Chỉ hiển thị nhắc nhở của 150 khách hàng hoạt động gần đây nhất trên tổng số ${totalCustomers} khách hàng.` : null,
+      warning: totalCustomers > reminderLimit ? `Chỉ hiển thị nhắc nhở của ${reminderLimit} khách hàng hoạt động gần đây nhất trên tổng số ${totalCustomers} khách hàng.` : null,
       totalCustomers
     });
   }
