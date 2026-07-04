@@ -40,24 +40,37 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const response = NextResponse.json({ user: safeUser, branches: userBranches });
-    
     const signedRole = await signRole(safeUser.role);
     console.log("LOGIN ROUTE: signedRole =", signedRole);
-    response.cookies.set("user_role", signedRole, {
-      path: "/",
-      maxAge: 86400,
-      httpOnly: false, // client needs to check layout role visibility, but cannot forge it
-    });
 
     const branchIdsStr = (safeUser.role === "ADMIN" && (branches as any[] || []).length === 0)
       ? "ALL"
       : userBranches.map((b: any) => b.id).join(",");
     const signedBranches = await signData(branchIdsStr);
+
+    const isProd = process.env.NODE_ENV === "production";
+
+    const response = NextResponse.json({
+      user: safeUser,
+      branches: userBranches,
+      signedRole,
+      signedBranches,
+    });
+    
+    response.cookies.set("user_role", signedRole, {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: false, // client needs to check layout role visibility, but cannot forge it
+      sameSite: "lax",
+      secure: isProd,
+    });
+
     response.cookies.set("allowed_branches", signedBranches, {
       path: "/",
       maxAge: 86400,
       httpOnly: true, // secure from JS manipulation
+      sameSite: "lax",
+      secure: isProd,
     });
 
     if (userBranches.length === 1) {
@@ -65,6 +78,8 @@ export async function POST(req: NextRequest) {
         path: "/",
         maxAge: 86400,
         httpOnly: false, // client needs to read it
+        sameSite: "lax",
+        secure: isProd,
       });
     }
 

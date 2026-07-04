@@ -70,25 +70,25 @@ export async function GET(req: NextRequest) {
       // All-time paid revenue
       prisma.repairOrder.aggregate({
         _sum: { paidAmount: true },
-        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] } },
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, isDeleted: false },
       }),
       // Current period paid revenue
       prisma.repairOrder.aggregate({
         _sum: { paidAmount: true },
-        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: startRange, lte: endRange } },
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, isDeleted: false, createdAt: { gte: startRange, lte: endRange } },
       }),
       // Previous period paid revenue
       prisma.repairOrder.aggregate({
         _sum: { paidAmount: true },
-        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: prevStart, lte: prevEnd } },
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, isDeleted: false, createdAt: { gte: prevStart, lte: prevEnd } },
       }),
       // Current period RO count
       prisma.repairOrder.count({
-        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: startRange, lte: endRange } },
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, isDeleted: false, createdAt: { gte: startRange, lte: endRange } },
       }),
       // Previous period RO count
       prisma.repairOrder.count({
-        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: prevStart, lte: prevEnd } },
+        where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, isDeleted: false, createdAt: { gte: prevStart, lte: prevEnd } },
       }),
     ]);
 
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
       monthlyRevenuePromises.push(
         prisma.repairOrder.aggregate({
           _sum: { paidAmount: true },
-          where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, createdAt: { gte: start, lte: end } },
+          where: { ...baseWhere, status: { in: ["DONE", "DELIVERED"] }, isDeleted: false, createdAt: { gte: start, lte: end } },
         }).then(result => ({ month: monthLabel, revenue: Number(result._sum.paidAmount || 0) }))
       );
     }
@@ -125,6 +125,7 @@ export async function GET(req: NextRequest) {
     const matchingRepairOrders = await prisma.repairOrder.findMany({
       where: {
         ...baseWhere,
+        isDeleted: false,
         createdAt: { gte: startRange, lte: endRange },
       },
       select: { id: true },
@@ -162,6 +163,7 @@ export async function GET(req: NextRequest) {
       where: {
         ...baseWhere,
         status: { in: ["DONE", "DELIVERED"] },
+        isDeleted: false,
         createdAt: { gte: startRange, lte: endRange }
       },
       orderBy: { updatedAt: "desc" },

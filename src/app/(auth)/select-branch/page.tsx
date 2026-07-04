@@ -74,9 +74,19 @@ export default function SelectBranchPage() {
       <div className="w-full max-w-2xl animate-slide-in-bottom">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center glow-blue">
-              <Car size={20} className="text-white" />
-            </div>
+            {activeBranch?.name?.toLowerCase().includes("vinfast") ? (
+              <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
+                <img src="/vinfast.png" alt="Vinfast Logo" className="w-full h-full object-contain" />
+              </div>
+            ) : activeBranch?.name?.toLowerCase().includes("yamaha") ? (
+              <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
+                <img src="/yamaha.png" alt="Yamaha Logo" className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center glow-blue">
+                <Car size={20} className="text-white" />
+              </div>
+            )}
             <div>
               <h1 className="text-xl font-bold">AUTO-SMART</h1>
               <p className="text-xs text-muted-foreground font-medium">CRM & ERP Platform</p>
@@ -116,8 +126,14 @@ export default function SelectBranchPage() {
                   }`}
                 >
                   <div>
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <Building2 size={20} />
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-4 group-hover:scale-110 transition-transform overflow-hidden shadow-sm">
+                      {branch.name.toLowerCase().includes("vinfast") ? (
+                        <div className="w-full h-full bg-white p-1 flex items-center justify-center"><img src="/vinfast.png" alt="Vinfast" className="w-full h-full object-contain" /></div>
+                      ) : branch.name.toLowerCase().includes("yamaha") ? (
+                        <div className="w-full h-full bg-white p-1 flex items-center justify-center"><img src="/yamaha.png" alt="Yamaha" className="w-full h-full object-contain" /></div>
+                      ) : (
+                        <Building2 size={20} />
+                      )}
                     </div>
                     <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">
                       {branch.name}

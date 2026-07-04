@@ -36,11 +36,11 @@ export async function GET() {
   );
 
   await runQuery("5. count_active_ros", () => 
-    prisma.repairOrder.count({ where: { status: { notIn: ["DONE", "DELIVERED"] }, ...(branchId ? { branchId } : {}) } })
+    prisma.repairOrder.count({ where: { status: { notIn: ["DONE", "DELIVERED"] }, isDeleted: false, ...(branchId ? { branchId } : {}) } })
   );
 
   await runQuery("6. count_waiting_parts", () => 
-    prisma.repairOrder.count({ where: { status: "WAITING_PARTS", ...(branchId ? { branchId } : {}) } })
+    prisma.repairOrder.count({ where: { status: "WAITING_PARTS", isDeleted: false, ...(branchId ? { branchId } : {}) } })
   );
 
   await runQuery("7. count_vehicles", () => 
@@ -52,7 +52,7 @@ export async function GET() {
   );
 
   await runQuery("9. count_ro_today", () => 
-    prisma.repairOrder.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }, ...(branchId ? { branchId } : {}) } })
+    prisma.repairOrder.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }, isDeleted: false, ...(branchId ? { branchId } : {}) } })
   );
 
   await runQuery("10. count_technicians", () => 
@@ -87,6 +87,7 @@ export async function GET() {
       where: {
         status: { in: ["DONE", "DELIVERED"] },
         completedAt: { gte: thirtyDaysAgo },
+        isDeleted: false,
         ...(branchId ? { branchId } : {}),
       },
       select: { totalAmount: true },
@@ -98,6 +99,7 @@ export async function GET() {
       where: {
         status: { in: ["DONE", "DELIVERED"] },
         completedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+        isDeleted: false,
         ...(branchId ? { branchId } : {}),
       },
       select: { totalAmount: true },
@@ -109,7 +111,7 @@ export async function GET() {
       where: branchId ? { branchId } : {},
       include: {
         repairOrders: {
-          where: { status: { in: ["DONE", "DELIVERED"] } },
+          where: { status: { in: ["DONE", "DELIVERED"] }, isDeleted: false },
           select: { totalAmount: true },
         },
       },
@@ -120,6 +122,7 @@ export async function GET() {
     prisma.repairOrder.findMany({
       where: {
         status: { notIn: ["DONE", "DELIVERED"] },
+        isDeleted: false,
         ...(branchId ? { branchId } : {}),
       },
       orderBy: { createdAt: "desc" },
@@ -149,6 +152,7 @@ export async function GET() {
       where: {
         status: { in: ["DONE", "DELIVERED"] },
         completedAt: { gte: twelveMonthsAgo },
+        isDeleted: false,
         ...(branchId ? { branchId } : {}),
       },
       select: { completedAt: true, totalAmount: true },

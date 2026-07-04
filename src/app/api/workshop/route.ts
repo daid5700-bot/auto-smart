@@ -16,13 +16,21 @@ export async function GET(req: NextRequest) {
   // Run independent queries in parallel for speed
   const [repairOrders, totalROs, technicians] = await Promise.all([
     prisma.repairOrder.findMany({
-      where: branchId ? { branchId } : {},
+      where: {
+        isDeleted: false,
+        ...(branchId ? { branchId } : {}),
+      },
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
       include: { customer: true, technician: true, items: { include: { product: true } } },
     }),
-    prisma.repairOrder.count({ where: branchId ? { branchId } : {} }),
+    prisma.repairOrder.count({
+      where: {
+        isDeleted: false,
+        ...(branchId ? { branchId } : {}),
+      },
+    }),
     prisma.technician.findMany({
       where: branchId ? { branchId } : {},
       orderBy: { code: "asc" },

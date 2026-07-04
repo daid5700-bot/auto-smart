@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     // Search Repair Orders
     const repairOrders = await prisma.repairOrder.findMany({
       where: {
+        isDeleted: false,
         OR: [
           { plateNumber: { contains: cleanQuery, mode: "insensitive" } },
           { symptoms: { contains: cleanQuery, mode: "insensitive" } },

@@ -19,10 +19,14 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/select-branch") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/test-zns") ||
     pathname.startsWith("/uploads") ||
     pathname.startsWith("/zalo_verifier") ||
     pathname.startsWith("/VT-E6ON10") ||
+    pathname.endsWith(".png") ||
+    pathname.endsWith(".jpg") ||
+    pathname.endsWith(".jpeg") ||
+    pathname.endsWith(".svg") ||
+    pathname.endsWith(".ico") ||
     pathname === "/"
   ) {
     return NextResponse.next();

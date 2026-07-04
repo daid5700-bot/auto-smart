@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     const branchId = getActiveBranchId();
 
-    const roWhere: any = branchId ? { branchId } : {};
+    const roWhere: any = { isDeleted: false, ...(branchId ? { branchId } : {}) };
     if (startDate || endDate) {
       roWhere.createdAt = {};
       if (startDate) roWhere.createdAt.gte = startDate;
@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
     // 3. Technician Performance
     const techROWhere: any = {
       status: { in: ["DONE", "DELIVERED"] },
+      isDeleted: false,
     };
     if (startDate || endDate) {
       techROWhere.createdAt = {};

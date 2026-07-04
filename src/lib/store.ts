@@ -54,7 +54,6 @@ export const useAuth = create<AuthState>((set) => ({
       
       const user = data.user;
       const branches = data.branches || [];
-      // Auto select active branch if only one exists
       const activeBranch = branches.length === 1 ? branches[0] : null;
 
       set({ user, branches, activeBranch, isAuth: true });
@@ -62,12 +61,23 @@ export const useAuth = create<AuthState>((set) => ({
       if (typeof window !== "undefined") {
         localStorage.setItem("user_session", JSON.stringify(user));
         localStorage.setItem("user_branches", JSON.stringify(branches));
+        if (data.signedRole) localStorage.setItem("signed_role", data.signedRole);
+        if (data.signedBranches) localStorage.setItem("signed_allowed_branches", data.signedBranches);
+
+        // Ensure browser cookies are set with SameSite=Lax
+        if (data.signedRole) {
+          document.cookie = `user_role=${data.signedRole}; path=/; max-age=86400; SameSite=Lax`;
+        }
+        if (data.signedBranches) {
+          document.cookie = `allowed_branches=${data.signedBranches}; path=/; max-age=86400; SameSite=Lax`;
+        }
+
         if (activeBranch) {
           localStorage.setItem("active_branch", JSON.stringify(activeBranch));
-          document.cookie = `active_branch_id=${activeBranch.id}; path=/; max-age=86400`;
+          document.cookie = `active_branch_id=${activeBranch.id}; path=/; max-age=86400; SameSite=Lax`;
         } else {
           localStorage.removeItem("active_branch");
-          document.cookie = "active_branch_id=; path=/; max-age=0";
+          document.cookie = "active_branch_id=; path=/; max-age=0; SameSite=Lax";
         }
       }
       return true;
@@ -94,12 +104,22 @@ export const useAuth = create<AuthState>((set) => ({
       if (typeof window !== "undefined") {
         localStorage.setItem("user_session", JSON.stringify(user));
         localStorage.setItem("user_branches", JSON.stringify(branches));
+        if (data.signedRole) localStorage.setItem("signed_role", data.signedRole);
+        if (data.signedBranches) localStorage.setItem("signed_allowed_branches", data.signedBranches);
+
+        if (data.signedRole) {
+          document.cookie = `user_role=${data.signedRole}; path=/; max-age=86400; SameSite=Lax`;
+        }
+        if (data.signedBranches) {
+          document.cookie = `allowed_branches=${data.signedBranches}; path=/; max-age=86400; SameSite=Lax`;
+        }
+
         if (activeBranch) {
           localStorage.setItem("active_branch", JSON.stringify(activeBranch));
-          document.cookie = `active_branch_id=${activeBranch.id}; path=/; max-age=86400`;
+          document.cookie = `active_branch_id=${activeBranch.id}; path=/; max-age=86400; SameSite=Lax`;
         } else {
           localStorage.removeItem("active_branch");
-          document.cookie = "active_branch_id=; path=/; max-age=0";
+          document.cookie = "active_branch_id=; path=/; max-age=0; SameSite=Lax";
         }
       }
     }
@@ -109,7 +129,7 @@ export const useAuth = create<AuthState>((set) => ({
     set({ activeBranch: branch });
     if (typeof window !== "undefined") {
       localStorage.setItem("active_branch", JSON.stringify(branch));
-      document.cookie = `active_branch_id=${branch.id}; path=/; max-age=86400`;
+      document.cookie = `active_branch_id=${branch.id}; path=/; max-age=86400; SameSite=Lax`;
     }
   },
 
@@ -118,9 +138,12 @@ export const useAuth = create<AuthState>((set) => ({
       localStorage.removeItem("user_session");
       localStorage.removeItem("user_branches");
       localStorage.removeItem("active_branch");
+      localStorage.removeItem("signed_role");
+      localStorage.removeItem("signed_allowed_branches");
     }
-    document.cookie = "user_role=; path=/; max-age=0";
-    document.cookie = "active_branch_id=; path=/; max-age=0";
+    document.cookie = "user_role=; path=/; max-age=0; SameSite=Lax";
+    document.cookie = "allowed_branches=; path=/; max-age=0; SameSite=Lax";
+    document.cookie = "active_branch_id=; path=/; max-age=0; SameSite=Lax";
     set({ user: null, isAuth: false, branches: [], activeBranch: null });
   },
 
@@ -129,16 +152,31 @@ export const useAuth = create<AuthState>((set) => ({
       const savedUser = localStorage.getItem("user_session");
       const savedBranches = localStorage.getItem("user_branches");
       const savedActive = localStorage.getItem("active_branch");
+      const signedRole = localStorage.getItem("signed_role");
+      const signedAllowedBranches = localStorage.getItem("signed_allowed_branches");
+
       if (savedUser) {
         try {
           const user = JSON.parse(savedUser);
           const branches = savedBranches ? JSON.parse(savedBranches) : [];
           let activeBranch = savedActive ? JSON.parse(savedActive) : null;
+
+          // Re-write cookies if they disappeared from browser state
+          if (signedRole) {
+            document.cookie = `user_role=${signedRole}; path=/; max-age=86400; SameSite=Lax`;
+          }
+          if (signedAllowedBranches) {
+            document.cookie = `allowed_branches=${signedAllowedBranches}; path=/; max-age=86400; SameSite=Lax`;
+          }
+
           if (!activeBranch && branches.length === 1) {
             activeBranch = branches[0];
             localStorage.setItem("active_branch", JSON.stringify(activeBranch));
-            document.cookie = `active_branch_id=${activeBranch.id}; path=/; max-age=86400`;
+            document.cookie = `active_branch_id=${activeBranch.id}; path=/; max-age=86400; SameSite=Lax`;
+          } else if (activeBranch) {
+            document.cookie = `active_branch_id=${activeBranch.id}; path=/; max-age=86400; SameSite=Lax`;
           }
+
           set({ user, branches, activeBranch, isAuth: true });
         } catch {
           // ignore

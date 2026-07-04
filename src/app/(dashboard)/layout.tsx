@@ -178,9 +178,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border shrink-0">
-          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shrink-0 glow-blue">
-            <Car size={20} className="text-white" />
-          </div>
+          {activeBranch?.name?.toLowerCase().includes("vinfast") ? (
+            <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
+              <img src="/vinfast.png" alt="Vinfast Logo" className="w-full h-full object-contain" />
+            </div>
+          ) : activeBranch?.name?.toLowerCase().includes("yamaha") ? (
+            <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
+              <img src="/yamaha.png" alt="Yamaha Logo" className="w-full h-full object-contain" />
+            </div>
+          ) : (
+            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shrink-0 glow-blue">
+              <Car size={20} className="text-white" />
+            </div>
+          )}
           {!collapsed && <div className="animate-fade-in"><h1 className="text-sm font-bold leading-tight">AUTO-SMART</h1><p className="text-[10px] text-muted-foreground">CRM & ERP</p></div>}
         </div>
 

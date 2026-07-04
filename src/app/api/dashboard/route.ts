@@ -108,6 +108,7 @@ export async function GET(req: NextRequest) {
       prisma.repairOrder.count({ 
         where: { 
           status: { notIn: ["DONE", "DELIVERED"] }, 
+          isDeleted: false,
           ...(branchId ? { branchId } : {}),
           ...dateFilter,
         } 
@@ -115,6 +116,7 @@ export async function GET(req: NextRequest) {
       prisma.repairOrder.count({ 
         where: { 
           status: "WAITING_PARTS", 
+          isDeleted: false,
           ...(branchId ? { branchId } : {}),
           ...dateFilter,
         } 
@@ -134,6 +136,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.repairOrder.count({ 
         where: { 
+          isDeleted: false,
           ...(branchId ? { branchId } : {}),
           ...roTodayFilter,
         } 
@@ -168,10 +171,12 @@ export async function GET(req: NextRequest) {
     // 3. Dynamic Revenue, Previous Period Revenue, Trend & Closed ROs
     let currentROsFilter: any = {
       status: { in: ["DONE", "DELIVERED"] },
+      isDeleted: false,
       ...(branchId ? { branchId } : {}),
     };
     let previousROsFilter: any = {
       status: { in: ["DONE", "DELIVERED"] },
+      isDeleted: false,
       ...(branchId ? { branchId } : {}),
     };
 
@@ -227,7 +232,10 @@ export async function GET(req: NextRequest) {
       where: branchId ? { branchId } : {},
       include: {
         repairOrders: {
-          where: techROWhere,
+          where: {
+            ...techROWhere,
+            isDeleted: false,
+          },
           select: { totalAmount: true },
         },
       },
@@ -248,6 +256,7 @@ export async function GET(req: NextRequest) {
     const activeROList = await prisma.repairOrder.findMany({
       where: {
         status: { notIn: ["DONE", "DELIVERED"] },
+        isDeleted: false,
         ...(branchId ? { branchId } : {}),
         ...dateFilter,
       },
@@ -291,6 +300,7 @@ export async function GET(req: NextRequest) {
       where: {
         status: { in: ["DONE", "DELIVERED"] },
         completedAt: { gte: startRange, lte: endRange },
+        isDeleted: false,
         ...(branchId ? { branchId } : {}),
       },
       select: { completedAt: true, totalAmount: true },

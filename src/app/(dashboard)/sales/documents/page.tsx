@@ -22,6 +22,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, RESERVED, SOLD
+  const [plateFilter, setPlateFilter] = useState("ALL"); // ALL, PENDING, TAX_PAID, PLATE_DONE
   const [saleTypeFilter, setSaleTypeFilter] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
 
   // Payment & Detail Modal State
@@ -178,11 +179,12 @@ export default function DocumentsPage() {
         (v.customer?.phone || "").toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesStatus = statusFilter === "ALL" || v.status === statusFilter;
+      const matchesPlate = plateFilter === "ALL" || (v.plateStatus || "PENDING") === plateFilter;
       const matchesSaleType = (v.saleType || "RETAIL") === saleTypeFilter;
 
-      return matchesSearch && matchesStatus && matchesSaleType;
+      return matchesSearch && matchesStatus && matchesPlate && matchesSaleType;
     });
-  }, [vehicles, searchQuery, statusFilter, saleTypeFilter]);
+  }, [vehicles, searchQuery, statusFilter, plateFilter, saleTypeFilter]);
 
   const groupedWholesale = useMemo(() => {
     if (saleTypeFilter !== "WHOLESALE") return [];
@@ -267,17 +269,33 @@ export default function DocumentsPage() {
           />
         </div>
         
-        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
-          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider shrink-0">Trạng thái:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2.5 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm"
-          >
-            <option value="ALL">Tất cả xe thủ tục</option>
-            <option value="RESERVED">Đã Đặt Cọc</option>
-            <option value="SOLD">Đã Bán</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-3 shrink-0 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider shrink-0">Trạng thái:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm h-10"
+            >
+              <option value="ALL">Tất cả xe thủ tục</option>
+              <option value="RESERVED">Đã Đặt Cọc</option>
+              <option value="SOLD">Đã Bán</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider shrink-0">Thủ tục biển:</span>
+            <select
+              value={plateFilter}
+              onChange={(e) => setPlateFilter(e.target.value)}
+              className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm h-10"
+            >
+              <option value="ALL">Tất cả thủ tục</option>
+              <option value="PENDING">Chờ nộp thuế (Đợi biển)</option>
+              <option value="TAX_PAID">Đã nộp thuế trước bạ</option>
+              <option value="PLATE_DONE">Đã bấm biển & Bàn giao xe</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -422,6 +440,7 @@ export default function DocumentsPage() {
                 <th className="p-4">Dòng xe & Phiên bản</th>
                 <th className="p-4">Khách hàng mua</th>
                 <th className="p-4">Tiến độ Ngân hàng (Trả góp)</th>
+                <th className="p-4">Thủ tục Bấm biển</th>
                 <th className="p-4">Thanh toán & Công nợ</th>
                 <th className="p-4 text-center">Thao tác</th>
               </tr>
@@ -487,6 +506,21 @@ export default function DocumentsPage() {
                       ) : (
                         <span className="badge bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold py-1 px-2 rounded-full">
                           Đã giải ngân tiền
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {(v.plateStatus || "PENDING") === "PENDING" ? (
+                        <span className="badge bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold py-1 px-2 rounded-full whitespace-nowrap">
+                          Chờ nộp thuế (Đợi biển)
+                        </span>
+                      ) : (v.plateStatus || "PENDING") === "TAX_PAID" ? (
+                        <span className="badge bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[10px] font-bold py-1 px-2 rounded-full whitespace-nowrap">
+                          Đã nộp thuế trước bạ
+                        </span>
+                      ) : (
+                        <span className="badge bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold py-1 px-2 rounded-full whitespace-nowrap">
+                          Đã bấm biển & Bàn giao
                         </span>
                       )}
                     </td>
