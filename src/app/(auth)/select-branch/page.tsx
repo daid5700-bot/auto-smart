@@ -88,8 +88,8 @@ export default function SelectBranchPage() {
               </div>
             )}
             <div>
-              <h1 className="text-xl font-bold">AUTO-SMART</h1>
-              <p className="text-xs text-muted-foreground font-medium">CRM & ERP Platform</p>
+              <h1 className="text-xl font-bold">Xe Máy Toàn Thắng</h1>
+              <p className="text-xs text-muted-foreground font-medium">Hệ thống CRM & ERP</p>
             </div>
           </div>
           <button

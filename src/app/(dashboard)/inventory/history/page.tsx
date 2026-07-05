@@ -328,7 +328,7 @@ export default function InventoryHistoryPage() {
               {/* Invoice Header */}
               <div className="flex justify-between items-start border-b border-zinc-200 pb-6">
                 <div>
-                  <h1 className="text-2xl font-black tracking-tight text-primary">AUTO-SMART CRM & ERP</h1>
+                  <h1 className="text-2xl font-black tracking-tight text-primary">Xe Máy Toàn Thắng</h1>
                   <p className="text-xs text-zinc-500 mt-1">Hệ thống quản trị doanh nghiệp ô tô thông minh</p>
                   <p className="text-xs text-zinc-400">Chi nhánh: Mặc định</p>
                 </div>

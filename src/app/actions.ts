@@ -687,7 +687,7 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
       phone: data.phone,
       messageType: "OIL_CHANGE",
       templateId: "CRM_OIL_REMIND_002",
-      content: `Nhắc lịch: Xe ${data.plateNumber} của quý khách đã đến kỳ thay dầu nhớt định kỳ. Vui lòng liên hệ AutoSmart để đặt lịch hẹn!`,
+      content: `Nhắc lịch: Xe ${data.plateNumber} của quý khách đã đến kỳ thay dầu nhớt định kỳ. Vui lòng liên hệ Xe Máy Toàn Thắng để đặt lịch hẹn!`,
       status,
       error: errorMsg,
       branchId: customer.branchId,

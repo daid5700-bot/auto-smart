@@ -440,7 +440,7 @@ export default function InventoryStatsPage() {
                     {/* Printable area content */}
                     <div className="flex justify-between items-start border-b border-zinc-200 pb-4">
                       <div>
-                        <h4 className="text-lg font-black tracking-tight text-primary">AUTO-SMART</h4>
+                        <h4 className="text-lg font-black tracking-tight text-primary">Xe Máy Toàn Thắng</h4>
                         <p className="text-[10px] text-zinc-500">Hệ thống quản lý thông minh</p>
                       </div>
                       <div className="text-right">

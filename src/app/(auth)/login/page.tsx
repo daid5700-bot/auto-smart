@@ -47,7 +47,7 @@ export default function LoginPage() {
         <div className="relative z-10 px-16 animate-slide-in-left">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center glow-blue"><Car size={28} className="text-white" /></div>
-            <div><h1 className="text-3xl font-bold">AUTO-SMART</h1><p className="text-sm text-muted-foreground font-medium">CRM & ERP Platform</p></div>
+            <div><h1 className="text-3xl font-bold">Xe Máy Toàn Thắng</h1><p className="text-sm text-muted-foreground font-medium">Hệ thống CRM & ERP</p></div>
           </div>
           <h2 className="text-4xl font-bold leading-tight mb-6"><span className="gradient-text">Số hóa toàn diện</span><br />Đại lý & Garage Ô tô</h2>
           <p className="text-lg text-muted-foreground leading-relaxed mb-10 max-w-lg">Quản lý kho phụ tùng, xưởng sửa chữa, bán xe và chăm sóc khách hàng — tất cả trong một nền tảng.</p>
@@ -73,7 +73,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md animate-slide-in-bottom">
           <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center"><Car size={24} className="text-white" /></div>
-            <div><h1 className="text-2xl font-bold">AUTO-SMART</h1><p className="text-xs text-muted-foreground">CRM & ERP</p></div>
+            <div><h1 className="text-2xl font-bold">Xe Máy Toàn Thắng</h1><p className="text-xs text-muted-foreground">CRM & ERP</p></div>
           </div>
 
           <div className="glass-card rounded-2xl p-8">

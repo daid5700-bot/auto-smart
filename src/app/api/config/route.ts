@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyRole } from "@/lib/auth";
 
 const DEFAULT_CONFIGS: Record<string, string> = {
-  zns_template: "Kính gửi quý khách [NAME], xe [PLATE] đã đến hạn bảo dưỡng thay dầu nhớt. Vui lòng liên hệ AutoSmart để đặt lịch!",
+  zns_template: "Kính gửi quý khách [NAME], xe [PLATE] đã đến hạn bảo dưỡng thay dầu nhớt. Vui lòng liên hệ Xe Máy Toàn Thắng để đặt lịch!",
   lease_rate: "7.9",
   points_rate: "1",
 };

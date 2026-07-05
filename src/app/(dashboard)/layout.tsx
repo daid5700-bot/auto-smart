@@ -191,7 +191,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Car size={20} className="text-white" />
             </div>
           )}
-          {!collapsed && <div className="animate-fade-in"><h1 className="text-sm font-bold leading-tight">AUTO-SMART</h1><p className="text-[10px] text-muted-foreground">CRM & ERP</p></div>}
+          {!collapsed && <div className="animate-fade-in"><h1 className="text-sm font-bold leading-tight">Xe Máy Toàn Thắng</h1><p className="text-[10px] text-muted-foreground">CRM & ERP</p></div>}
         </div>
 
         {/* Nav */}
@@ -359,7 +359,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {searchQuery.trim().length < 2 ? (
                 <div className="text-center py-10 space-y-2">
                   <Sparkles className="mx-auto text-primary/40 animate-pulse" size={28} />
-                  <p className="text-sm font-semibold text-muted-foreground">Thanh tìm kiếm toàn cục Auto-Smart</p>
+                  <p className="text-sm font-semibold text-muted-foreground">Thanh tìm kiếm toàn cục - Xe Máy Toàn Thắng</p>
                   <p className="text-xs text-muted-foreground/80 max-w-xs mx-auto">Nhập biển số xe, tên khách hàng hoặc tên dòng xe để tra cứu nhanh thông tin liên quan</p>
                 </div>
               ) : (

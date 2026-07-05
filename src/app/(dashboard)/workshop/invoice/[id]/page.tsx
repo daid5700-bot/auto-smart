@@ -73,7 +73,7 @@ export default function InvoicePage() {
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-primary">AUTO-SMART</h1>
+            <h1 className="text-2xl font-bold text-primary">Xe Máy Toàn Thắng</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               {ro.branch?.name || "Chi nhánh"} • {ro.branch?.address || ""}
             </p>
@@ -229,7 +229,7 @@ export default function InvoicePage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Cảm ơn Quý khách đã tin tưởng dịch vụ AUTO-SMART! ⭐
+          Cảm ơn Quý khách đã tin tưởng dịch vụ Xe Máy Toàn Thắng! ⭐
         </p>
       </div>
 

@@ -651,7 +651,7 @@ export default function WorkshopPage() {
             <div id="print-area" className="p-8 space-y-6 overflow-y-auto flex-1 text-foreground print:text-black print:p-0 print:overflow-visible">
               <div className="flex justify-between items-start border-b border-border/60 pb-4">
                 <div>
-                  <h2 className="text-xl font-bold uppercase tracking-wider text-primary print:text-black">Auto-Smart CRM & ERP</h2>
+                  <h2 className="text-xl font-bold uppercase tracking-wider text-primary print:text-black">Xe Máy Toàn Thắng</h2>
                   <p className="text-xs text-muted-foreground print:text-black">Hệ thống quản lý dịch vụ Garage thế hệ mới</p>
                   <p className="text-xs text-muted-foreground print:text-black mt-1">Hotline: 1900.8888 - Địa chỉ: Hà Nội, Việt Nam</p>
                 </div>
@@ -741,7 +741,7 @@ export default function WorkshopPage() {
                           <tr className="border-b border-border/40">
                             <td className="py-3">
                               <p className="font-semibold">Chi phí phụ tùng thay thế (Parts Cost)</p>
-                              <p className="text-[10px] text-muted-foreground print:text-black">Vật tư chính hãng Auto-Smart</p>
+                              <p className="text-[10px] text-muted-foreground print:text-black">Vật tư chính hãng Xe Máy Toàn Thắng</p>
                             </td>
                             <td className="py-3 text-right font-medium">{formatCurrency(parts)}</td>
                           </tr>
@@ -1043,7 +1043,7 @@ export default function WorkshopPage() {
             <div id="print-requisition-area" className="p-8 space-y-6 overflow-y-auto flex-1 text-foreground print:text-black print:p-0 print:overflow-visible">
               <div className="flex justify-between items-start border-b border-border/60 pb-4">
                 <div>
-                  <h2 className="text-xl font-bold uppercase tracking-wider text-primary print:text-black">Auto-Smart CRM & ERP</h2>
+                  <h2 className="text-xl font-bold uppercase tracking-wider text-primary print:text-black">Xe Máy Toàn Thắng</h2>
                   <p className="text-xs text-muted-foreground print:text-black">Hệ thống quản lý dịch vụ Garage thế hệ mới</p>
                   <p className="text-xs text-muted-foreground print:text-black mt-1">Chi nhánh: {detailReq.branch?.name || "Chi nhánh hiện tại"}</p>
                 </div>
