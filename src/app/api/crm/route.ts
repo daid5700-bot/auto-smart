@@ -32,9 +32,16 @@ export async function GET(req: NextRequest) {
 
   if (tab === "customers") {
     // FIX #6: Filter out soft-deleted customers
+    const search = req.nextUrl.searchParams.get("search") || "";
     const baseWhere = {
       isDeleted: false,
-      ...(branchId ? { branchId } : {}),
+      ...(search ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { phone: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+        ],
+      } : {}),
     } as any;
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({

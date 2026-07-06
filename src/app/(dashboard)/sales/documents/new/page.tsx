@@ -81,6 +81,7 @@ export default function NewDocumentPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [accessorySearch, setAccessorySearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const searchTimeoutRef = useRef<any>(null);
 
   // Sale mode
   const [saleMode, setSaleMode] = useState<"RETAIL"|"WHOLESALE">("RETAIL");
@@ -124,6 +125,11 @@ export default function NewDocumentPage() {
     fetchProducts();
     fetchCustomers();
     fetchWarehouseVehicles();
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleAddAccessory = (p: any) => {
@@ -151,18 +157,23 @@ export default function NewDocumentPage() {
     );
   };
 
-  const handleWholesalePhoneChange = async (val: string) => {
+  const handleWholesalePhoneChange = (val: string) => {
     setCustomerPhone(val);
     setSelectedCustomerId("");
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
     if (val.trim().length > 1) {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
-        const data = await res.json();
-        setWholesaleSuggestions(data.customers || []);
-        setShowWholesaleSuggestions(true);
-      } catch (e) {
-        console.error(e);
-      }
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search/phone?q=${encodeURIComponent(val)}`);
+          const data = await res.json();
+          setWholesaleSuggestions(data.customers || []);
+          setShowWholesaleSuggestions(true);
+        } catch (e) {
+          console.error(e);
+        }
+      }, 1000);
     } else {
       setWholesaleSuggestions([]);
       setShowWholesaleSuggestions(false);

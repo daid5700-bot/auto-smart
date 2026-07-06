@@ -9,6 +9,7 @@ export default function SalesCustomerDebtsPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [saleType, setSaleType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
   
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -26,7 +27,7 @@ export default function SalesCustomerDebtsPage() {
   const fetchCustomers = async (p = 1) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/sales/customers?page=${p}&limit=20&search=${encodeURIComponent(search)}`);
+      const res = await fetch(`/api/sales/customers?page=${p}&limit=20&saleType=${saleType}&search=${encodeURIComponent(search)}`);
       const data = await res.json();
       setCustomers(data.customers || []);
       if (data.pagination) setTotalPages(data.pagination.totalPages);
@@ -39,7 +40,7 @@ export default function SalesCustomerDebtsPage() {
 
   useEffect(() => {
     fetchCustomers(page);
-  }, [page]);
+  }, [page, saleType]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +62,7 @@ export default function SalesCustomerDebtsPage() {
     setSelectedCustomer(customer);
     try {
       setLoadingVehicles(true);
-      const res = await fetch(`/api/sales?customerId=${customer.id}&limit=100&status=RESERVED,SOLD`);
+      const res = await fetch(`/api/sales?customerId=${customer.id}&limit=100&status=RESERVED,SOLD&saleType=${saleType}`);
       const data = await res.json();
       // Sort vehicles by debt amount descending
       const sortedVehicles = (data.vehicles || []).sort((a: any, b: any) => Number(b.debtAmount) - Number(a.debtAmount));
@@ -127,6 +128,22 @@ export default function SalesCustomerDebtsPage() {
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all shadow-sm"
           />
         </form>
+        <div className="flex rounded-xl border border-border bg-card p-1 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => { setSaleType("RETAIL"); setPage(1); }}
+            className={`px-3 py-1.5 rounded-lg ${saleType === "RETAIL" ? "bg-primary text-white" : "text-muted-foreground hover:bg-secondary/50"}`}
+          >
+            Bán lẻ
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSaleType("WHOLESALE"); setPage(1); }}
+            className={`px-3 py-1.5 rounded-lg ${saleType === "WHOLESALE" ? "bg-primary text-white" : "text-muted-foreground hover:bg-secondary/50"}`}
+          >
+            Bán buôn
+          </button>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">

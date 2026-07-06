@@ -27,6 +27,7 @@ const NAV: NavSection[] = [
     { title: "Tạo lệnh mới", href: "/workshop/new", icon: Plus, perm: "workshop.manage" },
     { title: "Kỹ thuật viên", href: "/workshop/technicians", icon: UserCog, perm: "workshop.manage" },
     { title: "Lịch sử xe", href: "/workshop/history", icon: History, perm: "workshop.view" },
+    { title: "Khách hàng (Công nợ)", href: "/workshop/customers", icon: Users, perm: "workshop.manage" },
   ]},
   { title: "Kinh doanh xe", items: [
     { title: "Thống kê kinh doanh", href: "/sales/stats", icon: TrendingUp, perm: "sales.view" },

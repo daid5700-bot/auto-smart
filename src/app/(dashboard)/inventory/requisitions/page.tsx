@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { ClipboardList, Check, X, Eye, AlertCircle, Loader2, Calendar, Car, User, Settings, Package, Wrench } from "lucide-react";
 import Link from "next/link";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, fetchWithDedup } from "@/lib/utils";
 
 export default function UnifiedRequisitionsApprovalPage() {
   const [requisitions, setRequisitions] = useState<any[]>([]);
@@ -16,14 +16,10 @@ export default function UnifiedRequisitionsApprovalPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [r1, r2] = await Promise.all([
-        fetch("/api/workshop/requisitions"),
-        fetch("/api/inventory/pending-exports?status=ALL")
+      const [d1, d2] = await Promise.all([
+        fetchWithDedup("/api/workshop/requisitions"),
+        fetchWithDedup("/api/inventory/pending-exports?status=ALL")
       ]);
-      
-      const d1 = await r1.json();
-      const d2 = await r2.json();
-      
       setRequisitions(d1.requisitions || []);
       setVehicleOrders(d2.orders || []);
     } catch (e) {

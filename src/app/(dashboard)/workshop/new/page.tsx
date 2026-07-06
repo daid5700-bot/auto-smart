@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown, X, User } from "lucide-react";
 import Link from "next/link";
@@ -58,6 +58,7 @@ export default function NewRepairOrderPage() {
   // Combobox search states
   const [openDropdownIdx, setOpenDropdownIdx] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const searchTimeoutRef = useRef<any>(null);
 
   // Feedback states
   const [submitting, setSubmitting] = useState(false);
@@ -77,19 +78,29 @@ export default function NewRepairOrderPage() {
       })
       .catch((e) => console.error("Error loading form dependencies:", e))
       .finally(() => setLoading(false));
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, []);
 
-  const handlePhoneChange = async (val: string) => {
+  const handlePhoneChange = (val: string) => {
     setPhone(val);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
     if (val.trim().length > 1) {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
-        const data = await res.json();
-        setSuggestions(data.customers || []);
-        setShowSuggestions(true);
-      } catch (e) {
-        console.error(e);
-      }
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search/phone?q=${encodeURIComponent(val)}&type=workshop`);
+          const data = await res.json();
+          setSuggestions(data.customers || []);
+          setShowSuggestions(true);
+        } catch (e) {
+          console.error(e);
+        }
+      }, 500);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -102,11 +113,21 @@ export default function NewRepairOrderPage() {
     setSelectedCustomerId(c.id);
     setCustomerLoyaltyPoints(c.loyaltyPoints || 0);
     setPointsToRedeem("");
+    
     if (c.vehiclePlates && c.vehiclePlates.length > 0) {
       setPlateNumber(c.vehiclePlates[0]);
+    } else if (c.plateNumber) {
+      setPlateNumber(c.plateNumber);
     } else {
       setPlateNumber("");
     }
+
+    if (c.vehicleModel) {
+      setVehicleModel(c.vehicleModel);
+    } else {
+      setVehicleModel("");
+    }
+
     setBirthday(c.birthday ? c.birthday.substring(0, 10) : "");
     setShowSuggestions(false);
   };

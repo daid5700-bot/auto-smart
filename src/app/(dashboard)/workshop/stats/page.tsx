@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { formatCurrency } from "@/lib/utils";
+import { useEffect, useRef, useState } from "react";
+import { formatCurrency, formatDate, fetchWithDedup } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import {
   Wrench, DollarSign, UserCog, TrendingUp,
   Settings, Loader2, RefreshCw, BarChart3,
@@ -14,23 +15,51 @@ export default function WorkshopStatsPage() {
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [draftStartDate, setDraftStartDate] = useState<string>("");
+  const [draftEndDate, setDraftEndDate] = useState<string>("");
+  const lastStatsFetchKey = useRef<string | null>(null);
+  const activeStatsRequestId = useRef(0);
 
-  const fetchStats = async () => {
+  const LoadingScreen = () => (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+        <Loader2 className="w-7 h-7 animate-spin text-primary" />
+      </div>
+      <div>
+        <p className="text-sm font-bold text-foreground">Đang tải thống kê xưởng dịch vụ</p>
+        <p className="text-xs text-muted-foreground mt-1">Vui lòng chờ trong giây lát...</p>
+      </div>
+    </div>
+  );
+
+  const fetchStats = async (force = false) => {
+    let requestId = 0;
     try {
-      setLoading(true);
-      setError(null);
       const params = new URLSearchParams();
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
+      const fetchKey = params.toString();
+      if (!force && lastStatsFetchKey.current === fetchKey && (loading || data)) return;
+      lastStatsFetchKey.current = fetchKey;
+      requestId = activeStatsRequestId.current + 1;
+      activeStatsRequestId.current = requestId;
 
-      const res = await fetch(`/api/stats/workshop?${params}`);
-      if (!res.ok) throw new Error("Failed to load workshop statistics");
-      const d = await res.json();
+      setLoading(true);
+      setError(null);
+
+      const d = await fetchWithDedup(`/api/stats/workshop?${params}`);
+      if (activeStatsRequestId.current !== requestId) return;
       setData(d);
+      setError(null);
     } catch (err: any) {
+      if (activeStatsRequestId.current !== requestId) return;
       console.error(err);
-      setError(err.message || "Đã xảy ra lỗi");
+      lastStatsFetchKey.current = null;
+      const errMsg = err.message || "Không thể tải dữ liệu thống kê xưởng";
+      setError(errMsg);
+      toast.error("Lỗi tải thống kê", errMsg);
     } finally {
+      if (activeStatsRequestId.current !== requestId) return;
       setLoading(false);
     }
   };
@@ -39,22 +68,42 @@ export default function WorkshopStatsPage() {
     fetchStats();
   }, [startDate, endDate]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const applyDateFilter = () => {
+    if (!draftStartDate || !draftEndDate) {
+      const msg = "Vui lòng chọn đầy đủ cả Từ ngày và Đến ngày.";
+      toast.error(msg);
+      return;
+    }
 
-  if (error || !data) {
+    if (new Date(draftStartDate) > new Date(draftEndDate)) {
+      const msg = "Từ ngày không được lớn hơn Đến ngày.";
+      toast.error(msg);
+      return;
+    }
+
+    setStartDate(draftStartDate);
+    setEndDate(draftEndDate);
+    toast.success(`Đã áp dụng bộ lọc từ ngày ${formatDate(draftStartDate)} đến ${formatDate(draftEndDate)}`);
+  };
+
+  const clearDateFilter = () => {
+    setDraftStartDate("");
+    setDraftEndDate("");
+    setStartDate("");
+    setEndDate("");
+    toast.info("Đã xóa bộ lọc thời gian.");
+  };
+
+  if (loading && !data) return <LoadingScreen />;
+
+  if (!loading && (error || !data)) {
     return (
       <div className="p-6 text-center">
         <p className="text-destructive font-semibold mb-4">
           Lỗi: {error || "Không thể tải dữ liệu thống kê dịch vụ"}
         </p>
         <button
-          onClick={fetchStats}
+          onClick={() => fetchStats(true)}
           className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold inline-flex items-center gap-2"
         >
           <RefreshCw size={14} /> Thử lại
@@ -93,7 +142,7 @@ export default function WorkshopStatsPage() {
           <h2 className="text-3xl font-extrabold tracking-tight mt-1">
             Quản lý Xưởng Dịch vụ
           </h2>
-          </div>
+        </div>
         
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Time Filter Group */}
@@ -101,33 +150,40 @@ export default function WorkshopStatsPage() {
             <span className="text-muted-foreground">Từ ngày:</span>
             <input
               type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              value={draftStartDate}
+              onChange={(e) => {
+                setDraftStartDate(e.target.value);
+              }}
               className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
             />
             <span className="text-muted-foreground border-l border-border pl-2">Đến:</span>
             <input
               type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              value={draftEndDate}
+              onChange={(e) => {
+                setDraftEndDate(e.target.value);
+              }}
               className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
             />
-            {(startDate || endDate) && (
-              <button
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
-                }}
-                className="text-muted-foreground hover:text-destructive transition-colors ml-1"
-                title="Xóa bộ lọc"
-              >
-                <X size={14} />
-              </button>
-            )}
+            <button
+              disabled={!draftStartDate || !draftEndDate}
+              onClick={applyDateFilter}
+              className="px-2.5 py-1 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Áp dụng
+            </button>
+            <button
+              disabled={!draftStartDate && !draftEndDate && !startDate && !endDate}
+              onClick={clearDateFilter}
+              className="text-muted-foreground hover:text-destructive transition-colors ml-1 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
+              title="Xóa bộ lọc"
+            >
+              <X size={14} />
+            </button>
           </div>
 
           <button
-            onClick={fetchStats}
+            onClick={() => fetchStats(true)}
             className="p-2.5 hover:bg-secondary rounded-xl text-primary border border-border bg-card transition-colors"
             title="Tải lại dữ liệu"
           >
@@ -359,23 +415,23 @@ export default function WorkshopStatsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="data-table">
+          <table className="data-table w-full text-left border-collapse">
             <thead>
-              <tr>
-                <th>Kỹ thuật viên</th>
-                <th>Trạng thái</th>
-                <th className="text-right">Số lệnh hoàn thành</th>
-                <th className="text-right">Doanh thu tiền công</th>
-                <th className="text-right">Doanh thu phụ tùng</th>
-                <th className="text-right">Tổng doanh thu phụ trách</th>
+              <tr className="border-b border-border/60 bg-secondary/10">
+                <th className="p-3 font-bold text-xs uppercase text-muted-foreground">Kỹ thuật viên</th>
+                <th className="p-3 font-bold text-xs uppercase text-muted-foreground">Trạng thái</th>
+                <th className="p-3 font-bold text-xs uppercase text-muted-foreground text-right">Số lệnh hoàn thành</th>
+                <th className="p-3 font-bold text-xs uppercase text-muted-foreground text-right">Doanh thu tiền công</th>
+                <th className="p-3 font-bold text-xs uppercase text-muted-foreground text-right">Doanh thu phụ tùng</th>
+                <th className="p-3 font-bold text-xs uppercase text-muted-foreground text-right">Tổng doanh thu phụ trách</th>
               </tr>
             </thead>
             <tbody>
               {data.technicianPerformance.map((tech: any) => (
-                <tr key={tech.id}>
-                  <td className="font-semibold">{tech.name}</td>
-                  <td>
-                    <span className={`text-xs px-2 py-0.5 rounded-md border font-semibold ${
+                <tr key={tech.id} className="border-b border-border/40 hover:bg-secondary/5 transition-colors">
+                  <td className="p-3 font-semibold text-foreground">{tech.name}</td>
+                  <td className="p-3">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold ${
                       tech.status === "WORKING" 
                         ? "bg-amber-500/10 text-amber-600 border-amber-500/20" 
                         : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
@@ -383,15 +439,15 @@ export default function WorkshopStatsPage() {
                       {tech.status === "WORKING" ? "Đang làm việc" : "Đang rảnh"}
                     </span>
                   </td>
-                  <td className="text-right font-bold text-primary">{tech.completedCount}</td>
-                  <td className="text-right font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(tech.laborRevenue)}</td>
-                  <td className="text-right font-medium">{formatCurrency(tech.partsRevenue)}</td>
-                  <td className="text-right font-bold">{formatCurrency(tech.totalRevenue)}</td>
+                  <td className="p-3 text-right font-bold text-primary">{tech.completedCount}</td>
+                  <td className="p-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(tech.laborRevenue)}</td>
+                  <td className="p-3 text-right font-medium text-foreground/80">{formatCurrency(tech.partsRevenue)}</td>
+                  <td className="p-3 text-right font-extrabold text-foreground">{formatCurrency(tech.totalRevenue)}</td>
                 </tr>
               ))}
               {data.technicianPerformance.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-6 text-muted-foreground text-xs">
+                  <td colSpan={6} className="text-center py-8 text-muted-foreground text-xs italic">
                     Chưa có kỹ thuật viên nào đảm nhận lệnh sửa chữa.
                   </td>
                 </tr>

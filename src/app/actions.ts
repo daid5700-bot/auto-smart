@@ -1,6 +1,7 @@
 "use server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
 // ===== INVENTORY LOGIC =====
 
@@ -895,18 +896,31 @@ export async function createPartsRequisition(data: {
 
   // 2. Transaction to process everything atomically
   const result = await prisma.$transaction(async (tx) => {
+    const itemsMeta = data.items.map((i) => ({
+      productId: i.productId,
+      priceType: i.priceType,
+      customUnitPrice: i.customUnitPrice,
+    }));
+
     // A. Create the PartsRequisition record
     const requisition = await tx.partsRequisition.create({
       data: {
         repairOrderId: data.repairOrderId,
         branchId: activeBranchId,
-        reason: data.reason || "Xin phụ tùng sửa chữa",
+        reason: `${data.reason || "Xin phụ tùng sửa chữa"} | METADATA:${JSON.stringify(itemsMeta)}`,
+        status: "PENDING",
         createdBy: data.createdBy,
       },
     });
 
+    // Cập nhật trạng thái của RepairOrder sang WAITING_PARTS (Chờ phụ tùng)
+    await tx.repairOrder.update({
+      where: { id: data.repairOrderId },
+      data: { status: "WAITING_PARTS" }
+    });
+
     const requisitionItemsCreated = [];
-    const orderItemsCreated = [];
+    const orderItemsCreated: any[] = [];
 
     // B. Process each item
     for (const item of data.items) {
@@ -928,7 +942,7 @@ export async function createPartsRequisition(data: {
 
       // Obtain a write lock on the product branch row
       const lockedRows: any[] = await tx.$queryRaw`
-        SELECT id, "stockCount", "reservedStock" FROM "ProductBranch"
+        SELECT id, "stockCount", "reservedStock", "movingAvgCost" FROM "ProductBranch"
         WHERE id = ${pb.id} FOR UPDATE
       `;
       const currentStock = Number(lockedRows[0]?.stockCount || 0);
@@ -938,7 +952,7 @@ export async function createPartsRequisition(data: {
         throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho khả dụng (Tồn: ${currentStock}, Đang giữ chỗ: ${currentReserved}, Yêu cầu: ${item.quantity})`);
       }
 
-      // Increment reservedStock (Do NOT decrement stockCount yet)
+      // Chỉ tăng reservedStock để giữ chỗ, không trừ stockCount
       await tx.productBranch.update({
         where: { id: pb.id },
         data: { reservedStock: { increment: item.quantity } },
@@ -953,34 +967,6 @@ export async function createPartsRequisition(data: {
         },
       });
       requisitionItemsCreated.push(reqItem);
-
-      // Determine selling price
-      let unitPrice = 0;
-      if (item.customUnitPrice !== undefined && item.customUnitPrice !== null) {
-        unitPrice = item.customUnitPrice;
-      } else {
-        const selectedPrice = product.prices.find((p) => p.type === item.priceType);
-        if (!selectedPrice) {
-          throw new Error(`Không tìm thấy bảng giá ${item.priceType} cho sản phẩm ${product.name}`);
-        }
-        unitPrice = Number(selectedPrice.amount);
-      }
-
-      const totalPrice = unitPrice * item.quantity;
-
-      // Create OrderItem
-      const orderItem = await tx.orderItem.create({
-        data: {
-          repairOrderId: data.repairOrderId,
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice,
-          totalPrice,
-        },
-      });
-      orderItemsCreated.push(orderItem);
-
-      // NOTE: StockMovement EXPORT will be created in the approve API
     }
 
     return { requisition, requisitionItemsCreated, orderItemsCreated };
@@ -1001,6 +987,8 @@ export async function createPartsRequisition(data: {
       totalAmount: laborCost + partsCost,
     },
   });
+
+  notifyRequisitionCountChanged(activeBranchId);
 
   // Convert Decimals to Numbers to make serialized responses fully serializable
   return {
@@ -1127,5 +1115,3 @@ export async function sendCustomZnsAction(data: {
 
   return { success: true };
 }
-
-

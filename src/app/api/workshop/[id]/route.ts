@@ -38,6 +38,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!currentRo) return NextResponse.json({ error: "Lệnh sửa chữa không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
 
+    if (currentRo.status === "WAITING_PARTS" && body.status && body.status !== "WAITING_PARTS") {
+      const pendingReq = await prisma.partsRequisition.findFirst({
+        where: {
+          repairOrderId: id,
+          status: "PENDING"
+        }
+      });
+      if (pendingReq) {
+        return NextResponse.json({ 
+          error: "Lệnh sửa chữa đang chờ duyệt phụ tùng. Bạn phải duyệt hoặc từ chối phiếu yêu cầu phụ tùng trước khi chuyển sang trạng thái khác!" 
+        }, { status: 400 });
+      }
+    }
+
     let finalSymptoms = body.symptoms;
     let serviceDiscountPercent = 0;
     let partsDiscountPercent = 0;

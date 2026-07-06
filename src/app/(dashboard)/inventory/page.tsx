@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCurrency, formatNumber, statusText, statusBadge, checkSlowMoving, exportToCsv } from "@/lib/utils";
 import { Package, Search, Plus, AlertTriangle, TrendingUp, TrendingDown, ChevronRight, Edit, Trash2, Eye, Loader2, X, Download } from "lucide-react";
 import { useAuth } from "@/lib/store";
@@ -41,16 +41,16 @@ const NumericInput = ({ value, onChange, className, ...props }: any) => {
 
 function InventoryContent() {
   const { user } = useAuth();
+  const userRole = user?.role;
   const searchParams = useSearchParams();
   const initFilter = searchParams.get("filter");
+  const lastInventoryFetchKey = useRef("");
   
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("");
   const [scope, setScope] = useState<"current" | "other">("current");
-  const [branches, setBranches] = useState<any[]>([]);
-  const [branchFilter, setBranchFilter] = useState("all");
   const [statFilter, setStatFilter] = useState<"all" | "low" | "high">(
     (initFilter === "low" || initFilter === "high") ? initFilter : "all"
   );
@@ -66,6 +66,8 @@ function InventoryContent() {
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formMessage, setFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formData, setFormData] = useState<{
     sku: string;
     name: string;
@@ -94,18 +96,21 @@ function InventoryContent() {
     branchId: "",
   });
 
-  const fetchData = () => {
+  const fetchData = (force = false) => {
+    if (!userRole) return;
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (catFilter) params.set("category", catFilter);
     if (statFilter !== "all") params.set("statFilter", statFilter);
     params.set("page", String(page));
     params.set("limit", String(LIMIT));
-    if (user?.role === "ADMIN") {
-      params.set("branchFilter", branchFilter);
-    } else {
+    if (userRole !== "ADMIN") {
       params.set("scope", scope);
     }
+    const fetchKey = params.toString();
+    if (!force && lastInventoryFetchKey.current === fetchKey) return;
+    lastInventoryFetchKey.current = fetchKey;
+
     fetch(`/api/inventory?${params}`)
       .then((r) => r.json())
       .then(setData)
@@ -114,21 +119,14 @@ function InventoryContent() {
 
   useEffect(() => {
     fetchData();
-  }, [search, catFilter, scope, branchFilter, statFilter, user, page]);
-
-  useEffect(() => {
-    fetch("/api/branches")
-      .then((r) => r.json())
-      .then((d) => setBranches(d.branches || []))
-      .catch(console.error);
-  }, []);
+  }, [search, catFilter, scope, statFilter, userRole, page]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Bạn có chắc chắn muốn xóa phụ tùng này?")) return;
     try {
       const res = await fetch(`/api/inventory/${id}`, { method: "DELETE" });
       if (res.ok) {
-        fetchData();
+        fetchData(true);
       }
     } catch (e) {
       console.error(e);
@@ -151,6 +149,7 @@ function InventoryContent() {
       parentId: "",
       branchId: "",
     });
+    setFormMessage(null);
     setModalOpen(true);
   };
 
@@ -173,12 +172,15 @@ function InventoryContent() {
       parentId: p.parentId?.toString() || "",
       branchId: p.branchId?.toString() || "",
     });
+    setFormMessage(null);
     setModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setSubmitting(true);
+      setFormMessage(null);
       const method = editingId ? "PATCH" : "POST";
       const url = editingId ? `/api/inventory/${editingId}` : "/api/inventory";
 
@@ -191,7 +193,6 @@ function InventoryContent() {
         stockMin: Number(formData.stockMin),
         stockMax: Number(formData.stockMax),
         parentId: formData.parentId ? parseInt(formData.parentId) : null,
-        branchId: formData.branchId ? parseInt(formData.branchId) : null,
         prices: [
           { type: "RETAIL", amount: Number(formData.retailPrice) },
           { type: "WHOLESALE", amount: Number(formData.wholesalePrice) },
@@ -206,11 +207,18 @@ function InventoryContent() {
       });
 
       if (res.ok) {
+        setFormMessage({ type: "success", text: editingId ? "Cập nhật phụ tùng thành công." : "Thêm phụ tùng thành công." });
         setModalOpen(false);
-        fetchData();
+        fetchData(true);
+      } else {
+        const result = await res.json().catch(() => null);
+        setFormMessage({ type: "error", text: result?.error || "Không thể lưu phụ tùng." });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setFormMessage({ type: "error", text: err.message || "Không thể lưu phụ tùng." });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -257,17 +265,21 @@ function InventoryContent() {
   const categories = data?.categories || [];
   const lowStock = rawProducts.filter((p: any) => p.stockCount <= p.stockMin);
   const highStock = rawProducts.filter((p: any) => p.stockCount >= p.stockMax);
-  const totalValue = rawProducts.reduce((sum: number, p: any) => {
+  const pageTotalValue = rawProducts.reduce((sum: number, p: any) => {
     const retail = (p.prices || []).find((pr: any) => pr.type === "RETAIL");
     return sum + (retail ? Number(retail.amount) * p.stockCount : 0);
   }, 0);
-  const totalInsuranceValue = rawProducts.reduce((sum: number, p: any) => {
+  const pageTotalInsuranceValue = rawProducts.reduce((sum: number, p: any) => {
     const insurance = (p.prices || []).find((pr: any) => pr.type === "INSURANCE");
     return sum + (insurance ? Number(insurance.amount) * p.stockCount : 0);
   }, 0);
 
   const totalPages = data?.totalPages || 1;
   const totalCount = data?.totalCount || 0;
+  const totalValue = data?.summary?.totalValue ?? pageTotalValue;
+  const totalInsuranceValue = data?.summary?.totalInsuranceValue ?? pageTotalInsuranceValue;
+  const lowStockCount = data?.summary?.lowStockCount ?? lowStock.length;
+  const highStockCount = data?.summary?.highStockCount ?? highStock.length;
 
   const products = rawProducts;
 
@@ -339,7 +351,7 @@ function InventoryContent() {
             <Package size={14} />
             <span className="text-xs">Tổng mặt hàng</span>
           </div>
-          <p className="text-2xl font-bold">{rawProducts.length}</p>
+          <p className="text-2xl font-bold">{totalCount}</p>
         </div>
 
         {/* Card 2: Giá trị tồn kho */}
@@ -373,7 +385,7 @@ function InventoryContent() {
             <AlertTriangle size={14} />
             <span className="text-xs">Sắp hết hàng</span>
           </div>
-          <p className="text-2xl font-bold text-warning">{lowStock.length}</p>
+          <p className="text-2xl font-bold text-warning">{lowStockCount}</p>
         </div>
 
         {/* Card 4: Tồn cao */}
@@ -389,20 +401,12 @@ function InventoryContent() {
             <TrendingDown size={14} />
             <span className="text-xs">Tồn cao</span>
           </div>
-          <p className="text-2xl font-bold text-blue-500">{highStock.length}</p>
+          <p className="text-2xl font-bold text-blue-500">{highStockCount}</p>
         </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm theo tên hoặc mã SKU..." className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" /></div>
-        {user?.role === "ADMIN" && (
-          <select value={branchFilter} onChange={(e) => { setBranchFilter(e.target.value); setLoading(true); }} className="bg-card border border-border rounded-xl px-4 py-2.5 text-sm outline-none">
-            <option value="all">Tất cả cơ sở</option>
-            {branches.map((b: any) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-        )}
         <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="bg-card border border-border rounded-xl px-4 py-2.5 text-sm outline-none"><option value="">Tất cả nhóm</option>{categories.map((c: string) => <option key={c} value={c}>{c}</option>)}</select>
       </div>
 
@@ -533,19 +537,9 @@ function InventoryContent() {
               <button onClick={() => setModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {user?.role === "ADMIN" && (
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Cơ sở / Chi nhánh</label>
-                  <select
-                    value={formData.branchId}
-                    onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                  >
-                    <option value="">-- Cơ sở mặc định / hiện tại --</option>
-                    {branches.map((b: any) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+              {formMessage && (
+                <div className={`rounded-xl border px-3 py-2 text-xs font-semibold ${formMessage.type === "error" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600"}`}>
+                  {formMessage.text}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
@@ -637,7 +631,10 @@ function InventoryContent() {
               </div>
               <div className="flex gap-3 justify-end pt-4">
                 <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
-                <button type="submit" className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90">Lưu lại</button>
+                <button type="submit" disabled={submitting} className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-60 flex items-center gap-2">
+                  {submitting && <Loader2 size={14} className="animate-spin" />}
+                  {submitting ? "Đang lưu..." : "Lưu lại"}
+                </button>
               </div>
             </form>
           </div>
