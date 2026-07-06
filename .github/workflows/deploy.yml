@@ -22,7 +22,7 @@ jobs:
           # Thư mục gốc chứa dự án trên VPS
           script: |
             # 1. Di chuyển vào thư mục dự án trên VPS
-            cd ~/auto-smart-crm
+            cd ~/auto-smart
             
             # 2. Kéo code mới nhất từ git về
             git pull origin main
