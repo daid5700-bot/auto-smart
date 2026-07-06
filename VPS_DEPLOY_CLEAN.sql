@@ -1,0 +1,784 @@
+-- CreateEnum
+CREATE TYPE "Role" AS ENUM ('ADMIN', 'WAREHOUSE', 'WORKSHOP', 'SALES');
+
+-- CreateTable
+CREATE TABLE "User" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "role" "Role" NOT NULL DEFAULT 'SALES',
+    "avatar" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UserBranch" (
+    "userId" INTEGER NOT NULL,
+    "branchId" INTEGER NOT NULL,
+
+    CONSTRAINT "UserBranch_pkey" PRIMARY KEY ("userId","branchId")
+);
+
+-- CreateTable
+CREATE TABLE "Branch" (
+    "id" SERIAL NOT NULL,
+    "code" TEXT,
+    "name" TEXT NOT NULL,
+    "address" TEXT,
+    "phone" TEXT,
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Branch_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Product" (
+    "id" SERIAL NOT NULL,
+    "sku" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "parentId" INTEGER,
+    "category" TEXT NOT NULL DEFAULT 'General',
+    "unit" TEXT NOT NULL,
+    "conversionUnit" TEXT,
+    "conversionFactor" INTEGER NOT NULL DEFAULT 1,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProductBranch" (
+    "id" SERIAL NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "branchId" INTEGER NOT NULL,
+    "stockCount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "reservedStock" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "stockMin" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "stockMax" DOUBLE PRECISION NOT NULL DEFAULT 100,
+    "movingAvgCost" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "lastImportDate" TIMESTAMP(3),
+
+    CONSTRAINT "ProductBranch_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Price" (
+    "id" SERIAL NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "type" TEXT NOT NULL,
+    "amount" DECIMAL(65,30) NOT NULL,
+
+    CONSTRAINT "Price_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StockMovement" (
+    "id" SERIAL NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "type" TEXT NOT NULL,
+    "quantity" DOUBLE PRECISION NOT NULL,
+    "unitCost" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalCost" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "reason" TEXT,
+    "relatedRoId" INTEGER,
+    "inventoryOrderId" INTEGER,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "StockMovement_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "InventoryOrder" (
+    "id" SERIAL NOT NULL,
+    "code" TEXT NOT NULL,
+    "customerId" INTEGER,
+    "type" TEXT NOT NULL,
+    "totalAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "paidAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "debtAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'PAID',
+    "reason" TEXT,
+    "branchId" INTEGER,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "InventoryOrder_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Technician" (
+    "id" SERIAL NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "phone" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'IDLE',
+    "commissionRate" DOUBLE PRECISION NOT NULL DEFAULT 10,
+    "branchId" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Technician_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RepairOrder" (
+    "id" SERIAL NOT NULL,
+    "customerId" INTEGER NOT NULL,
+    "plateNumber" TEXT NOT NULL,
+    "vehicleModel" TEXT,
+    "kmIn" INTEGER NOT NULL DEFAULT 0,
+    "symptoms" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "technicianId" INTEGER,
+    "createdById" INTEGER,
+    "laborCost" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "partsCost" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "discountPercent" INTEGER NOT NULL DEFAULT 0,
+    "discountAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "serviceDiscountPercent" INTEGER NOT NULL DEFAULT 0,
+    "partsDiscountPercent" INTEGER NOT NULL DEFAULT 0,
+    "servicesJson" TEXT,
+    "totalAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "paidAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "debtAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "photos" TEXT[],
+    "completedAt" TIMESTAMP(3),
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "branchId" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "RepairOrder_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OrderItem" (
+    "id" SERIAL NOT NULL,
+    "repairOrderId" INTEGER NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "quantity" DOUBLE PRECISION NOT NULL,
+    "unitPrice" DECIMAL(65,30) NOT NULL,
+    "totalPrice" DECIMAL(65,30) NOT NULL,
+
+    CONSTRAINT "OrderItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TechPerformance" (
+    "id" SERIAL NOT NULL,
+    "technicianId" INTEGER NOT NULL,
+    "repairOrderId" INTEGER NOT NULL,
+    "commissionAmount" DECIMAL(65,30) NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "TechPerformance_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Vehicle" (
+    "id" SERIAL NOT NULL,
+    "vin" TEXT NOT NULL,
+    "sku" TEXT,
+    "engineNumber" TEXT,
+    "importPrice" DECIMAL(65,30) DEFAULT 0,
+    "importDate" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+    "stockCount" TEXT,
+    "model" TEXT NOT NULL,
+    "variant" TEXT,
+    "color" TEXT,
+    "year" INTEGER NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'AVAILABLE',
+    "listPrice" DECIMAL(65,30) NOT NULL,
+    "floorPrice" DECIMAL(65,30) NOT NULL,
+    "paidAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "debtAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "image" TEXT,
+    "customerId" INTEGER,
+    "bankStatus" TEXT,
+    "plateStatus" TEXT,
+    "plateCost" DECIMAL(65,30) DEFAULT 0,
+    "accessoriesJson" TEXT DEFAULT '[]',
+    "saleType" TEXT NOT NULL DEFAULT 'RETAIL',
+    "notes" TEXT,
+    "warehouse" TEXT,
+    "branchId" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Vehicle_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Customer" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "email" TEXT,
+    "address" TEXT,
+    "source" TEXT NOT NULL DEFAULT 'WALKIN',
+    "loyaltyPoints" INTEGER NOT NULL DEFAULT 0,
+    "totalSpent" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalDebt" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "lastVisit" TIMESTAMP(3),
+    "birthday" TIMESTAMP(3),
+    "vehiclePlates" TEXT[],
+    "tags" TEXT[],
+    "branchId" INTEGER,
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Customer_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Lead" (
+    "id" SERIAL NOT NULL,
+    "customerId" INTEGER,
+    "name" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'WALKIN',
+    "status" TEXT NOT NULL DEFAULT 'NEW',
+    "interest" TEXT,
+    "assignedToId" INTEGER,
+    "notes" TEXT,
+    "branchId" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Lead_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ZnsLog" (
+    "id" SERIAL NOT NULL,
+    "customerId" INTEGER NOT NULL,
+    "phone" TEXT NOT NULL,
+    "messageType" TEXT NOT NULL,
+    "templateId" TEXT,
+    "content" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "error" TEXT,
+    "branchId" INTEGER,
+    "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ZnsLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "LoyaltyTransaction" (
+    "id" SERIAL NOT NULL,
+    "customerId" INTEGER NOT NULL,
+    "type" TEXT NOT NULL,
+    "points" INTEGER NOT NULL,
+    "description" TEXT,
+    "relatedRoId" INTEGER,
+    "branchId" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "LoyaltyTransaction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PartsRequisition" (
+    "id" SERIAL NOT NULL,
+    "repairOrderId" INTEGER NOT NULL,
+    "branchId" INTEGER NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'APPROVED',
+    "reason" TEXT,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PartsRequisition_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PartsRequisitionItem" (
+    "id" SERIAL NOT NULL,
+    "requisitionId" INTEGER NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "quantity" DOUBLE PRECISION NOT NULL,
+
+    CONSTRAINT "PartsRequisitionItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SystemConfig" (
+    "key" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SystemConfig_pkey" PRIMARY KEY ("key")
+);
+
+-- CreateTable
+CREATE TABLE "PaymentTransaction" (
+    "id" SERIAL NOT NULL,
+    "code" TEXT NOT NULL,
+    "amount" DECIMAL(65,30) NOT NULL,
+    "method" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "referenceId" INTEGER,
+    "referenceType" TEXT,
+    "note" TEXT,
+    "branchId" INTEGER,
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PaymentTransaction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE INDEX "UserBranch_branchId_idx" ON "UserBranch"("branchId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Product_sku_key" ON "Product"("sku");
+
+-- CreateIndex
+CREATE INDEX "Product_sku_idx" ON "Product"("sku");
+
+-- CreateIndex
+CREATE INDEX "Product_parentId_idx" ON "Product"("parentId");
+
+-- CreateIndex
+CREATE INDEX "Product_category_idx" ON "Product"("category");
+
+-- CreateIndex
+CREATE INDEX "ProductBranch_productId_idx" ON "ProductBranch"("productId");
+
+-- CreateIndex
+CREATE INDEX "ProductBranch_branchId_idx" ON "ProductBranch"("branchId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ProductBranch_productId_branchId_key" ON "ProductBranch"("productId", "branchId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Price_productId_type_key" ON "Price"("productId", "type");
+
+-- CreateIndex
+CREATE INDEX "StockMovement_productId_idx" ON "StockMovement"("productId");
+
+-- CreateIndex
+CREATE INDEX "StockMovement_createdAt_idx" ON "StockMovement"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "StockMovement_inventoryOrderId_idx" ON "StockMovement"("inventoryOrderId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InventoryOrder_code_key" ON "InventoryOrder"("code");
+
+-- CreateIndex
+CREATE INDEX "InventoryOrder_customerId_idx" ON "InventoryOrder"("customerId");
+
+-- CreateIndex
+CREATE INDEX "InventoryOrder_branchId_idx" ON "InventoryOrder"("branchId");
+
+-- CreateIndex
+CREATE INDEX "InventoryOrder_createdAt_idx" ON "InventoryOrder"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Technician_code_key" ON "Technician"("code");
+
+-- CreateIndex
+CREATE INDEX "Technician_branchId_idx" ON "Technician"("branchId");
+
+-- CreateIndex
+CREATE INDEX "RepairOrder_plateNumber_idx" ON "RepairOrder"("plateNumber");
+
+-- CreateIndex
+CREATE INDEX "RepairOrder_customerId_idx" ON "RepairOrder"("customerId");
+
+-- CreateIndex
+CREATE INDEX "RepairOrder_status_idx" ON "RepairOrder"("status");
+
+-- CreateIndex
+CREATE INDEX "RepairOrder_createdAt_idx" ON "RepairOrder"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "RepairOrder_branchId_idx" ON "RepairOrder"("branchId");
+
+-- CreateIndex
+CREATE INDEX "OrderItem_repairOrderId_idx" ON "OrderItem"("repairOrderId");
+
+-- CreateIndex
+CREATE INDEX "OrderItem_productId_idx" ON "OrderItem"("productId");
+
+-- CreateIndex
+CREATE INDEX "TechPerformance_technicianId_idx" ON "TechPerformance"("technicianId");
+
+-- CreateIndex
+CREATE INDEX "TechPerformance_repairOrderId_idx" ON "TechPerformance"("repairOrderId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Vehicle_vin_key" ON "Vehicle"("vin");
+
+-- CreateIndex
+CREATE INDEX "Vehicle_vin_idx" ON "Vehicle"("vin");
+
+-- CreateIndex
+CREATE INDEX "Vehicle_status_idx" ON "Vehicle"("status");
+
+-- CreateIndex
+CREATE INDEX "Vehicle_branchId_idx" ON "Vehicle"("branchId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Customer_phone_key" ON "Customer"("phone");
+
+-- CreateIndex
+CREATE INDEX "Customer_phone_idx" ON "Customer"("phone");
+
+-- CreateIndex
+CREATE INDEX "Customer_lastVisit_idx" ON "Customer"("lastVisit");
+
+-- CreateIndex
+CREATE INDEX "Customer_branchId_idx" ON "Customer"("branchId");
+
+-- CreateIndex
+CREATE INDEX "Lead_status_idx" ON "Lead"("status");
+
+-- CreateIndex
+CREATE INDEX "Lead_createdAt_idx" ON "Lead"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "Lead_branchId_idx" ON "Lead"("branchId");
+
+-- CreateIndex
+CREATE INDEX "ZnsLog_branchId_idx" ON "ZnsLog"("branchId");
+
+-- CreateIndex
+CREATE INDEX "LoyaltyTransaction_branchId_idx" ON "LoyaltyTransaction"("branchId");
+
+-- CreateIndex
+CREATE INDEX "PartsRequisition_repairOrderId_idx" ON "PartsRequisition"("repairOrderId");
+
+-- CreateIndex
+CREATE INDEX "PartsRequisition_branchId_idx" ON "PartsRequisition"("branchId");
+
+-- CreateIndex
+CREATE INDEX "PartsRequisitionItem_requisitionId_idx" ON "PartsRequisitionItem"("requisitionId");
+
+-- CreateIndex
+CREATE INDEX "PartsRequisitionItem_productId_idx" ON "PartsRequisitionItem"("productId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PaymentTransaction_code_key" ON "PaymentTransaction"("code");
+
+-- CreateIndex
+CREATE INDEX "PaymentTransaction_branchId_idx" ON "PaymentTransaction"("branchId");
+
+-- CreateIndex
+CREATE INDEX "PaymentTransaction_createdAt_idx" ON "PaymentTransaction"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "PaymentTransaction_referenceId_referenceType_idx" ON "PaymentTransaction"("referenceId", "referenceType");
+
+-- AddForeignKey
+ALTER TABLE "UserBranch" ADD CONSTRAINT "UserBranch_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserBranch" ADD CONSTRAINT "UserBranch_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Product" ADD CONSTRAINT "Product_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductBranch" ADD CONSTRAINT "ProductBranch_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductBranch" ADD CONSTRAINT "ProductBranch_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Price" ADD CONSTRAINT "Price_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StockMovement" ADD CONSTRAINT "StockMovement_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StockMovement" ADD CONSTRAINT "StockMovement_inventoryOrderId_fkey" FOREIGN KEY ("inventoryOrderId") REFERENCES "InventoryOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "InventoryOrder" ADD CONSTRAINT "InventoryOrder_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "InventoryOrder" ADD CONSTRAINT "InventoryOrder_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Technician" ADD CONSTRAINT "Technician_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RepairOrder" ADD CONSTRAINT "RepairOrder_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RepairOrder" ADD CONSTRAINT "RepairOrder_technicianId_fkey" FOREIGN KEY ("technicianId") REFERENCES "Technician"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RepairOrder" ADD CONSTRAINT "RepairOrder_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RepairOrder" ADD CONSTRAINT "RepairOrder_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_repairOrderId_fkey" FOREIGN KEY ("repairOrderId") REFERENCES "RepairOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TechPerformance" ADD CONSTRAINT "TechPerformance_technicianId_fkey" FOREIGN KEY ("technicianId") REFERENCES "Technician"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Vehicle" ADD CONSTRAINT "Vehicle_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Vehicle" ADD CONSTRAINT "Vehicle_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Customer" ADD CONSTRAINT "Customer_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Lead" ADD CONSTRAINT "Lead_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Lead" ADD CONSTRAINT "Lead_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Lead" ADD CONSTRAINT "Lead_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ZnsLog" ADD CONSTRAINT "ZnsLog_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ZnsLog" ADD CONSTRAINT "ZnsLog_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LoyaltyTransaction" ADD CONSTRAINT "LoyaltyTransaction_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LoyaltyTransaction" ADD CONSTRAINT "LoyaltyTransaction_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PartsRequisition" ADD CONSTRAINT "PartsRequisition_repairOrderId_fkey" FOREIGN KEY ("repairOrderId") REFERENCES "RepairOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PartsRequisition" ADD CONSTRAINT "PartsRequisition_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PartsRequisitionItem" ADD CONSTRAINT "PartsRequisitionItem_requisitionId_fkey" FOREIGN KEY ("requisitionId") REFERENCES "PartsRequisition"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PartsRequisitionItem" ADD CONSTRAINT "PartsRequisitionItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentTransaction" ADD CONSTRAINT "PaymentTransaction_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+COPY public."Branch" (id, name, address, phone, "createdAt", "updatedAt", "isDeleted", code) FROM stdin;
+5	BK001			2026-06-28 08:18:33.439	2026-06-28 08:18:33.439	f	\N
+3	Vinfast Toàn Thắng 			2026-06-28 07:37:45.552	2026-06-28 09:13:17.599	f	N633
+4	Yamaha Toàn Thắng 			2026-06-28 07:37:45.697	2026-06-28 09:19:28.354	f	2323a
+\.
+
+COPY public."Customer" (id, name, phone, email, address, source, "loyaltyPoints", "totalSpent", "lastVisit", birthday, "vehiclePlates", tags, "branchId", "createdAt", "updatedAt", "totalDebt", "isDeleted") FROM stdin;
+110	hung	DELETED-110-0386771269	\N	\N	WALKIN	1	0.000000000000000000000000000000	2026-07-06 00:58:15.23	2005-01-28 00:00:00	{ghôi}	\N	4	2026-07-06 00:57:55.519	2026-07-06 03:48:14.36	0.000000000000000000000000000000	t
+109	Dai Do	0325459901	\N		WALKIN	13	0.000000000000000000000000000000	2026-07-06 13:28:48.185	2004-11-05 00:00:00	{h6d5ea}	\N	3	2026-07-01 09:24:42.736	2026-07-06 14:02:00.144	-1695000.000000000000000000000000000000	f
+111	phương	0961580742	\N	\N	WALKIN	2	0.000000000000000000000000000000	2026-07-06 14:04:00.908	\N	{29D214783}	\N	4	2026-07-06 01:47:54.413	2026-07-06 14:04:00.909	100000.000000000000000000000000000000	f
+\.
+
+COPY public."InventoryOrder" (id, code, "customerId", type, "totalAmount", "paidAmount", "debtAmount", status, reason, "branchId", "createdBy", "createdAt", "updatedAt") FROM stdin;
+\.
+
+COPY public."Lead" (id, "customerId", name, phone, source, status, interest, "assignedToId", notes, "branchId", "createdAt", "updatedAt") FROM stdin;
+\.
+
+COPY public."LoyaltyTransaction" (id, "customerId", type, points, description, "relatedRoId", "branchId", "createdAt") FROM stdin;
+66	109	EARN	2	Tích điểm từ lệnh sửa chữa #58 - toyota (tỷ lệ 1%)	58	4	2026-07-01 09:34:22.93
+67	109	REDEEM	-2	Thu hồi điểm tích lũy do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 01:24:11.341
+68	109	EARN	2	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 01:24:11.356
+69	109	EARN	2	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 01:24:20.511
+70	109	EARN	2	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 01:24:24.858
+71	109	REDEEM	-2	Thu hồi điểm tích lũy do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 01:24:39.912
+72	109	EARN	2	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 01:24:39.925
+73	109	EARN	2	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 01:33:18.371
+74	109	EARN	2	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 07:11:30.856
+75	109	EARN	2	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-58	58	4	2026-07-04 07:11:40.397
+76	110	EARN	1	Tích điểm từ lệnh sửa chữa #59 - ấd (tỷ lệ 1%)	59	4	2026-07-06 00:58:15.245
+77	111	EARN	1	Tích điểm từ lệnh sửa chữa #60 - Grande (tỷ lệ 1%)	60	4	2026-07-06 01:48:00.373
+78	110	REDEEM	-1	Thu hồi điểm tích lũy do hủy lệnh sửa chữa RO-59	59	4	2026-07-06 03:47:24.526
+79	110	EARN	1	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-59	59	4	2026-07-06 03:47:24.545
+80	109	EARN	1	Tích điểm từ lệnh sửa chữa #61 - tê (tỷ lệ 1%)	61	4	2026-07-06 13:28:48.522
+81	109	REDEEM	-1	Thu hồi điểm tích lũy do hủy lệnh sửa chữa RO-61	61	4	2026-07-06 14:02:00.133
+82	109	EARN	1	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-61	61	4	2026-07-06 14:02:00.148
+83	111	REDEEM	-1	Thu hồi điểm tích lũy do hủy lệnh sửa chữa RO-60	60	4	2026-07-06 14:03:58.095
+84	111	EARN	1	Hoàn trả điểm sử dụng do hủy lệnh sửa chữa RO-60	60	4	2026-07-06 14:03:58.113
+85	111	EARN	1	Tích điểm từ lệnh sửa chữa #62 - Grande (tỷ lệ 1%)	62	4	2026-07-06 14:04:00.924
+\.
+
+COPY public."OrderItem" (id, "repairOrderId", "productId", quantity, "unitPrice", "totalPrice") FROM stdin;
+28	58	12	1	15000.000000000000000000000000000000	15000.000000000000000000000000000000
+\.
+
+COPY public."PartsRequisition" (id, "repairOrderId", "branchId", status, reason, "createdBy", "createdAt") FROM stdin;
+7	58	4	REJECTED	Yêu cầu phụ tùng khi tạo lệnh sửa chữa mới	Hệ thống	2026-07-01 09:24:43.039
+\.
+
+COPY public."PartsRequisitionItem" (id, "requisitionId", "productId", quantity) FROM stdin;
+7	7	12	1
+\.
+
+COPY public."PaymentTransaction" (id, code, amount, method, type, "referenceId", "referenceType", note, "branchId", "isDeleted", "createdBy", "createdAt", "updatedAt") FROM stdin;
+\.
+
+COPY public."Price" (id, "productId", type, amount) FROM stdin;
+40	12	RETAIL	15000.000000000000000000000000000000
+41	12	WHOLESALE	15000.000000000000000000000000000000
+42	12	INSURANCE	15000.000000000000000000000000000000
+\.
+
+COPY public."Product" (id, sku, name, "parentId", category, unit, "conversionUnit", "conversionFactor", status, "createdAt", "updatedAt", "isDeleted") FROM stdin;
+12	INACTIVE-12-ấ	ấ	\N	Lọc	Cái	\N	1	INACTIVE	2026-07-01 00:22:16.081	2026-07-02 12:32:01.489	f
+\.
+
+COPY public."ProductBranch" (id, "productId", "branchId", "stockCount", "stockMin", "stockMax", "movingAvgCost", "lastImportDate", "reservedStock") FROM stdin;
+6	12	4	10	5	100	0.000000000000000000000000000000	\N	0
+\.
+
+COPY public."RepairOrder" (id, "customerId", "plateNumber", "vehicleModel", "kmIn", symptoms, status, "technicianId", "createdById", "laborCost", "partsCost", "totalAmount", photos, "completedAt", "branchId", "createdAt", "updatedAt", "debtAmount", "paidAmount", "isDeleted", "discountAmount", "discountPercent", "partsDiscountPercent", "serviceDiscountPercent", "servicesJson") FROM stdin;
+58	109	h6d5ea	toyota	10000	{"summary":"thay dầu, sửa thắng ","serviceDiscountPercent":10,"partsDiscountPercent":10,"services":[{"name":"thay dầu","cost":100000},{"name":"sửa thắng ","cost":200000}]}	CANCELLED	\N	6	300000.000000000000000000000000000000	15000.000000000000000000000000000000	281500.000000000000000000000000000000	{}	2026-07-01 09:34:21.641	4	2026-07-01 09:24:42.918	2026-07-04 07:11:40.401	281500.000000000000000000000000000000	0.000000000000000000000000000000	t	31500.000000000000000000000000000000	10	0	0	\N
+59	110	ghôi	ấd	0	{"summary":"thay dầu máy","serviceDiscountPercent":0,"partsDiscountPercent":0,"services":[{"name":"thay dầu máy","cost":150000}]}	CANCELLED	\N	10	150000.000000000000000000000000000000	0.000000000000000000000000000000	150000.000000000000000000000000000000	{}	2026-07-06 00:58:15.17	4	2026-07-06 00:57:55.549	2026-07-06 03:47:24.55	150000.000000000000000000000000000000	0.000000000000000000000000000000	t	0.000000000000000000000000000000	0	0	0	\N
+61	109	h6d5ea	tê	111	{"summary":"khong co","serviceDiscountPercent":0,"partsDiscountPercent":0,"services":[{"name":"khong co","cost":100000}]}	CANCELLED	\N	6	100000.000000000000000000000000000000	0.000000000000000000000000000000	100000.000000000000000000000000000000	{}	2026-07-06 13:28:46.838	4	2026-07-06 13:28:30.839	2026-07-06 14:02:00.151	100000.000000000000000000000000000000	0.000000000000000000000000000000	t	0.000000000000000000000000000000	0	0	0	\N
+60	111	29D214783	Grande	0	{"summary":"lọ dầu máy","serviceDiscountPercent":0,"partsDiscountPercent":0,"services":[{"name":"lọ dầu máy","cost":100000}]}	CANCELLED	\N	10	100000.000000000000000000000000000000	0.000000000000000000000000000000	100000.000000000000000000000000000000	{}	2026-07-06 14:02:15.318	4	2026-07-06 01:47:54.428	2026-07-06 14:03:58.119	100000.000000000000000000000000000000	0.000000000000000000000000000000	t	0.000000000000000000000000000000	0	0	0	\N
+62	111	29D214783	Grande	0	{"summary":"lọ dầu máy ","serviceDiscountPercent":0,"partsDiscountPercent":0,"services":[{"name":"lọ dầu máy ","cost":100000}]}	DELIVERED	\N	6	100000.000000000000000000000000000000	0.000000000000000000000000000000	100000.000000000000000000000000000000	\N	2026-07-06 14:04:00.846	4	2026-07-06 14:03:49.796	2026-07-06 14:04:38.223	100000.000000000000000000000000000000	0.000000000000000000000000000000	f	0.000000000000000000000000000000	0	0	0	\N
+\.
+
+COPY public."StockMovement" (id, "productId", type, quantity, "unitCost", "totalCost", reason, "relatedRoId", "createdBy", "createdAt", "inventoryOrderId") FROM stdin;
+63	12	EXPORT	1	15000.000000000000000000000000000000	15000.000000000000000000000000000000	Xuất kho duyệt phụ tùng cho RO #58	58	Thủ kho	2026-07-01 09:28:57.18	\N
+64	12	IMPORT	1	15000.000000000000000000000000000000	15000.000000000000000000000000000000	Hoàn kho do hủy lệnh sửa chữa RO-58	\N	system	2026-07-04 01:24:11.3	\N
+\.
+
+COPY public."SystemConfig" (key, value, "updatedAt") FROM stdin;
+ZALO_TEMPLATE_OIL_REMIND	599958	2026-07-03 16:57:54.036
+ZALO_OA_ACCESS_TOKEN	sR_aTD3mnNJOlULrtl_5UDUnvdB8cAmAd978HChPW4IEuT4qZ_cqT8RDnp_TxwD8WUA56z_Tz5MAoxasxl3iDuR6hdxZnUW3dF2ZL9xXsIFB_FXMkCtO6_7Gyskfw8yPogRh3PgodrtHWhihh9R58TMsZNsk-_itf_MeEVl7rtApy9KKjk3-PjJHjMwrqyumvihhPBk1Yp74cEzAXAQt7SJby42uzAD1lhY17UIfqcQKkg4gmOA5QxULu1llgBziYu7k8jogkbpUckaBW9MDHlIVxK-9hiyxrwAFGzISgn3GiDmQXwQsKjBf_YtKyQfTXC393Oo3WGVyY-9PYBZ34zxqb6YRp-Cxu8J9ExEfcZl9gT5ejwRrDlo6r4xwgQGriONoVEUwsJ-WXO9Nyxh03vswat5iIrSnUX8vtEl0Um	2026-07-06 14:04:03.914
+ZALO_REFRESH_TOKEN	QRsCQftvNb1elurha_PUN6UpZco5zJax6CEnIfh47ZWOshLqXCLXDIo0oNVOfMyRJk7f8EJQHsz4ciuluhGPHcIkYXNmj28a3lUXVgVL5qi7uumXcD0fGnRbiIwOopDr2yBdDO7NOaOavSu7ZwPTOoxdrGAhqLzD1EZz1h7mRt0KzRWPiUKuGnFGg0QEaIPk3x6X6u_o4MaGmA5UXCjtEnBBeM-TsNG7Fv7xMwRMBYmPxgTPWQr_4IgCfrwjan4u0fZ0VuESQnGsfSrDcOGTFNYXlrJ6dNDYQBd0MEMjJmnvkffg_PGFMdkStcxUetmlHvZCPRwXVbSae_aOYxzRI0YNz7snZ48mF9cHUiZQ83Csc81zaQLPEHcX-LoXkbuvE9pIJRsZKIyIbD5xwQDNB7E_XrxCSU43aU9RNm	2026-07-06 14:04:31.983
+points_rate	1.0	2026-06-28 07:37:46.109
+ZALO_TEMPLATE_THANK_YOU	595306	2026-07-01 09:34:25.4
+ZALO_APP_ID	668539972878248413	2026-07-01 09:34:25.993
+ZALO_APP_SECRET	7O15YM4VUDM6bCBkO81D	2026-07-01 09:34:26.5
+\.
+
+COPY public."TechPerformance" (id, "technicianId", "repairOrderId", "commissionAmount", date) FROM stdin;
+\.
+
+COPY public."Technician" (id, code, name, phone, status, "commissionRate", "branchId", "createdAt") FROM stdin;
+\.
+
+COPY public."User" (id, name, email, password, role, avatar, "createdAt", "updatedAt") FROM stdin;
+6	Cảnh Hưng 	canhhungle5@gmail.com	$2a$10$rgQvy8OSdqcIuglpkut6u.1mVVUd7KzgZKPLNxiloP/HiwqzWxtYG	ADMIN	\N	2026-06-28 07:37:45.833	2026-06-29 07:58:29.319
+7	Dương Lê 	tduogg03@gmail.com	$2a$10$w5LTV05v5zzVy9YkOfk.RuydECP.GAY5Ji4kZrnkUVsBJKkdcMobO	ADMIN	\N	2026-06-29 02:43:03.221	2026-07-01 15:02:28.934
+11	phòng kho 	phongkho@gmail.com	$2a$10$ZK.Hnjqx3.r81Z5AqR0y0.iY1VouMwB6aItC1eHES3It6T6JORJ8G	WAREHOUSE	\N	2026-07-04 01:29:30.174	2026-07-04 01:30:32.998
+10	Dịch vụ 	dichvu@gmail.com	$2a$10$M4DT8bwathnFejpPm4x9RuXvEMtA0NQbyEnQIsGx0zWHHSJpWXijK	WORKSHOP	\N	2026-07-04 01:28:04.542	2026-07-04 01:30:41.24
+9	Bán xe 	banxe@gmail.com	$2a$10$RB0ehjw.xPuCxMC4FPy33u5yThnmPXi2.dbC8/k3i292WX7wCmrni	SALES	\N	2026-07-02 01:31:26.991	2026-07-04 01:30:49.702
+\.
+
+COPY public."UserBranch" ("userId", "branchId") FROM stdin;
+6	3
+6	4
+7	3
+11	4
+10	4
+9	4
+\.
+
+COPY public."Vehicle" (id, vin, "engineNumber", model, variant, color, year, status, "listPrice", "floorPrice", "customerId", "bankStatus", "plateStatus", notes, "branchId", "createdAt", "updatedAt", image, "accessoriesJson", "plateCost", "debtAmount", "paidAmount", "saleType", "importDate", "importPrice", sku, "stockCount", warehouse) FROM stdin;
+69	jhq	2jahd	ádafaf	24	Trắng	2026	AVAILABLE	90000000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	5	2026-06-28 08:21:22.688	2026-06-28 08:21:22.688	\N	[]	0.000000000000000000000000000000	90000000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-28 00:00:00	100000000.000000000000000000000000000000	hkkda	5	\N
+78	CANCELLED-78-VIN-1782655226011-171	\N	Chưa rõ	\N	\N	2026	CANCELLED	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-28 14:00:26.012	2026-06-28 14:23:48.116	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-28 00:00:00	0.000000000000000000000000000000	ESNE2LHLYER	N633-SN-25-00000424	\N
+70	CANCELLED-70-2222	2222	2121	1231	Trắng	2026	CANCELLED	111.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-06-28 08:32:54.502	2026-06-28 14:25:13.874	\N	[]	0.000000000000000000000000000000	111.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-28 00:00:00	123.000000000000000000000000000000	124	1	kh90
+72	CANCELLED-72-RPXS8LHLVSE141222	 VFHBHA258120377 	Evo Grand Lite	\N	Vàng	2026	CANCELLED	16716000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-06-28 12:43:08.352	2026-06-28 14:25:13.893	\N	[]	0.000000000000000000000000000000	16716000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2025-08-29 00:00:00	17388000.000000000000000000000000000000	ESNE2LHLYER	N633-SN-25-00000423	N63301_VHC
+71	CANCELLED-71-RPXS8LHLVSE150273	 VFHBHA258230271 	Evo Grand Lite	\N	Vàng	2026	CANCELLED	16716000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-06-28 12:34:16.306	2026-06-28 14:25:13.905	\N	[]	0.000000000000000000000000000000	16716000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2025-08-29 00:00:00	17388000.000000000000000000000000000000	ESNE2LHLYER	N633-SN-25-00000424	N63301_VHC
+79	RPXS8LHLVSE150273	 VFHBHA258230271 	Evo Grand Lite	\N	 Vàng 	2026	AVAILABLE	16716000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-28 14:25:13.923	2026-06-28 14:25:13.923	\N	[]	0.000000000000000000000000000000	16716000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2025-08-29 00:00:00	17388000.000000000000000000000000000000	ESNE2LHLYER	N633-SN-25-00000424	N63301_VHC
+80	RPXS8LHLVSE141222	 VFHBHA258120377 	Evo Grand Lite	\N	Vàng	2026	AVAILABLE	16716000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-28 14:27:07.801	2026-06-28 14:27:07.801	\N	[]	0.000000000000000000000000000000	16716000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2025-08-29 00:00:00	17388000.000000000000000000000000000000	ESNE2LHLYER	N633-SN-25-00000423	N63301_VHC
+81	RPXT8LHLVTE307726	 JZHBHA264231722 	Evo Grand Lite +1	\N	Trắng	2026	AVAILABLE	16716000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-28 14:33:21.788	2026-06-28 14:34:18.086		[]	0.000000000000000000000000000000	16716000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-05-27 00:00:00	17388000.000000000000000000000000000000	ESNE2LHLWHR1	N633-SN-26-00000847	N63301_VHC
+82	RPXS5LHLVSE291342	 XWHBEB251102D0294 	Flazz	\N	Trắng	2026	AVAILABLE	14196000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-28 14:43:51.131	2026-06-28 14:43:51.131	\N	[]	0.000000000000000000000000000000	14196000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2025-11-18 00:00:00	14720000.000000000000000000000000000000	ESNEDLHLWHR	N633-SN-25-00000552	N63301_VHC
+83	RPXS5LHLVSE291408	 XWHBEB251102D0332 	Flazz	\N	Trắng	2026	AVAILABLE	14196000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-28 14:47:02.476	2026-06-28 14:47:02.476	\N	[]	0.000000000000000000000000000000	14196000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-28 00:00:00	14720000.000000000000000000000000000000	ESNEDLHLWHR	N633-SN-25-00000553	N63301_VHC
+84	RPXS5LCLHTT002411	 XWHBEB260321D0203 	Falzz	\N	Xanh rêu	2026	AVAILABLE	14196000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 03:48:06.271	2026-06-29 03:49:13.663		[]	0.000000000000000000000000000000	14196000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-14 00:00:00	15548001.000000000000000000000000000000	ESNEDLHLHTGNQ	N633-SN-26-00000897	N63301_VHC
+86	RPXS5LHLVTE067977	 XWHBEB251222D1287 	Flazz	\N	Đỏ	2026	AVAILABLE	14196000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 03:52:42.636	2026-06-29 03:52:42.636	\N	[]	0.000000000000000000000000000000	14196000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-14 00:00:00	15548001.000000000000000000000000000000	ESNEDLHLREQ	N633-SN-26-00000903	N63301_VHC
+85	RPXS5LHLVTE207200	 XWHBEB251204D0419 	Flazz	\N	Đen	2026	AVAILABLE	14196000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 03:51:04.467	2026-06-29 03:52:50.779		[]	0.000000000000000000000000000000	14196000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-14 00:00:00	15548000.000000000000000000000000000000	ESNEDLHLBAU	N633-SN-26-00000823	N63301_VHC
+87	RPXU3LCLHTT034209	 XWHDFB265130378 	Flazz	\N	Xanh	2026	AVAILABLE	14196000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 03:54:33.542	2026-06-29 03:54:33.542	\N	[]	0.000000000000000000000000000000	14196000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-08 00:00:00	13790800.000000000000000000000000000000	ESNF2LHLHTBUZVN	N633-SN-26-00000858	N63301_VHC
+88	RPXS1LHLVSE351419	 XWHBEB251113D2107 	Zgoo (DG1)	\N	Đen	2026	AVAILABLE	13356000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 03:56:44.831	2026-06-29 03:56:44.831	\N	[]	0.000000000000000000000000000000	13356000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2025-12-25 00:00:00	12692593.000000000000000000000000000000	ESNECLHLBAU	N633-SN-25-00000643	N63301_VHC
+89	RPXT7LHHVTE331059	 JZHBJA265092290 	Evo Grand +1	\N	Xanh Oliu 	2026	AVAILABLE	21988000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 03:58:34.604	2026-06-29 03:58:34.604	\N	[]	0.000000000000000000000000000000	21988000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-06-08 00:00:00	20976000.000000000000000000000000000000	ESNE2LHHGNV1	N633-SN-26-00000837	N63301_VHC
+90	RPXT7LHHVTE210895	 JZHBJA25C100057 	Evo Grand +1	\N	Đỏ	2026	AVAILABLE	21988000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 04:00:15.033	2026-06-29 04:00:15.033	\N	[]	0.000000000000000000000000000000	21988000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-04-27 00:00:00	20976000.000000000000000000000000000000	ESNE2LHHREQ1	N633-SN-26-00000755	N63301_VHC
+91	RPXT7LHHVTE213674	 JZHBJA25C191208 	Evo Grand +1	\N	Đen	2026	AVAILABLE	21988000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 04:09:21.191	2026-06-29 04:09:21.191	\N	[]	0.000000000000000000000000000000	21988000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-04-27 00:00:00	20976000.000000000000000000000000000000	ESNE2LHHBAR2	N633-SN-26-00000761	N63301_VHC
+92	RPXT7LHHVTE213752	 JZHBJA25C240254 	Evo Grand +1	\N	Đen	2026	AVAILABLE	21988000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 04:10:18.323	2026-06-29 04:10:18.323	\N	[]	0.000000000000000000000000000000	21988000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-04-27 00:00:00	20976000.000000000000000000000000000000	ESNE2LHHBAR2	N633-SN-26-00000763	N63301_VHC
+93	RPXT7LHHVTE233940	 JZHBJA25C101161 	Evo Grand +1	\N	Vàng	2026	AVAILABLE	21988000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 04:11:46.81	2026-06-29 04:11:46.81	\N	[]	0.000000000000000000000000000000	21988000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-05-07 00:00:00	20976000.000000000000000000000000000000	ESNE2LHHYES1	N633-SN-26-00000805	N63301_VHC
+94	RPXS3LHHVTE296797	 VFHBKC265200261 	Feliz 2025	\N	Đen	2026	AVAILABLE	25668000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 04:14:39.429	2026-06-29 04:14:39.429	\N	[]	0.000000000000000000000000000000	25668000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-05-27 00:00:00	24748000.000000000000000000000000000000	ESNE6LHHBAU	N633-SN-26-00000849	N63301_VHC
+95	RPXS3LHHVSE367400	 VFHBKC25C210919 	Feliz 2025	\N	Trắng	2026	AVAILABLE	25668000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 04:16:06.842	2026-06-29 04:16:06.842	\N	[]	0.000000000000000000000000000000	25668000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2025-12-25 00:00:00	23828000.000000000000000000000000000000	ESNE6LHHWHR	N633-SN-25-00000580	N63301_VHC
+96	RPXS3LHHVSE378631	 VFHBKC25C250511 	Feliz 2025	\N	Trắng	2026	AVAILABLE	25668000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 04:17:14.757	2026-06-29 04:17:14.757	\N	[]	0.000000000000000000000000000000	25668000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2025-12-29 00:00:00	23828000.000000000000000000000000000000	ESNE6LHHWHR	N633-SN-25-00000628	N63301_VHC
+97	RPXS3LHHVSE380299	 VFHBKC25C251324 	Feliz 2025	\N	Trắng	2026	AVAILABLE	25668000.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	3	2026-06-29 04:18:11.287	2026-06-29 04:18:11.287	\N	[]	0.000000000000000000000000000000	25668000.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-12-29 00:00:00	23828000.000000000000000000000000000000	ESNE6LHHWHR	N633-SN-25-00000631	N63301_VHC
+98	RLCSEK410TY068341	\N	GRANDE LTD	\N	Xanh	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 02:48:06.62	2026-07-02 02:48:06.62	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF 125 -A (LTD) V	\N	Showroom Toàn Thắng
+99	RLCSEK410TY068214	\N	GRANDE PRE	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 02:55:53.361	2026-07-02 02:58:30.714		[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF125-A VNM 26	\N	Showroom Toàn Thắng
+100	RLCSEK410TY070265	\N	GRANDE LTD	\N	Xanh nhạt	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 02:58:01.218	2026-07-02 02:58:38.741		[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF 125 -A (LTD) V	\N	Showroom Toàn Thắng
+101	RLCSEC860SY006068	\N	JANUS	\N	Đỏ	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 02:59:42.429	2026-07-02 02:59:42.429	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LNB 125  VNM	\N	Showroom Toàn Thắng
+102	RLCSEK410TY067855	\N	GRANDE LTD	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:00:32.767	2026-07-02 03:00:32.767	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF 125 -A (LTD) V	\N	Showroom Toàn Thắng
+103	RLCSEK410TY066662	\N	GRANDE PRE	\N	Trắng	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:01:25.754	2026-07-02 03:01:36.888		[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF125-A VNM 26	\N	Showroom Toàn Thắng
+104	RLCSEK210TY004771	\N	GRANDE LTD	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:02:45.043	2026-07-02 03:02:45.043	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF125-I VNM26	\N	Showroom Toàn Thắng
+105	RLCSEC870TY018728	\N	JANUS PRE	\N	Xanh	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:08:22.633	2026-07-02 03:08:22.633	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LNB 125 F VNM 26	\N	Showroom Toàn Thắng
+106	RLCSEC860TY007092	\N	JANUS STD	\N	Trắng	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:22:30.839	2026-07-02 03:22:30.839	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LNB 125 F VNM 26	\N	Showroom Toàn Thắng
+107	RLCSEF640TY004855	\N	FREEGO STD	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:23:39.245	2026-07-02 03:23:39.245	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTK125 VNM26	\N	Showroom Toàn Thắng
+108	RLCSEF650TY022658	\N	FREEGO S	\N	NÂU	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:28:16.282	2026-07-02 03:28:16.282	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTK125-A VNM26	\N	Showroom Toàn Thắng
+109	RLCSEF650SY019734	\N	FREEGO S	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:30:17.526	2026-07-02 03:30:17.526	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTK 125- A VNM 24	\N	Showroom Toàn Thắng
+110	RLCSEC870TY019687	\N	JANUS PRE	\N	Đỏ	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:35:20.67	2026-07-02 03:35:30.288		[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LNB 125-F VNM26	\N	Showroom Toàn Thắng
+111	RLCSEK410TY068868	\N	GRANDE LTD	\N	Xanh nhạt	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:39:26.078	2026-07-02 03:39:32.483		[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF125-A	\N	Showroom Toàn Thắng
+112	RLCSEK410TY061615	\N	GRANDE PRE	\N	\N	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:42:59.508	2026-07-02 03:42:59.508	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF125-A VNM 26	\N	Showroom Toàn Thắng
+113	RLCUE4710TY016258	\N	PG1	\N	Xanh	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:43:56.036	2026-07-02 03:43:56.036	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	T115FX-A	\N	Showroom Toàn Thắng
+114	RLCSEK210SY004348	\N	GRANDE PRE	\N	Đỏ	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:46:48.061	2026-07-02 03:46:48.061	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF125 -L	\N	Showroom Toàn Thắng
+115	RLCSEK410TY066018	\N	GRANDE PRE	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:47:38.048	2026-07-02 03:47:38.048	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF 125A VNM 26	\N	Showroom Toàn Thắng
+116	RLCSEK410TY065961	\N	GRANDE PRE	\N	Trắng	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:48:29.809	2026-07-02 03:48:29.809	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF 125A VNM 26	\N	Showroom Toàn Thắng
+117	RLCSEK410TY067244	\N	GRANDE PRE	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:49:28.792	2026-07-02 03:49:28.792	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF 125A VNM 26	\N	Showroom Toàn Thắng
+118	RLCSEK410TY065976	\N	GRANDE PRE	\N	Trắng	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:50:43.27	2026-07-02 03:50:43.27	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF125-A VNM 26	\N	Showroom Toàn Thắng
+119	RLCSEF920SY017520	\N	LATTE LTD	\N	Xanh	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:51:33.506	2026-07-02 03:51:33.506	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTS125-F	\N	Showroom Toàn Thắng
+120	RLCUE4710TY015792	\N	PG1 - STD	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 03:58:19.449	2026-07-02 03:58:19.449	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	T115FX-A	\N	Showroom Toàn Thắng
+121	RLCSEK410SY049087	\N	GRANDE LTD	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 04:01:14.304	2026-07-02 04:01:14.304	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTF 125- A	\N	Showroom Toàn Thắng
+122	RLCSEF920TY020234	\N	LATTE STD	\N	Đỏ	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 04:03:06.672	2026-07-02 04:03:06.672	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	LTS125-F	\N	Showroom Toàn Thắng
+123	RLCUG1910TY034166	\N	EXCITER	\N	Đen	2026	AVAILABLE	0.000000000000000000000000000000	0.000000000000000000000000000000	\N	NONE	PENDING	\N	4	2026-07-02 04:04:52.287	2026-07-02 04:04:52.287	\N	[]	0.000000000000000000000000000000	0.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	T155-A	\N	Showroom Toàn Thắng
+124	CANCELLED-124-RLCUE4710TY014761	\N	PG1 -TLD	\N	Đen	2026	CANCELLED	21620.000000000000000000000000000000	0.000000000000000000000000000000	109	DISBURSED	PLATE_DONE		4	2026-07-02 04:05:56.092	2026-07-03 09:08:35.535	\N	[]	16000.000000000000000000000000000000	37620.000000000000000000000000000000	0.000000000000000000000000000000	RETAIL	2026-07-02 00:00:00	0.000000000000000000000000000000	T115 EX-A	\N	Showroom Toàn Thắng
+\.
+
+COPY public."ZnsLog" (id, "customerId", phone, "messageType", "templateId", content, status, error, "branchId", "sentAt") FROM stdin;
+63	109	0325459901	THANK_YOU	CRM_THANK_YOU_001	Cảm ơn khách hàng Dai Do đã sửa chữa xe toyota. Quý khách tích được +2 điểm!	SUCCESS	\N	4	2026-07-01 09:34:28.037
+64	109	0325459901	OIL_CHANGE	CRM_OIL_REMIND_002	Nhắc lịch: Xe 29A-12345 của quý khách đã đến kỳ thay dầu nhớt định kỳ. Vui lòng liên hệ AutoSmart để đặt lịch hẹn!	SUCCESS	\N	3	2026-07-03 16:57:56.541
+65	110	0386771269	THANK_YOU	CRM_THANK_YOU_001	Cảm ơn khách hàng hung đã sửa chữa xe ấd. Quý khách tích được +1 điểm!	FAILED	Lỗi Zalo API [Mã -124]: Access token invalid | Phản hồi đầy đủ: {"error":-124,"message":"Access token invalid"}	4	2026-07-06 00:58:52.397
+66	109	0325459901	THANK_YOU	CRM_THANK_YOU_001	Cảm ơn khách hàng Dai Do đã sửa chữa xe tê. Quý khách tích được +1 điểm!	SUCCESS	\N	4	2026-07-06 13:28:55.972
+67	111	0961580742	THANK_YOU	CRM_THANK_YOU_001	Cảm ơn khách hàng phương đã sửa chữa xe Grande. Quý khách tích được +1 điểm!	FAILED	Lỗi Zalo API [Mã -124]: Access token invalid | Phản hồi đầy đủ: {"error":-124,"message":"Access token invalid"}	4	2026-07-06 14:04:38.412
+\.
+SELECT pg_catalog.setval('public."Branch_id_seq"', 5, true);
+SELECT pg_catalog.setval('public."Customer_id_seq"', 111, true);
+SELECT pg_catalog.setval('public."InventoryOrder_id_seq"', 12, true);
+SELECT pg_catalog.setval('public."Lead_id_seq"', 49, true);
+SELECT pg_catalog.setval('public."LoyaltyTransaction_id_seq"', 85, true);
+SELECT pg_catalog.setval('public."OrderItem_id_seq"', 28, true);
+SELECT pg_catalog.setval('public."PartsRequisitionItem_id_seq"', 7, true);
+SELECT pg_catalog.setval('public."PartsRequisition_id_seq"', 7, true);
+SELECT pg_catalog.setval('public."PaymentTransaction_id_seq"', 6, true);
+SELECT pg_catalog.setval('public."Price_id_seq"', 42, true);
+SELECT pg_catalog.setval('public."ProductBranch_id_seq"', 6, true);
+SELECT pg_catalog.setval('public."Product_id_seq"', 12, true);
+SELECT pg_catalog.setval('public."RepairOrder_id_seq"', 62, true);
+SELECT pg_catalog.setval('public."StockMovement_id_seq"', 64, true);
+SELECT pg_catalog.setval('public."TechPerformance_id_seq"', 45, true);
+SELECT pg_catalog.setval('public."Technician_id_seq"', 95, true);
+SELECT pg_catalog.setval('public."User_id_seq"', 11, true);
+SELECT pg_catalog.setval('public."Vehicle_id_seq"', 124, true);
+SELECT pg_catalog.setval('public."ZnsLog_id_seq"', 67, true);
