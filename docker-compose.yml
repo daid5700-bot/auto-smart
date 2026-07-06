@@ -19,13 +19,13 @@ services:
     container_name: crm_web
     restart: always
     ports:
-      - "3001:3000" # Ánh xạ ra ngoài cổng 3001 vì ai-poster đang dùng 3000
+      - "5100:3000" # Ánh xạ ra ngoài cổng 5100
     environment:
       # Kết nối tới container DB ở trên
       - DATABASE_URL=postgresql://crm_admin:crm_password123@crm-db:5432/crm_db
       - DIRECT_URL=postgresql://crm_admin:crm_password123@crm-db:5432/crm_db
       - NEXTAUTH_SECRET=autosmart-super-secret-key-2026
-      - NEXTAUTH_URL=http://localhost:3001
+      - NEXTAUTH_URL=http://27.71.68.82:5100
       # (Bổ sung thêm các biến ZALO_... của bạn vào đây)
     depends_on:
       - crm-db
