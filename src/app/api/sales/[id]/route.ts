@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       include: { 
         customer: true,
         partsRequisitions: {
-          where: { reason: { contains: "Quà tặng phụ tùng" }, status: { in: ["PENDING", "APPROVED"] } },
+          where: { reason: { contains: "tặng phụ tùng", mode: "insensitive" }, status: { in: ["PENDING", "APPROVED"] } },
           include: {
             items: {
               include: { product: true }
@@ -104,7 +104,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const {
       vin, sku, engineNumber, importPrice, importDate, stockCount, branchId: selectBranchId, warehouse,
       model, variant, color, year, status, listPrice, floorPrice, image,
-      bankStatus, plateStatus, plateCost, accessoriesJson, notes,
+      bankStatus, plateStatus, plateCost, accessoriesJson, giftItemsJson, notes,
       customerName, customerPhone, customerBirthday, customerAddress, saleType
     } = body;
 
@@ -308,13 +308,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
 
       // Xử lý phụ tùng quà tặng (gift items)
-      if (updateData.giftItemsJson !== undefined) {
-        const giftItems = JSON.parse(updateData.giftItemsJson || "[]");
+      if (giftItemsJson !== undefined) {
+        const giftItems = JSON.parse(giftItemsJson || "[]");
         
         const existingReq = await tx.partsRequisition.findFirst({
           where: {
             vehicleId: v.id,
-            reason: { contains: "Quà tặng phụ tùng" },
+            reason: { contains: "tặng phụ tùng", mode: "insensitive" },
             status: "PENDING"
           },
           include: { items: true }
@@ -451,7 +451,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         where: {
           vehicleId: id,
           status: "PENDING",
-          reason: { contains: "Quà tặng phụ tùng" }
+          reason: { contains: "tặng phụ tùng", mode: "insensitive" }
         },
         include: { items: true }
       });

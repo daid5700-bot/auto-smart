@@ -80,7 +80,17 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
-      include: { customer: true }
+      include: {
+        customer: true,
+        partsRequisitions: {
+          where: { reason: { contains: "tặng phụ tùng", mode: "insensitive" }, status: { in: ["PENDING", "APPROVED"] } },
+          include: {
+            items: {
+              include: { product: true }
+            }
+          }
+        }
+      }
     }),
     prisma.vehicle.count({ where }),
     prisma.vehicle.count({ where: { status: "AVAILABLE", ...(branchId ? { branchId } : {}) } }),
@@ -121,6 +131,8 @@ export async function GET(req: NextRequest) {
       }
     }
   });
+
+
 
   const vehiclesWithExportStatus = vehicles.map(v => ({
     ...v,
@@ -280,7 +292,7 @@ export async function POST(req: NextRequest) {
             vehicleId: v.id,
             branchId: branchId,
             status: "PENDING",
-            reason: `Tặng phụ tùng theo xe VIN: ${v.vin}`,
+            reason: `Quà tặng phụ tùng bán xe VIN: ${v.vin}`,
             createdBy: "Hệ thống (Bán Xe)",
             items: {
               create: giftItems.map((item: any) => ({
