@@ -50,7 +50,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         id,
         ...(branchId ? { branchId } : {}),
       },
-      include: { customer: true }
+      include: { 
+        customer: true,
+        partsRequisitions: {
+          where: { reason: { contains: "Quà tặng phụ tùng" }, status: { in: ["PENDING", "APPROVED"] } },
+          include: {
+            items: {
+              include: { product: true }
+            }
+          }
+        }
+      }
     });
 
     if (!vehicle) {
@@ -297,6 +307,84 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         }
       }
 
+      // Xử lý phụ tùng quà tặng (gift items)
+      if (updateData.giftItemsJson !== undefined) {
+        const giftItems = JSON.parse(updateData.giftItemsJson || "[]");
+        
+        const existingReq = await tx.partsRequisition.findFirst({
+          where: {
+            vehicleId: v.id,
+            reason: { contains: "Quà tặng phụ tùng" },
+            status: "PENDING"
+          },
+          include: { items: true }
+        });
+
+        if (giftItems.length > 0) {
+          if (existingReq) {
+            // Revert reservedStock for old items
+            for (const item of existingReq.items) {
+              await tx.productBranch.updateMany({
+                where: { productId: item.productId, branchId: existingReq.branchId },
+                data: { reservedStock: { decrement: item.quantity } }
+              });
+            }
+            // Xóa chi tiết cũ và tạo lại
+            await tx.partsRequisitionItem.deleteMany({
+              where: { requisitionId: existingReq.id }
+            });
+            await tx.partsRequisition.update({
+              where: { id: existingReq.id },
+              data: {
+                items: {
+                  create: giftItems.map((item: any) => ({
+                    productId: item.productId || item.id,
+                    quantity: item.quantity
+                  }))
+                }
+              }
+            });
+          } else {
+            await tx.partsRequisition.create({
+              data: {
+                branchId: v.branchId || branchId || 1,
+                status: "PENDING",
+                reason: `Quà tặng phụ tùng bán xe VIN: ${v.vin}`,
+                vehicleId: v.id,
+                createdBy: "Hệ thống (Bán Xe)",
+                items: {
+                  create: giftItems.map((item: any) => ({
+                    productId: item.productId || item.id,
+                    quantity: item.quantity
+                  }))
+                }
+              }
+            });
+          }
+
+          // Tăng reservedStock cho các phụ tùng mới
+          const currentBranchId = existingReq ? existingReq.branchId : (v.branchId || branchId || 1);
+          for (const item of giftItems) {
+            await tx.productBranch.updateMany({
+              where: { productId: item.productId || item.id, branchId: currentBranchId },
+              data: { reservedStock: { increment: Number(item.quantity) || 1 } }
+            });
+          }
+        } else if (existingReq) {
+          await tx.partsRequisition.update({
+            where: { id: existingReq.id },
+            data: { status: "CANCELLED" }
+          });
+          // Revert reservedStock
+          for (const item of existingReq.items) {
+            await tx.productBranch.updateMany({
+              where: { productId: item.productId, branchId: existingReq.branchId },
+              data: { reservedStock: { decrement: item.quantity } }
+            });
+          }
+        }
+      }
+
       return v;
     });
     return NextResponse.json(vehicle);
@@ -356,6 +444,28 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
             reason: `${pendingExportOrder.reason} | Tự động hủy do xe bị hủy hồ sơ`
           },
         });
+      }
+
+      // FIX: Cancel any PENDING gift item requisitions for this vehicle
+      const pendingRequisition = await tx.partsRequisition.findFirst({
+        where: {
+          vehicleId: id,
+          status: "PENDING",
+          reason: { contains: "Quà tặng phụ tùng" }
+        },
+        include: { items: true }
+      });
+      if (pendingRequisition) {
+        await tx.partsRequisition.update({
+          where: { id: pendingRequisition.id },
+          data: { status: "CANCELLED" }
+        });
+        for (const item of pendingRequisition.items) {
+          await tx.productBranch.updateMany({
+            where: { productId: item.productId, branchId: pendingRequisition.branchId },
+            data: { reservedStock: { decrement: item.quantity } }
+          });
+        }
       }
 
       await tx.vehicle.update({

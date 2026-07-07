@@ -32,8 +32,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         where: { requisitionId }
       });
       for (const item of items) {
-        await tx.productBranch.update({
-          where: { productId_branchId: { productId: item.productId, branchId: requisition.branchId } },
+        await tx.productBranch.updateMany({
+          where: { productId: item.productId, branchId: requisition.branchId },
           data: { reservedStock: { decrement: item.quantity } }
         });
       }
@@ -45,28 +45,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
 
       // 3. Clear OrderItems on the Repair Order (since parts request is rejected, RO no longer has parts)
-      await tx.orderItem.deleteMany({
-        where: { repairOrderId: requisition.repairOrderId }
-      });
+      if (requisition.repairOrderId) {
+        await tx.orderItem.deleteMany({
+          where: { repairOrderId: requisition.repairOrderId }
+        });
+      }
 
-      const redeemTx = await tx.loyaltyTransaction.findFirst({
-        where: {
-          relatedRoId: requisition.repairOrderId,
-          type: "REDEEM",
-          points: { lt: 0 },
-        },
-      });
-      const discount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
-      const finalTotalAmount = Math.max(0, Number(requisition.repairOrder.laborCost) - discount);
+      if (requisition.repairOrderId && requisition.repairOrder) {
+        const redeemTx = await tx.loyaltyTransaction.findFirst({
+          where: {
+            relatedRoId: requisition.repairOrderId,
+            type: "REDEEM",
+            points: { lt: 0 },
+          },
+        });
+        const discount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
+        const finalTotalAmount = Math.max(0, Number(requisition.repairOrder.laborCost) - discount);
 
-      await tx.repairOrder.update({
-        where: { id: requisition.repairOrderId },
-        data: {
-          partsCost: 0,
-          totalAmount: finalTotalAmount, // Reset total amount with discount applied
-          status: "DOING" // Reset status back to doing
-        }
-      });
+        await tx.repairOrder.update({
+          where: { id: requisition.repairOrderId },
+          data: {
+            partsCost: 0,
+            totalAmount: finalTotalAmount, // Reset total amount with discount applied
+            status: "DOING" // Reset status back to doing
+          }
+        });
+      }
 
       return { success: true, branchId: requisition.branchId };
     });

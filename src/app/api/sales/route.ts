@@ -272,6 +272,35 @@ export async function POST(req: NextRequest) {
         pendingExportBranchId = pendingOrder.branchId;
       }
 
+      // Xử lý quà tặng phụ tùng
+      const giftItems = body.giftItemsJson ? JSON.parse(body.giftItemsJson) : [];
+      if (giftItems.length > 0 && branchId) {
+        await tx.partsRequisition.create({
+          data: {
+            vehicleId: v.id,
+            branchId: branchId,
+            status: "PENDING",
+            reason: `Tặng phụ tùng theo xe VIN: ${v.vin}`,
+            createdBy: "Hệ thống (Bán Xe)",
+            items: {
+              create: giftItems.map((item: any) => ({
+                productId: Number(item.productId || item.id),
+                quantity: Number(item.quantity)
+              }))
+            }
+          }
+        });
+        
+        for (const item of giftItems) {
+          await tx.productBranch.updateMany({
+            where: { productId: Number(item.productId || item.id), branchId },
+            data: { reservedStock: { increment: Number(item.quantity) || 1 } }
+          });
+        }
+        
+        pendingExportBranchId = branchId;
+      }
+
       return v;
     });
 

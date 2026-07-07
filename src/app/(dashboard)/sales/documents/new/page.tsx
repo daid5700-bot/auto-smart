@@ -75,11 +75,13 @@ export default function NewDocumentPage() {
   // Metadata: Plate cost & Accessories
   const [plateCost, setPlateCost] = useState("");
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
+  const [giftItems, setGiftItems] = useState<Accessory[]>([]);
   const [rawNotes, setRawNotes] = useState("");
 
   // Accessory search & list
   const [products, setProducts] = useState<any[]>([]);
   const [accessorySearch, setAccessorySearch] = useState("");
+  const [giftSearch, setGiftSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const searchTimeoutRef = useRef<any>(null);
 
@@ -157,6 +159,31 @@ export default function NewDocumentPage() {
     );
   };
 
+  const handleAddGiftItem = (p: any) => {
+    const exists = giftItems.find(a => a.id === p.id);
+    if (exists) {
+      setGiftItems(
+        giftItems.map(a => a.id === p.id ? { ...a, quantity: (Number(a.quantity) || 0) + 1 } : a)
+      );
+    } else {
+      const costPrice = p.movingAvgCost || 0;
+      setGiftItems([
+        ...giftItems,
+        { id: p.id, name: p.name, sku: p.sku, price: Number(costPrice), quantity: 1 }
+      ]);
+    }
+  };
+
+  const handleRemoveGiftItem = (id: number) => {
+    setGiftItems(giftItems.filter(a => a.id !== id));
+  };
+
+  const handleUpdateGiftItemQty = (id: number, qty: number | "") => {
+    setGiftItems(
+      giftItems.map(a => a.id === id ? { ...a, quantity: qty === "" ? "" : Math.max(1, qty) } : a)
+    );
+  };
+
   const handleWholesalePhoneChange = (val: string) => {
     setCustomerPhone(val);
     setSelectedCustomerId("");
@@ -226,6 +253,7 @@ export default function NewDocumentPage() {
         status, bankStatus, plateStatus,
         plateCost: Number(plateCost)||0,
         accessoriesJson: JSON.stringify(selectedAccessories.map(a=>({...a, quantity:Number(a.quantity)||1}))),
+        giftItemsJson: JSON.stringify(giftItems.map(a=>({...a, quantity:Number(a.quantity)||1}))),
         notes: rawNotes, customerName, customerPhone,
         customerBirthday: customerBirthday||undefined,
         customerAddress,
@@ -644,8 +672,8 @@ export default function NewDocumentPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground block">Chọn Phụ tùng mua kèm</label>
+            <div className="space-y-2 mt-4">
+              <label className="text-xs font-bold text-muted-foreground block">Chọn Phụ tùng mua kèm (Tính tiền chung)</label>
               <div className="grid grid-cols-2 gap-3">
                 <div className="border border-border rounded-xl p-3 space-y-2 bg-secondary/5">
                   <div className="relative">
@@ -667,7 +695,7 @@ export default function NewDocumentPage() {
                   </div>
                 </div>
                 <div className="border border-border rounded-xl p-3 space-y-2 bg-secondary/5">
-                  <p className="text-xs font-bold text-primary">Danh sách đã chọn:</p>
+                  <p className="text-xs font-bold text-primary">Danh sách mua kèm:</p>
                   <div className="max-h-[150px] overflow-y-auto space-y-1.5">
                     {selectedAccessories.map((a)=>(
                       <div key={a.id} className="flex items-center gap-2 text-xs bg-background p-2 rounded-lg border border-border">
@@ -679,7 +707,48 @@ export default function NewDocumentPage() {
                         <button type="button" onClick={()=>handleRemoveAccessory(a.id)} className="p-1 hover:bg-rose-500/10 text-rose-500 rounded shrink-0"><Trash2 size={13}/></button>
                       </div>
                     ))}
-                    {selectedAccessories.length===0&&<p className="text-xs text-muted-foreground italic text-center py-3">Chưa chọn phụ tùng nào.</p>}
+                    {selectedAccessories.length===0&&<p className="text-xs text-muted-foreground italic text-center py-3">Chưa chọn phụ tùng mua kèm.</p>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 mt-4 pt-4 border-t border-border">
+              <label className="text-xs font-bold text-emerald-600 block flex items-center gap-2">
+                <Sparkles size={14} /> Chọn Quà tặng (Không tính tiền, chờ kho duyệt)
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border border-emerald-500/20 rounded-xl p-3 space-y-2 bg-emerald-500/5">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={13} />
+                    <input type="text" placeholder="Tìm phụ tùng tặng..." value={giftSearch} onChange={(e)=>setGiftSearch(e.target.value)}
+                      className="w-full pl-8 pr-2 py-1.5 bg-background border border-emerald-500/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                  <div className="max-h-[150px] overflow-y-auto space-y-1 divide-y divide-emerald-500/20">
+                    {products.filter(p => p.name.toLowerCase().includes(giftSearch.toLowerCase()) || p.sku.toLowerCase().includes(giftSearch.toLowerCase())).map((p)=>{
+                      return (
+                        <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
+                          <div className="flex-1 min-w-0 pr-1"><p className="font-bold text-foreground truncate">{p.name}</p><p className="text-[10px] text-muted-foreground">Tồn: {p.stockCount||0}</p></div>
+                          <button type="button" onClick={()=>handleAddGiftItem(p)} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg shrink-0">Tặng</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="border border-emerald-500/20 rounded-xl p-3 space-y-2 bg-emerald-500/5">
+                  <p className="text-xs font-bold text-emerald-600">Danh sách quà tặng:</p>
+                  <div className="max-h-[150px] overflow-y-auto space-y-1.5">
+                    {giftItems.map((a)=>(
+                      <div key={a.id} className="flex items-center gap-2 text-xs bg-background p-2 rounded-lg border border-emerald-500/20">
+                        <div className="flex-1 min-w-0"><p className="font-bold text-foreground truncate">{a.name}</p><p className="text-[10px] text-muted-foreground">Q.tặng</p></div>
+                        <NumericInput
+                          value={a.quantity}
+                          onChange={(c)=>handleUpdateGiftItemQty(a.id,c===""?"":parseInt(c,10))}
+                          className="w-10 text-center py-0.5 border border-emerald-500/40 rounded bg-secondary/30 text-xs font-bold shrink-0 text-emerald-600" />
+                        <button type="button" onClick={()=>handleRemoveGiftItem(a.id)} className="p-1 hover:bg-rose-500/10 text-rose-500 rounded shrink-0"><Trash2 size={13}/></button>
+                      </div>
+                    ))}
+                    {giftItems.length===0&&<p className="text-xs text-emerald-600/70 italic text-center py-3">Chưa chọn quà tặng nào.</p>}
                   </div>
                 </div>
               </div>

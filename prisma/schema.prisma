@@ -274,6 +274,7 @@ model Vehicle {
   warehouse       String?
   branchId        Int?
   branch          Branch?   @relation(fields: [branchId], references: [id])
+  partsRequisitions PartsRequisition[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -370,17 +371,20 @@ model LoyaltyTransaction {
 
 model PartsRequisition {
   id            Int                    @id @default(autoincrement())
-  repairOrderId Int
-  repairOrder   RepairOrder            @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
+  repairOrderId Int?
+  repairOrder   RepairOrder?           @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
+  vehicleId     Int?
+  vehicle       Vehicle?               @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   branchId      Int
   branch        Branch                 @relation(fields: [branchId], references: [id])
-  status        String                 @default("APPROVED") // APPROVED (immediately processed and deducted)
+  status        String                 @default("PENDING") // PENDING (chờ duyệt), APPROVED (đã xuất)
   reason        String?
   createdBy     String
   createdAt     DateTime               @default(now())
   items         PartsRequisitionItem[]
 
   @@index([repairOrderId])
+  @@index([vehicleId])
   @@index([branchId])
 }
 

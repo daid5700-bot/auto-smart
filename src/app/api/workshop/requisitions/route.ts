@@ -20,6 +20,11 @@ export async function GET(req: NextRequest) {
             technician: true,
           }
         },
+        vehicle: {
+          include: {
+            customer: true
+          }
+        },
         items: {
           include: {
             product: {

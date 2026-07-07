@@ -220,26 +220,29 @@ export default function UnifiedRequisitionsApprovalPage() {
           {sourceTab === "WORKSHOP" ? (
             // WORKSHOP RENDER SECTION
             displayList.map((req) => {
-              const ro = req.repairOrder || {};
-              const cust = ro.customer || {};
+              const ro = req.repairOrder;
+              const vehicle = req.vehicle;
+              const cust = ro?.customer || vehicle?.customer || {};
               const totalBill = req.items.reduce((s: number, item: any) => {
                 const prod = item.product || {};
                 const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
                 return s + Number(item.quantity) * Number(priceVal);
               }, 0);
 
+              const isGift = !!vehicle;
+
               return (
                 <div key={req.id} className="glass-card rounded-2xl p-5 border border-border/60 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border/40 pb-3 gap-3">
                     <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase">MÃ LỆNH</span>
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">{isGift ? "TẶNG PHỤ TÙNG (BÁN LẺ)" : "MÃ LỆNH SỬA CHỮA"}</span>
                       <h3 className="text-base font-black tracking-tight text-foreground">
-                        RO-{ro.id || "CHƯA RÕ"}
+                        {isGift ? `SALE-${vehicle.id}` : `RO-${ro?.id || "CHƯA RÕ"}`}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         <span className="font-bold text-foreground">{cust.name || "Khách vãng lai"}</span>
                         {cust.phone && ` · ${cust.phone}`}
-                        {ro.plateNumber && ` · Xe ${ro.plateNumber}`}
+                        {(ro?.plateNumber || vehicle?.vin) && ` · Xe ${ro?.plateNumber || vehicle?.model}`}
                       </p>
                     </div>
 
@@ -253,8 +256,8 @@ export default function UnifiedRequisitionsApprovalPage() {
                       )}
 
                       <div className="text-right text-[11px] text-muted-foreground ml-2">
-                        <p className="font-semibold text-foreground">KTV PHỤ TRÁCH</p>
-                        <p className="font-medium text-primary">{ro.technician?.name || "Chưa giao việc"}</p>
+                        <p className="font-semibold text-foreground">{isGift ? "NHÂN VIÊN BÁN" : "KTV PHỤ TRÁCH"}</p>
+                        <p className="font-medium text-primary">{isGift ? "Hệ thống" : (ro?.technician?.name || "Chưa giao việc")}</p>
                       </div>
                     </div>
                   </div>
@@ -313,12 +316,14 @@ export default function UnifiedRequisitionsApprovalPage() {
                     </div>
 
                     <div className="flex items-center gap-2 self-end">
-                      <Link
-                        href={`/workshop?id=${ro.id}`}
-                        className="px-3.5 py-2 border border-border hover:bg-secondary/40 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                      >
-                        <Eye size={13} /> Xem chi tiết lệnh
-                      </Link>
+                      {ro && ro.id && (
+                        <Link
+                          href={`/workshop?id=${ro.id}`}
+                          className="px-3.5 py-2 border border-border hover:bg-secondary/40 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                        >
+                          <Eye size={13} /> Xem chi tiết lệnh
+                        </Link>
+                      )}
 
                       {req.status === "PENDING" && (
                         <>
