@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
 // POST /api/inventory/pending-exports/[id]/approve — Warehouse approves → deduct stock
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -102,6 +103,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     });
 
+    notifyRequisitionCountChanged(order.branchId);
+
     return NextResponse.json({ success: true, message: "Đã phê duyệt và xuất kho thành công", orderCode: order.code });
   } catch (error: any) {
     console.error(error);
@@ -123,6 +126,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       where: { id: orderId },
       data: { status: "CANCELLED", reason: `${order.reason} | Từ chối: ${reason || "Không đủ hàng"}` }
     });
+
+    notifyRequisitionCountChanged(order.branchId);
 
     return NextResponse.json({ success: true, message: "Đã từ chối lệnh xuất kho" });
   } catch (error: any) {

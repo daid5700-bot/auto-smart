@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const requisitionId = parseInt(params.id);
@@ -67,8 +68,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
       });
 
-      return { success: true };
+      return { success: true, branchId: requisition.branchId };
     });
+
+    notifyRequisitionCountChanged(result.branchId);
 
     return NextResponse.json(result);
   } catch (error: any) {

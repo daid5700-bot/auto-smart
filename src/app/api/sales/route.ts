@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
 // Helper to find or upsert a Customer
 async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null) {
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const search = searchParams.get("search") || "";
   const status = searchParams.get("status") || "";
+  const saleType = searchParams.get("saleType") || "";
 
   // Pagination params
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
@@ -52,6 +54,7 @@ export async function GET(req: NextRequest) {
 
   const where: any = {};
   if (branchId) where.branchId = branchId;
+  if (saleType) where.saleType = saleType;
   const customerId = searchParams.get("customerId");
   if (customerId) where.customerId = parseInt(customerId);
   if (search) {
@@ -173,7 +176,7 @@ export async function POST(req: NextRequest) {
     const {
       vin, sku, engineNumber, importPrice, importDate, stockCount, warehouse,
       model, variant, color, year, status, listPrice, floorPrice, image,
-      bankStatus, plateStatus, plateCost, accessoriesJson, notes,
+      bankStatus, plateStatus, plateCost, accessoriesJson, notes, saleType,
       customerName, customerPhone, customerBirthday
     } = body;
 
@@ -203,6 +206,8 @@ export async function POST(req: NextRequest) {
     const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
     const initialDebtAmount = parsedListPrice + parsedPlateCost + accCost;
 
+    let pendingExportBranchId: number | null | undefined = null;
+
     const vehicle = await prisma.$transaction(async (tx) => {
       const v = await tx.vehicle.create({
         data: {
@@ -227,6 +232,7 @@ export async function POST(req: NextRequest) {
           debtAmount: initialDebtAmount,
           notes: notes || null,
           warehouse: warehouse || null,
+          saleType: saleType || "RETAIL",
           customerId,
           branchId,
         } as any,
@@ -249,7 +255,7 @@ export async function POST(req: NextRequest) {
         const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
         const orderCode = `PKX-${dateStr}-${randomStr}`;
 
-        await tx.inventoryOrder.create({
+        const pendingOrder = await tx.inventoryOrder.create({
           data: {
             code: orderCode,
             customerId: customerId,
@@ -263,10 +269,13 @@ export async function POST(req: NextRequest) {
             createdBy: "Hệ thống (Bán Xe)",
           }
         });
+        pendingExportBranchId = pendingOrder.branchId;
       }
 
       return v;
     });
+
+    notifyRequisitionCountChanged(pendingExportBranchId);
 
     return NextResponse.json(vehicle, { status: 201 });
   } catch (error: any) {

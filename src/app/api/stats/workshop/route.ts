@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.repairOrder.count({
         where: {
-          status: { notIn: ["DONE", "DELIVERED"] },
+          status: { notIn: ["DELIVERED"] },
           ...roWhere,
         },
       }),
@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
       });
 
       const count = monthROs.length;
-      const amount = monthROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+      const amount = monthROs.reduce((sum, ro) => sum + Number(ro.paidAmount || 0), 0);
 
       monthlyTrends.push({
         label: monthLabel,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Users, Search, MapPin, Phone, User, DollarSign, Receipt, Eye, X, Edit3 } from "lucide-react";
-import { handleNumericInputChange } from "@/lib/utils";
+import { handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 
 export default function CustomerDebtsPage() {
@@ -26,8 +26,7 @@ export default function CustomerDebtsPage() {
   const fetchCustomers = async (p = 1) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/inventory/customers?page=${p}&limit=20&search=${encodeURIComponent(search)}`);
-      const data = await res.json();
+      const data = await fetchWithDedup(`/api/inventory/customers?page=${p}&limit=20&search=${encodeURIComponent(search)}`);
       setCustomers(data.customers || []);
       if (data.pagination) setTotalPages(data.pagination.totalPages);
     } catch (e) {
@@ -52,9 +51,10 @@ export default function CustomerDebtsPage() {
   };
 
   const openCustomerModal = async (customer: any) => {
+    setCustomerOrders([]);
+    setLoadingOrders(true);
     setSelectedCustomer(customer);
     try {
-      setLoadingOrders(true);
       const res = await fetch(`/api/inventory/orders?customerId=${customer.id}&limit=100`);
       const data = await res.json();
       // Lọc ra các đơn hàng có tính tiền (loại trừ nội bộ nếu cần), sắp xếp nợ lên đầu

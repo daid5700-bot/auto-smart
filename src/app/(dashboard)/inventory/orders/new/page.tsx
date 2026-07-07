@@ -60,20 +60,27 @@ export default function NewInventoryOrderPage() {
   const handlePhoneChange = async (val: string) => {
     setPhone(val);
     setCustomerId(""); // reset linked id if typing new phone
+  };
+
+  useEffect(() => {
+    const val = phone.trim();
     if (val.trim().length > 1) {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
-        const data = await res.json();
-        setSuggestions(data.customers || []);
-        setShowSuggestions(true);
-      } catch (e) {
-        console.error(e);
-      }
+      const timer = window.setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search/phone?q=${encodeURIComponent(val)}`);
+          const data = await res.json();
+          setSuggestions(data.customers || []);
+          setShowSuggestions(true);
+        } catch (e) {
+          console.error(e);
+        }
+      }, 500);
+      return () => window.clearTimeout(timer);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
     }
-  };
+  }, [phone]);
 
   const handleSelectSuggestedCustomer = (c: any) => {
     setPhone(c.phone);

@@ -1,13 +1,42 @@
 "use client";
 import { useEffect, useState } from "react";
 import { formatCurrency, formatDate, statusText, statusBadge, parseSymptoms } from "@/lib/utils";
-import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle } from "lucide-react";
+import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle } from "lucide-react";
+import { toast } from "@/lib/toast";
 
 export default function HistoryPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [submittingDelivery, setSubmittingDelivery] = useState<string | null>(null);
+
+  const handleDeliverOrder = async (orderId: string) => {
+    if (!confirm("Xác nhận bàn giao xe cho khách?")) return;
+    try {
+      setSubmittingDelivery(orderId);
+      const res = await fetch(`/api/workshop/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DELIVERED" }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Không thể bàn giao xe");
+      }
+      toast.success("Thành công", "Bàn giao xe thành công!");
+      
+      setOrders((prev: any[]) => prev.map(o => o.id === orderId ? { ...o, status: "DELIVERED" } : o));
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder((prev: any) => prev ? { ...prev, status: "DELIVERED" } : null);
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Lỗi", e.message || "Lỗi bàn giao xe");
+    } finally {
+      setSubmittingDelivery(null);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -78,7 +107,7 @@ export default function HistoryPage() {
                 <th className="p-4 font-bold text-xs uppercase text-muted-foreground">Phụ tùng</th>
                 <th className="p-4 font-bold text-xs uppercase text-muted-foreground">Tổng chi phí</th>
                 <th className="p-4 font-bold text-xs uppercase text-muted-foreground">Trạng thái</th>
-                <th className="p-4 font-bold text-xs uppercase text-muted-foreground text-center">Thao tác</th>
+                <th className="p-4 font-bold text-xs uppercase text-muted-foreground" style={{ textAlign: "right" }}>Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -120,14 +149,31 @@ export default function HistoryPage() {
                       {statusText(o.status)}
                     </span>
                   </td>
-                  <td className="p-4 text-center">
-                    <button
-                      onClick={() => setSelectedOrder(o)}
-                      className="p-1.5 hover:bg-primary/10 text-primary rounded-lg transition-colors inline-flex items-center justify-center"
-                      title="Xem chi tiết"
-                    >
-                      <Eye size={16} />
-                    </button>
+                  <td className="p-4" style={{ textAlign: "right" }}>
+                    <div className="flex items-center justify-end gap-2">
+                      {o.status === "DONE" && (
+                        <button
+                          disabled={submittingDelivery === o.id}
+                          onClick={() => handleDeliverOrder(o.id)}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors text-xs font-bold flex items-center gap-1 disabled:opacity-50"
+                          title="Bàn giao xe cho khách"
+                        >
+                          {submittingDelivery === o.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <CheckCircle size={12} />
+                          )}
+                          Bàn giao xe
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSelectedOrder(o)}
+                        className="p-1.5 hover:bg-primary/10 text-primary rounded-lg transition-colors inline-flex items-center justify-center"
+                        title="Xem chi tiết"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -340,6 +386,14 @@ export default function HistoryPage() {
                     <span className="text-xs font-bold text-foreground">Tổng chi phí:</span>
                     <span className="text-base font-black text-primary">{formatCurrency(Number(selectedOrder.totalAmount))}</span>
                   </div>
+                  <div className="flex justify-between text-xs pt-1.5">
+                    <span className="text-muted-foreground font-medium">Đã thanh toán:</span>
+                    <span className="font-bold text-emerald-600">{formatCurrency(Number(selectedOrder.paidAmount || 0))}</span>
+                  </div>
+                  <div className="flex justify-between text-xs pb-1.5">
+                    <span className="text-muted-foreground font-medium">Còn nợ:</span>
+                    <span className="font-bold text-rose-600">{formatCurrency(Number(selectedOrder.debtAmount || 0))}</span>
+                  </div>
                   <div className="text-[10px] text-muted-foreground/80 text-right italic pt-1">
                     * Đã bao gồm thuế giá trị gia tăng dự tính
                   </div>
@@ -349,7 +403,26 @@ export default function HistoryPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-5 border-t border-border bg-secondary/5 flex justify-end">
+            <div className="p-5 border-t border-border bg-secondary/5 flex justify-end gap-3">
+              {selectedOrder.status === "DONE" && (
+                <button
+                  disabled={submittingDelivery === selectedOrder.id}
+                  onClick={() => handleDeliverOrder(selectedOrder.id)}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {submittingDelivery === selectedOrder.id ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      Đang xử lý...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={12} />
+                      Bàn giao xe
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => setSelectedOrder(null)}
                 className="px-5 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-colors"

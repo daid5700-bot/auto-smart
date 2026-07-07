@@ -14,7 +14,10 @@ export function formatNumber(num: number): string {
 }
 
 export function formatDate(date: Date | string): string {
-  return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date));
+  if (!date) return "—";
+  const parsed = new Date(date);
+  if (isNaN(parsed.getTime())) return "—";
+  return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parsed);
 }
 
 export function normalizePhone(phone: string): string {
@@ -194,5 +197,23 @@ export function parseSymptoms(symptomsStr: string | null | undefined): SymptomsD
     };
   }
   return defaultVal;
+}
+
+const activeRequests: Record<string, Promise<any> | undefined> = {};
+
+export async function fetchWithDedup(url: string) {
+  if (activeRequests[url]) {
+    return activeRequests[url];
+  }
+  const promise = fetch(url).then(async (res) => {
+    if (!res.ok) throw new Error("Request failed");
+    return res.json();
+  });
+  activeRequests[url] = promise;
+  try {
+    return await promise;
+  } finally {
+    delete activeRequests[url];
+  }
 }
 

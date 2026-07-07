@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useAuth } from "@/lib/store";
 import { 
@@ -21,17 +21,17 @@ interface MovementItem {
   note: string;
 }
 
+
+
 export default function MovementsPage() {
   const { user } = useAuth();
   
   const [activeTab, setActiveTab] = useState<TabType>("IMPORT");
   const [exportType, setExportType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
   const [products, setProducts] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
-  const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
 
   // Customer states
   const [phone, setPhone] = useState("");
@@ -40,60 +40,7 @@ export default function MovementsPage() {
   const [address, setAddress] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
-
-  // Payment update modal
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<any>(null);
-  const [paymentInput, setPaymentInput] = useState("");
-  const [submittingPayment, setSubmittingPayment] = useState(false);
-
-  const groupMovementsIntoReceipts = (movements: any[]) => {
-    const groups: Record<string, {
-      id: string;
-      type: string;
-      createdBy: string;
-      createdAt: string;
-      reason: string;
-      items: any[];
-      totalAmount: number;
-      inventoryOrder?: any;
-    }> = {};
-
-    movements.forEach(m => {
-      let key = "";
-      if (m.inventoryOrder) {
-        key = `ORDER-${m.inventoryOrder.id}`;
-      } else {
-        const dateVal = new Date(m.createdAt).getTime();
-        const timeWindow = Math.floor(dateVal / 3000);
-        key = `${m.type}-${m.createdBy}-${timeWindow}`;
-      }
-      
-      if (!groups[key]) {
-        groups[key] = {
-          id: key,
-          type: m.type,
-          createdBy: m.createdBy,
-          createdAt: m.createdAt,
-          reason: m.reason || "",
-          items: [],
-          totalAmount: 0,
-          inventoryOrder: m.inventoryOrder || null
-        };
-      }
-      
-      groups[key].items.push(m);
-      groups[key].totalAmount += Number(m.totalCost || 0);
-    });
-
-    return Object.values(groups).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  };
-
-  const getReceiptCode = (type: string, dateStr: string) => {
-    const cleanDate = dateStr.replace(/\D/g, "").slice(2, 12);
-    const prefix = type === "IMPORT" ? "PN" : type === "EXPORT" ? "PX" : "PK";
-    return `${prefix}-${cleanDate}`;
-  };
+  const searchTimeoutRef = useRef<any>(null);
 
   // Form State - Array of items
   const [items, setItems] = useState<MovementItem[]>([]);
@@ -104,54 +51,35 @@ export default function MovementsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-
   const fetchProducts = async () => {
     try {
-      const [prodRes, custRes] = await Promise.all([
-        fetch("/api/inventory?limit=1000&branchFilter=all"),
-        fetch("/api/crm?tab=customers")
-      ]);
-      const pData = await prodRes.json();
-      const cData = await custRes.json();
+      const pData = await fetchWithDedup("/api/inventory?limit=1000&branchFilter=all&view=selector");
       setProducts(pData.products || []);
-      setCustomers(cData.customers || []);
     } catch (e) {
       console.error("Lỗi tải data:", e);
     }
   };
 
-  const fetchMovements = async (p: number) => {
-    try {
-      const res = await fetch(`/api/inventory/movements?page=${p}&limit=50`);
-      const data = await res.json();
-      setHistory(data.movements || []);
-      if (data.pagination) {
-        setTotalPages(data.pagination.totalPages || 1);
-      }
-    } catch (e) {
-      console.error("Lỗi tải lịch sử kho:", e);
-    }
-  };
-
   const fetchData = async () => {
     setLoading(true);
-    setCurrentPage(1);
-    await Promise.all([fetchProducts(), fetchMovements(1)]);
+    await fetchProducts();
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+      setLoading(true);
+      await fetchProducts();
+      setLoading(false);
+    };
+    init();
     resetItems();
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, []);
-
-  useEffect(() => {
-    if (!loading) {
-      fetchMovements(currentPage);
-    }
-  }, [currentPage]);
 
   const resetItems = () => {
     setItems([{
@@ -195,7 +123,7 @@ export default function MovementsPage() {
     return map;
   }, [products]);
 
-  const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
+
 
   const handleProductSelect = (idx: number, productId: string) => {
     setItems(prev => prev.map((item, i) => {
@@ -214,18 +142,23 @@ export default function MovementsPage() {
     setActiveDropdownIdx(null);
   };
 
-  const handlePhoneChange = async (val: string) => {
+  const handlePhoneChange = (val: string) => {
     setPhone(val);
     setCustomerId("");
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
     if (val.trim().length > 1) {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
-        const data = await res.json();
-        setSuggestions(data.customers || []);
-        setShowSuggestions(true);
-      } catch (e) {
-        console.error(e);
-      }
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search/phone?q=${encodeURIComponent(val)}`);
+          const data = await res.json();
+          setSuggestions(data.customers || []);
+          setShowSuggestions(true);
+        } catch (e) {
+          console.error(e);
+        }
+      }, 500);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -240,29 +173,7 @@ export default function MovementsPage() {
     setShowSuggestions(false);
   };
 
-  const submitPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedOrderForPayment || !paymentInput) return;
-    try {
-      setSubmittingPayment(true);
-      const res = await fetch(`/api/inventory/orders/${selectedOrderForPayment.id}/payment`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: Number(paymentInput) }),
-      });
-      if (res.ok) {
-        setPaymentModalOpen(false);
-        fetchMovements(currentPage);
-      } else {
-        const err = await res.json();
-        alert("Lỗi: " + err.error);
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setSubmittingPayment(false);
-    }
-  };
+
 
   const updateItem = (idx: number, field: keyof MovementItem, value: any) => {
     setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
@@ -656,212 +567,9 @@ export default function MovementsPage() {
 
 
 
-      {/* RECEIPT DETAIL MODAL */}
-      {selectedReceipt && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4 print:p-0">
-          <div className="bg-card border border-border w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden print:border-none print:shadow-none print:w-full print:max-h-full print:rounded-none">
-            
-            {/* Modal Header */}
-            <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-secondary/10 print:hidden">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Chi tiết giao dịch</span>
-              </div>
-              <button 
-                onClick={() => setSelectedReceipt(null)}
-                className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-              >
-                <X size={18} />
-              </button>
-            </div>
 
-            {/* Modal Body / Invoice Printable Area */}
-            <div className="p-8 flex-1 overflow-y-auto print:overflow-visible space-y-6 bg-white text-zinc-900" id="printable-receipt">
-              {/* Invoice Header */}
-              <div className="flex justify-between items-start border-b border-zinc-200 pb-6">
-                <div>
-                  <h1 className="text-2xl font-black tracking-tight text-primary">Xe Máy Toàn Thắng</h1>
-                  <p className="text-xs text-zinc-500 mt-1">Hệ thống quản trị doanh nghiệp ô tô thông minh</p>
-                  <p className="text-xs text-zinc-400">Chi nhánh: Mặc định</p>
-                </div>
-                <div className="text-right">
-                  <h2 className="text-lg font-bold uppercase tracking-wider text-zinc-700">
-                    {selectedReceipt.type === "IMPORT" ? "PHIẾU NHẬP KHO" : 
-                     selectedReceipt.type === "EXPORT" ? "PHIẾU XUẤT KHO" : "BIÊN BẢN KIỂM KÊ"}
-                  </h2>
-                  <p className="font-mono font-bold text-xs text-zinc-800 mt-1">
-                    Số: {getReceiptCode(selectedReceipt.type, selectedReceipt.createdAt)}
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Ngày lập: {formatDate(selectedReceipt.createdAt)}
-                  </p>
-                </div>
-              </div>
 
-              {/* Invoice Metadata */}
-              <div className="grid grid-cols-2 gap-4 text-xs text-zinc-600 bg-zinc-50 p-4 rounded-xl">
-                <div>
-                  <p><span className="font-bold text-zinc-800">Người lập phiếu:</span> {selectedReceipt.createdBy}</p>
-                  <p className="mt-1"><span className="font-bold text-zinc-800">Bộ phận:</span> Phòng phụ tùng / Kho hàng</p>
-                </div>
-                <div>
-                  <p><span className="font-bold text-zinc-800">Hình thức:</span> {
-                    selectedReceipt.type === "IMPORT" ? "Nhập tay (Manual)" : 
-                    selectedReceipt.type === "EXPORT" ? "Xuất kho trực tiếp" : "Kiểm kê định kỳ"
-                  }</p>
-                  <p className="mt-1"><span className="font-bold text-zinc-800">Ghi chú:</span> {selectedReceipt.reason || "—"}</p>
-                </div>
-              </div>
 
-              {/* Invoice Table */}
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-zinc-300 text-zinc-850 font-bold">
-                    <th className="py-2.5 w-10">STT</th>
-                    <th className="py-2.5">Mã SKU</th>
-                    <th className="py-2.5">Tên sản phẩm / phụ tùng</th>
-                    <th className="py-2.5 text-center w-20">Số lượng</th>
-                    <th className="py-2.5 text-center w-16">Đơn vị</th>
-                    {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
-                      <>
-                        <th className="py-2.5 text-right w-28">Đơn giá</th>
-                        <th className="py-2.5 text-right w-28">Thành tiền</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200">
-                  {selectedReceipt.items.map((m: any, idx: number) => (
-                    <tr key={m.id} className="text-zinc-700">
-                      <td className="py-2.5">{idx + 1}</td>
-                      <td className="py-2.5 font-mono font-bold text-zinc-850">{m.product?.sku}</td>
-                      <td className="py-2.5">{m.product?.name}</td>
-                      <td className="py-2.5 text-center">{m.quantity}</td>
-                      <td className="py-2.5 text-center">{m.product?.unit}</td>
-                      {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
-                        <>
-                          <td className="py-2.5 text-right">{formatCurrency(Number(m.unitCost))}</td>
-                          <td className="py-2.5 text-right font-semibold text-zinc-950">{formatCurrency(Number(m.totalCost))}</td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Total Summary */}
-              {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
-                <div className="border-t border-zinc-300 pt-4 flex justify-between items-start">
-                  <div className="text-xs text-zinc-500 italic max-w-sm">
-                    {selectedReceipt.type === "IMPORT" 
-                      ? "* Giá trị trên được tính theo đơn giá trung bình nhập kho thực tế."
-                      : "* Giá trị xuất kho được tính dựa theo hình thức bán (Bán lẻ hoặc Bán buôn)."}
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs text-zinc-500 font-bold uppercase mr-4">Tổng cộng:</span>
-                    <span className="text-lg font-black text-zinc-950">{formatCurrency(selectedReceipt.items.reduce((sum: number, it: any) => sum + Number(it.totalCost || 0), 0))}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Signatures */}
-              <div className="grid grid-cols-3 gap-4 text-center text-xs pt-12 text-zinc-800">
-                <div>
-                  <p className="font-bold">Người lập phiếu</p>
-                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
-                  <p className="mt-14 font-semibold">{selectedReceipt.createdBy}</p>
-                </div>
-                <div>
-                  <p className="font-bold">Thủ kho</p>
-                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
-                  <div className="mt-14" />
-                </div>
-                <div>
-                  <p className="font-bold">Người kiểm duyệt</p>
-                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
-                  <div className="mt-14" />
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-border bg-secondary/15 flex justify-between items-center print:hidden">
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-zinc-800 text-white rounded-xl text-xs font-bold hover:bg-zinc-700 transition-colors flex items-center gap-1.5 shadow-md"
-              >
-                In phiếu
-              </button>
-              <button
-                onClick={() => setSelectedReceipt(null)}
-                className="px-4 py-2 bg-secondary border border-border text-foreground rounded-xl text-xs font-bold hover:bg-secondary/80 transition-colors"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #printable-receipt, #printable-receipt * {
-            visibility: visible;
-          }
-          #printable-receipt {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            background: white !important;
-            color: black !important;
-            padding: 20px !important;
-            margin: 0 !important;
-          }
-        }
-      `}</style>
-      {/* PAYMENT UPDATE MODAL */}
-      {paymentModalOpen && selectedOrderForPayment && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-card border border-border rounded-2xl overflow-hidden shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-bold">Cập nhật nợ kho</h3>
-              <button onClick={() => setPaymentModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={submitPayment} className="p-6 space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground mb-1">Mã đơn</p>
-                <p className="font-bold font-mono">{selectedOrderForPayment.code}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground mb-1">Còn nợ</p>
-                <p className="text-rose-600 font-bold text-lg">{formatCurrency(Number(selectedOrderForPayment.debtAmount || 0))}</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
-                  Khách trả thêm
-                </label>
-                <NumericInput
-                  required
-                  value={paymentInput}
-                  onChange={setPaymentInput}
-                  className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                />
-              </div>
-              <div className="flex gap-3 justify-end pt-4 border-t border-border mt-4">
-                <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
-                <button disabled={submittingPayment} type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
-                  {submittingPayment ? "Đang xử lý..." : "Cập nhật"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

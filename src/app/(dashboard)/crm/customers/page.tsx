@@ -13,6 +13,9 @@ const SRC: Record<string, string> = {
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,21 +34,36 @@ export default function CustomersPage() {
     tags: "",
   });
 
-  const fetchData = async () => {
+  const fetchData = async (targetPage = 1, append = false) => {
     try {
-      const res = await fetch("/api/crm?tab=customers");
+      append ? setLoadingMore(true) : setLoading(true);
+      const res = await fetch(`/api/crm?tab=customers&page=${targetPage}&limit=20&search=${encodeURIComponent(searchTerm)}`);
       const data = await res.json();
-      setCustomers(data.customers || []);
+      setCustomers((prev) => append ? [...prev, ...(data.customers || [])] : (data.customers || []));
+      setTotalPages(data.pagination?.totalPages || 1);
+      setPage(targetPage);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const timer = window.setTimeout(() => fetchData(1, false), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (loading || loadingMore || page >= totalPages) return;
+      const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 320;
+      if (nearBottom) fetchData(page + 1, true);
+    };
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [loading, loadingMore, page, totalPages, searchTerm]);
 
   const handleDeleteCustomer = async (id: number) => {
     if (!confirm("Bạn có chắc chắn muốn xóa Khách hàng này? Việc xóa sẽ giải phóng thông tin xe của họ và dọn dẹp các lịch sử giao dịch liên quan.")) return;
@@ -53,7 +71,7 @@ export default function CustomersPage() {
       setLoading(true);
       const res = await fetch(`/api/crm/${id}?type=customer`, { method: "DELETE" });
       if (res.ok) {
-        await fetchData();
+        await fetchData(1, false);
       }
     } catch (e) {
       console.error(e);
@@ -114,7 +132,7 @@ export default function CustomersPage() {
 
       if (res.ok) {
         setModalOpen(false);
-        await fetchData();
+        await fetchData(1, false);
       }
     } catch (err) {
       console.error(err);
@@ -130,7 +148,8 @@ export default function CustomersPage() {
   // Filter logic
   const filteredCustomers = customers.filter((c) => {
     // Search filter
-    const matchesSearch = 
+    const matchesSearch =
+      !searchTerm ||
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.phone.includes(searchTerm) ||
       (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -310,6 +329,11 @@ export default function CustomersPage() {
           </tbody>
         </table>
       </div>
+      {loadingMore && (
+        <div className="flex justify-center py-4 text-muted-foreground text-xs font-semibold">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Đang tải thêm khách hàng...
+        </div>
+      )}
 
       {/* Unified CRM Customer Modal */}
       {modalOpen && (

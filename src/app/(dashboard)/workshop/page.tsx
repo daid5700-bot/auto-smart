@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate, statusText, statusBadge, handleNumericInputChange, parseSymptoms } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
-import { Wrench, Plus, CheckCircle2, AlertTriangle, Eye, Edit, Trash2, X, Loader2, Printer, ClipboardList } from "lucide-react";
+import { Wrench, Plus, CheckCircle2, AlertTriangle, Eye, Edit, Trash2, X, Loader2, Printer, ClipboardList, CarFront } from "lucide-react";
 import { createPartsRequisition } from "@/app/actions";
 import { useAuth } from "@/lib/store";
 import { ModalPortal } from "@/components/modal-portal";
@@ -392,6 +392,9 @@ export default function WorkshopPage() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-primary">{ro.plateNumber}</span>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {ro.status === "DONE" && (
+                            <button onClick={() => handleUpdateStatus(ro.id, "DELIVERED")} className="p-1 hover:bg-secondary text-emerald-600 rounded" title="Giao xe"><CarFront size={12} /></button>
+                          )}
                           <button onClick={() => router.push(`/workshop/invoice/${ro.id}`)} className="p-1 hover:bg-secondary text-primary rounded" title="In hóa đơn"><Printer size={12} /></button>
                           <button onClick={() => handleOpenEdit(ro)} className="p-1 hover:bg-secondary text-primary rounded"><Edit size={12} /></button>
                           <button onClick={() => handleDelete(ro.id)} className="p-1 hover:bg-secondary text-destructive rounded"><Trash2 size={12} /></button>
@@ -469,6 +472,9 @@ export default function WorkshopPage() {
                 </td>
                 <td>
                   <div className="flex items-center gap-2">
+                    {ro.status === "DONE" && (
+                      <button onClick={() => handleUpdateStatus(ro.id, "DELIVERED")} className="p-1 hover:bg-secondary rounded text-emerald-600" title="Giao xe"><CarFront size={14} /></button>
+                    )}
                     <button onClick={() => router.push(`/workshop/invoice/${ro.id}`)} className="p-1 hover:bg-secondary rounded text-primary" title="In hóa đơn"><Printer size={14} /></button>
                     <button onClick={() => handleOpenEdit(ro)} className="p-1 hover:bg-secondary rounded text-primary"><Edit size={14} /></button>
                     <button onClick={() => handleDelete(ro.id)} className="p-1 hover:bg-secondary rounded text-destructive"><Trash2 size={14} /></button>
@@ -510,7 +516,7 @@ export default function WorkshopPage() {
                             <p className="text-xs text-muted-foreground">{req.repairOrder?.vehicleModel}</p>
                           </div>
                         </td>
-                        <td><p className="text-xs max-w-xs truncate">{req.reason || "—"}</p></td>
+                        <td><p className="text-xs max-w-xs truncate">{(req.reason ? req.reason.split(" | METADATA:")[0] : "") || "—"}</p></td>
                         <td><span className="badge badge-secondary">{totalQty} sản phẩm</span></td>
                         <td>{req.createdBy}</td>
                         <td>{formatDate(req.createdAt)}</td>
@@ -1065,7 +1071,7 @@ export default function WorkshopPage() {
                   <h4 className="text-xs font-bold text-muted-foreground uppercase mb-1 print:text-black">Thông tin lập phiếu</h4>
                   <p className="text-sm font-bold">{detailReq.createdBy}</p>
                   <p className="text-xs text-muted-foreground print:text-black">Trạng thái: <span className="text-emerald-500 font-semibold">{detailReq.status}</span></p>
-                  <p className="text-xs text-muted-foreground print:text-black">Lý do: {detailReq.reason || "—"}</p>
+                  <p className="text-xs text-muted-foreground print:text-black">Lý do: {(detailReq.reason ? detailReq.reason.split(" | METADATA:")[0] : "") || "—"}</p>
                 </div>
               </div>
 

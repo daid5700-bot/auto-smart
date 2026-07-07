@@ -10,11 +10,19 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get("category") || "";
   const scope = searchParams.get("scope") || "current";
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
-  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "20")));
-  const skip = (page - 1) * limit;
   const branchId = getActiveBranchId();
   const userRole = await verifyRole(req.cookies.get("user_role")?.value);
   const isAdmin = userRole === "ADMIN";
+
+  const view = searchParams.get("view");
+  const isSelector = view === "selector";
+  
+  const limitParam = parseInt(searchParams.get("limit") || "20");
+  const limit = isSelector 
+    ? Math.min(1000, Math.max(1, limitParam)) 
+    : Math.min(50, Math.max(1, limitParam));
+  
+  const skip = (page - 1) * limit;
 
   const where: any = { status: "ACTIVE" };
   const branchFilter = searchParams.get("branchFilter");
@@ -23,9 +31,7 @@ export async function GET(req: NextRequest) {
 
   if (branchFilter && branchFilter !== "all") {
     targetBranchId = Number(branchFilter);
-  } else if (scope === "current" && branchId) {
-    targetBranchId = branchId;
-  } else if (branchId) {
+  } else if (!isAdmin && scope === "current" && branchId) {
     targetBranchId = branchId;
   }
 
@@ -35,7 +41,7 @@ export async function GET(req: NextRequest) {
         branchId: targetBranchId
       }
     };
-  } else if (scope === "other" && branchId) {
+  } else if (!isAdmin && scope === "other" && branchId) {
     where.productBranches = {
       some: {
         branchId: { not: branchId }
@@ -50,6 +56,46 @@ export async function GET(req: NextRequest) {
     ];
   }
   if (category) where.category = category;
+
+  if (isSelector) {
+    const rawProducts = await prisma.product.findMany({
+      where,
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        prices: {
+          select: {
+            type: true,
+            amount: true,
+          }
+        },
+        productBranches: {
+          where: targetBranchId ? { branchId: targetBranchId } : undefined,
+          select: {
+            branchId: true,
+            stockCount: true,
+          }
+        }
+      },
+      orderBy: { name: "asc" },
+      skip,
+      take: limit,
+    });
+
+    const products = rawProducts.map((p: any) => {
+      const pb = p.productBranches?.[0];
+      return {
+        id: p.id,
+        sku: p.sku,
+        name: p.name,
+        prices: p.prices,
+        stockCount: pb?.stockCount || 0,
+      };
+    });
+
+    return NextResponse.json({ products });
+  }
 
   const statFilter = searchParams.get("statFilter");
   if (statFilter === "low" || statFilter === "high") {
@@ -72,19 +118,29 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const [rawProducts, total, categories] = await Promise.all([
+  const summaryWhere = { ...where };
+  delete summaryWhere.productBranches;
+  if (targetBranchId) {
+    summaryWhere.productBranches = { some: { branchId: targetBranchId } };
+  } else if (!isAdmin && scope === "other" && branchId) {
+    summaryWhere.productBranches = { some: { branchId: { not: branchId } } };
+  }
+
+  const [rawProducts, total, categories, summaryProducts] = await Promise.all([
     prisma.product.findMany({
       where,
       include: { 
         prices: true, 
         productBranches: {
-          where: targetBranchId ? { branchId: targetBranchId } : undefined
+          where: targetBranchId ? { branchId: targetBranchId } : undefined,
+          include: { branch: true },
         },
         children: { 
           include: { 
             prices: true, 
             productBranches: {
-              where: targetBranchId ? { branchId: targetBranchId } : undefined
+              where: targetBranchId ? { branchId: targetBranchId } : undefined,
+              include: { branch: true },
             } 
           } 
         } 
@@ -95,6 +151,15 @@ export async function GET(req: NextRequest) {
     }),
     prisma.product.count({ where }),
     prisma.product.findMany({ select: { category: true }, distinct: ["category"] }),
+    prisma.product.findMany({
+      where: summaryWhere,
+      include: {
+        prices: true,
+        productBranches: {
+          where: targetBranchId ? { branchId: targetBranchId } : scope === "other" && branchId ? { branchId: { not: branchId } } : undefined
+        }
+      }
+    }),
   ]);
 
   // Map ProductBranch data to Product root level for UI backward compatibility
@@ -108,11 +173,27 @@ export async function GET(req: NextRequest) {
       movingAvgCost: pb?.movingAvgCost || 0,
       lastImportDate: pb?.lastImportDate || null,
       branchId: pb?.branchId || null,
+      branch: pb?.branch || null,
       children: p.children ? p.children.map(mapProduct) : []
     };
   };
 
   const products = rawProducts.map(mapProduct);
+  const summary = summaryProducts.reduce((acc: any, p: any) => {
+    const branches = p.productBranches?.length ? p.productBranches : [{ stockCount: 0, stockMin: 0, stockMax: 100 }];
+    const retail = (p.prices || []).find((pr: any) => pr.type === "RETAIL");
+    const insurance = (p.prices || []).find((pr: any) => pr.type === "INSURANCE");
+    branches.forEach((pb: any) => {
+      const stockCount = Number(pb.stockCount || 0);
+      const stockMin = Number(pb.stockMin || 0);
+      const stockMax = Number(pb.stockMax || 100);
+      acc.totalValue += retail ? Number(retail.amount) * stockCount : 0;
+      acc.totalInsuranceValue += insurance ? Number(insurance.amount) * stockCount : 0;
+      if (stockCount <= stockMin) acc.lowStockCount += 1;
+      if (stockCount >= stockMax) acc.highStockCount += 1;
+    });
+    return acc;
+  }, { totalValue: 0, totalInsuranceValue: 0, lowStockCount: 0, highStockCount: 0 });
 
   // Low stock alert (using the mapped products for simplicity, in production should query DB)
   let lowStock = products.filter(p => p.stockCount <= p.stockMin).map(p => ({
@@ -132,6 +213,7 @@ export async function GET(req: NextRequest) {
     categories: categories.map((c) => c.category),
     lowStock,
     totalValue,
+    summary,
     totalCount: total,
     totalPages: Math.ceil(total / limit),
     currentPage: page,

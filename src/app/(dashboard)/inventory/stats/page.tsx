@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import {
   Package, DollarSign, AlertTriangle, TrendingUp,
   ArrowUpRight, ArrowDownLeft, Boxes, PieChart,
@@ -15,8 +16,24 @@ export default function InventoryStatsPage() {
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [draftStartDate, setDraftStartDate] = useState<string>("");
+  const [draftEndDate, setDraftEndDate] = useState<string>("");
   const [showInvoicesModal, setShowInvoicesModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
+  const lastStatsFetchKey = useRef<string | null>(null);
+  const activeStatsRequestId = useRef(0);
+
+  const LoadingScreen = () => (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+        <Loader2 className="w-7 h-7 animate-spin text-primary" />
+      </div>
+      <div>
+        <p className="text-sm font-bold text-foreground">Đang tải thống kê kho</p>
+        <p className="text-xs text-muted-foreground mt-1">Vui lòng chờ trong giây lát...</p>
+      </div>
+    </div>
+  );
 
   const groupMovementsIntoReceipts = (movements: any[]) => {
     const groups: Record<string, {
@@ -59,22 +76,36 @@ export default function InventoryStatsPage() {
     return `${prefix}-${cleanDate}`;
   };
 
-  const fetchStats = async () => {
+  const fetchStats = async (force = false) => {
+    let requestId = 0;
     try {
-      setLoading(true);
-      setError(null);
       const params = new URLSearchParams();
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
+      const fetchKey = params.toString();
+      if (!force && lastStatsFetchKey.current === fetchKey && (loading || data)) return;
+      lastStatsFetchKey.current = fetchKey;
+      requestId = activeStatsRequestId.current + 1;
+      activeStatsRequestId.current = requestId;
+
+      setLoading(true);
+      setError(null);
 
       const res = await fetch(`/api/stats/inventory?${params}`);
       if (!res.ok) throw new Error("Failed to load inventory statistics");
       const d = await res.json();
+      if (activeStatsRequestId.current !== requestId) return;
       setData(d);
+      setError(null);
     } catch (err: any) {
+      if (activeStatsRequestId.current !== requestId) return;
       console.error(err);
-      setError(err.message || "Đã xảy ra lỗi");
+      lastStatsFetchKey.current = null;
+      const errMsg = err.message || "Không thể tải dữ liệu thống kê kho";
+      setError(errMsg);
+      toast.error("Lỗi tải thống kê", errMsg);
     } finally {
+      if (activeStatsRequestId.current !== requestId) return;
       setLoading(false);
     }
   };
@@ -83,22 +114,42 @@ export default function InventoryStatsPage() {
     fetchStats();
   }, [startDate, endDate]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const applyDateFilter = () => {
+    if (!draftStartDate || !draftEndDate) {
+      const msg = "Vui lòng chọn đầy đủ cả Từ ngày và Đến ngày.";
+      toast.error(msg);
+      return;
+    }
 
-  if (error || !data) {
+    if (new Date(draftStartDate) > new Date(draftEndDate)) {
+      const msg = "Từ ngày không được lớn hơn Đến ngày.";
+      toast.error(msg);
+      return;
+    }
+
+    setStartDate(draftStartDate);
+    setEndDate(draftEndDate);
+    toast.success(`Đã áp dụng bộ lọc từ ngày ${formatDate(draftStartDate)} đến ${formatDate(draftEndDate)}`);
+  };
+
+  const clearDateFilter = () => {
+    setDraftStartDate("");
+    setDraftEndDate("");
+    setStartDate("");
+    setEndDate("");
+    toast.info("Đã xóa bộ lọc thời gian.");
+  };
+
+  if (loading && !data) return <LoadingScreen />;
+
+  if (!loading && (error || !data)) {
     return (
       <div className="p-6 text-center">
         <p className="text-destructive font-semibold mb-4">
           Lỗi: {error || "Không thể tải dữ liệu thống kê kho"}
         </p>
         <button
-          onClick={fetchStats}
+          onClick={() => fetchStats(true)}
           className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold inline-flex items-center gap-2"
         >
           <RefreshCw size={14} /> Thử lại
@@ -125,33 +176,40 @@ export default function InventoryStatsPage() {
             <span className="text-muted-foreground">Từ ngày:</span>
             <input
               type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              value={draftStartDate}
+              onChange={(e) => {
+                setDraftStartDate(e.target.value);
+              }}
               className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
             />
             <span className="text-muted-foreground border-l border-border pl-2">Đến:</span>
             <input
               type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              value={draftEndDate}
+              onChange={(e) => {
+                setDraftEndDate(e.target.value);
+              }}
               className="bg-transparent border-none outline-none focus:ring-0 text-foreground w-[125px] font-semibold text-xs"
             />
-            {(startDate || endDate) && (
-              <button
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
-                }}
-                className="text-muted-foreground hover:text-destructive transition-colors ml-1"
-                title="Xóa bộ lọc"
-              >
-                <X size={14} />
-              </button>
-            )}
+            <button
+              disabled={!draftStartDate || !draftEndDate}
+              onClick={applyDateFilter}
+              className="px-2.5 py-1 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Áp dụng
+            </button>
+            <button
+              disabled={!draftStartDate && !draftEndDate && !startDate && !endDate}
+              onClick={clearDateFilter}
+              className="text-muted-foreground hover:text-destructive transition-colors ml-1 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
+              title="Xóa bộ lọc"
+            >
+              <X size={14} />
+            </button>
           </div>
 
           <button
-            onClick={fetchStats}
+            onClick={() => fetchStats(true)}
             className="p-2.5 hover:bg-secondary rounded-xl text-primary border border-border bg-card transition-colors"
             title="Tải lại dữ liệu"
           >

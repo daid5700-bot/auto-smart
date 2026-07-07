@@ -20,6 +20,9 @@ interface Accessory {
 export default function DocumentsPage() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, RESERVED, SOLD
   const [plateFilter, setPlateFilter] = useState("ALL"); // ALL, PENDING, TAX_PAID, PLATE_DONE
@@ -76,7 +79,7 @@ export default function DocumentsPage() {
       });
       if (res.ok) {
         setPaymentModalOpen(false);
-        fetchData();
+        fetchData(1, false);
       } else {
         const err = await res.json();
         alert("Lỗi: " + err.error);
@@ -88,22 +91,36 @@ export default function DocumentsPage() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (targetPage = 1, append = false) => {
     try {
-      setLoading(true);
-      const res = await fetch("/api/sales?status=RESERVED,SOLD&limit=100");
+      append ? setLoadingMore(true) : setLoading(true);
+      const res = await fetch(`/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
-      setVehicles(data.vehicles || []);
+      setVehicles((prev) => append ? [...prev, ...(data.vehicles || [])] : (data.vehicles || []));
+      setTotalPages(data.pagination?.totalPages || 1);
+      setPage(targetPage);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const timer = window.setTimeout(() => fetchData(1, false), 300);
+    return () => window.clearTimeout(timer);
+  }, [saleTypeFilter, searchQuery]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (loading || loadingMore || page >= totalPages) return;
+      const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 360;
+      if (nearBottom) fetchData(page + 1, true);
+    };
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery]);
 
   const parseAccessories = (jsonStr: string): Accessory[] => {
     try {
@@ -121,7 +138,7 @@ export default function DocumentsPage() {
       const data = await res.json();
       if (res.ok) {
         alert(data.message + " (Mã phiếu: " + data.orderCode + ")");
-        fetchData();
+        fetchData(1, false);
         setSelectedVehicle((prev: any) => prev ? { ...prev, accessoriesExported: false, accessoriesExportStatus: "PENDING" } : prev);
       } else {
         alert("Lỗi: " + data.error);
@@ -137,7 +154,7 @@ export default function DocumentsPage() {
       setLoading(true);
       const res = await fetch(`/api/sales/${id}`, { method: "DELETE" });
       if (res.ok) {
-        await fetchData();
+        await fetchData(1, false);
       } else {
         alert("Lỗi khi xóa hồ sơ");
       }
@@ -158,7 +175,7 @@ export default function DocumentsPage() {
           alert(`Lỗi khi xóa hồ sơ xe ${v.model}`);
         }
       }
-      await fetchData();
+      await fetchData(1, false);
     } catch (e) {
       console.error(e);
     } finally {
@@ -584,6 +601,12 @@ export default function DocumentsPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {loadingMore && (
+        <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" /> Đang tải thêm hồ sơ...
         </div>
       )}
 

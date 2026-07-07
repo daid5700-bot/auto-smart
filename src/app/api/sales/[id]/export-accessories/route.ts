@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -74,6 +75,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         createdBy: "Hệ thống (Bán Xe)",
       }
     });
+
+    notifyRequisitionCountChanged(invOrder.branchId);
 
     return NextResponse.json({
       success: true,

@@ -133,18 +133,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!isAuth) return;
     const fetchPendingCount = () => {
-      fetch("/api/workshop/requisitions")
+      fetch("/api/inventory/requisitions/count")
         .then((r) => r.json())
-        .then((data) => {
-          const pending = (data.requisitions || []).filter((r: any) => r.status === "PENDING");
-          setPendingReqCount(pending.length);
-        })
+        .then((data) => setPendingReqCount(Number(data.count) || 0))
         .catch((e) => console.error("Error fetching requisitions count:", e));
     };
 
-    fetchPendingCount();
-    const interval = setInterval(fetchPendingCount, 60000); // Poll every 60 seconds to avoid flooding API calls
-    return () => clearInterval(interval);
+    const source = new EventSource("/api/inventory/requisitions/stream");
+    source.addEventListener("count", (event) => {
+      const data = JSON.parse((event as MessageEvent).data);
+      setPendingReqCount(Number(data.count) || 0);
+    });
+    source.onerror = () => {
+      source.close();
+      fetchPendingCount();
+    };
+
+    return () => source.close();
   }, [isAuth, activeBranch?.id]);
 
   if (!hydrated || !user) {

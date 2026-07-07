@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Loader2, DollarSign, X, Edit3, Eye, Search } from "lucide-react";
 
@@ -78,11 +78,11 @@ export default function InventoryHistoryPage() {
     return `${prefix}-${cleanDate}`;
   };
 
-  const fetchMovements = async (p: number) => {
+  const fetchMovements = async (p: number, currentTab = activeTab) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/inventory/movements?page=${p}&limit=50&search=${encodeURIComponent(debouncedSearch)}`);
-      const data = await res.json();
+      const typeParam = currentTab === "ALL" ? "" : `&type=${currentTab}`;
+      const data = await fetchWithDedup(`/api/inventory/movements?page=${p}&limit=50&search=${encodeURIComponent(debouncedSearch)}${typeParam}`);
       setHistory(data.movements || []);
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages || 1);
@@ -96,14 +96,11 @@ export default function InventoryHistoryPage() {
 
   useEffect(() => {
     fetchMovements(currentPage);
-  }, [currentPage, debouncedSearch]);
+  }, [currentPage, debouncedSearch, activeTab]);
 
   const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
 
-  const filteredReceipts = useMemo(() => {
-    if (activeTab === "ALL") return groupedReceipts;
-    return groupedReceipts.filter(r => r.type === activeTab);
-  }, [groupedReceipts, activeTab]);
+  const filteredReceipts = groupedReceipts;
 
   const importCount = groupedReceipts.filter(r => r.type === "IMPORT").length;
   const exportCount = groupedReceipts.filter(r => r.type === "EXPORT").length;
@@ -144,19 +141,28 @@ export default function InventoryHistoryPage() {
 
       <div className="flex overflow-x-auto no-scrollbar border-b border-border mb-4 mt-2">
         <button 
-          onClick={() => setActiveTab("ALL")} 
+          onClick={() => {
+            setActiveTab("ALL");
+            setCurrentPage(1);
+          }} 
           className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "ALL" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           Tất cả <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "ALL" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{allCount}</span>
         </button>
         <button 
-          onClick={() => setActiveTab("IMPORT")} 
+          onClick={() => {
+            setActiveTab("IMPORT");
+            setCurrentPage(1);
+          }} 
           className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "IMPORT" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           Phiếu Nhập <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "IMPORT" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{importCount}</span>
         </button>
         <button 
-          onClick={() => setActiveTab("EXPORT")} 
+          onClick={() => {
+            setActiveTab("EXPORT");
+            setCurrentPage(1);
+          }} 
           className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "EXPORT" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           Phiếu Xuất <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "EXPORT" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{exportCount}</span>
@@ -177,7 +183,7 @@ export default function InventoryHistoryPage() {
       </div>
 
       <div className="border border-border bg-card overflow-hidden rounded-xl">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[530px]">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-secondary/30 border-b border-border">
               <tr>
@@ -278,10 +284,10 @@ export default function InventoryHistoryPage() {
         </div>
 
         {/* Pagination controls */}
-        {totalPages > 1 && (
+        {(currentPage > 1 || history.length === 50) && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
             <div className="text-xs text-muted-foreground">
-              Trang <span className="font-semibold text-foreground">{currentPage}</span> / <span className="font-semibold text-foreground">{totalPages}</span>
+              Trang <span className="font-semibold text-foreground">{currentPage}</span>
             </div>
             <div className="flex gap-1 items-center">
               <button
@@ -294,8 +300,8 @@ export default function InventoryHistoryPage() {
               </button>
               <button
                 type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={history.length < 50}
+                onClick={() => setCurrentPage(prev => prev + 1)}
                 className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-bold hover:bg-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Sau
