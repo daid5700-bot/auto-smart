@@ -74,7 +74,7 @@ export default function InventoryHistoryPage() {
 
   const getReceiptCode = (type: string, dateStr: string) => {
     const cleanDate = dateStr.replace(/\D/g, "").slice(2, 12);
-    const prefix = type === "IMPORT" ? "PN" : type === "EXPORT" ? "PX" : "PK";
+    const prefix = type === "IMPORT" ? "PN" : type === "EXPORT" ? "PX" : type === "EXPORT_GIFT" ? "PQT" : "PK";
     return `${prefix}-${cleanDate}`;
   };
 
@@ -103,7 +103,7 @@ export default function InventoryHistoryPage() {
   const filteredReceipts = groupedReceipts;
 
   const importCount = groupedReceipts.filter(r => r.type === "IMPORT").length;
-  const exportCount = groupedReceipts.filter(r => r.type === "EXPORT").length;
+  const exportCount = groupedReceipts.filter(r => r.type === "EXPORT" || r.type === "EXPORT_GIFT").length;
   const allCount = groupedReceipts.length;
 
   const submitPayment = async (e: React.FormEvent) => {
@@ -244,17 +244,32 @@ export default function InventoryHistoryPage() {
                         <span className={`text-[10px] font-bold px-2 py-1 uppercase rounded-md ${
                           r.type === "IMPORT" ? "bg-primary/10 text-primary" :
                           r.type === "EXPORT" ? "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200" :
+                          r.type === "EXPORT_GIFT" ? "bg-emerald-500/10 text-emerald-600" :
                           "bg-amber-500/10 text-amber-500"
                         }`}>
-                          {r.type === "IMPORT" ? "Nhập kho" : r.type === "EXPORT" ? "Xuất kho" : "Kiểm kê"}
+                          {r.type === "IMPORT" ? "Nhập kho" : 
+                           r.type === "EXPORT" ? "Xuất kho" : 
+                           r.type === "EXPORT_GIFT" ? "Xuất quà tặng" : 
+                           "Kiểm kê"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs font-medium">{r.createdBy}</td>
                       <td className="px-4 py-3 text-xs font-bold text-foreground">
-                        {r.inventoryOrder ? formatCurrency(r.inventoryOrder.totalAmount) : formatCurrency(r.totalAmount)}
+                        {r.type === "EXPORT_GIFT" ? (
+                          <div className="space-y-0.5">
+                            <div className="text-zinc-400 font-normal">Giá bán: 0 đ</div>
+                            <div className="text-emerald-600 text-[10px] font-mono">Giá vốn: {formatCurrency(r.totalAmount)}</div>
+                          </div>
+                        ) : r.inventoryOrder ? (
+                          formatCurrency(r.inventoryOrder.totalAmount)
+                        ) : (
+                          formatCurrency(r.totalAmount)
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        {r.inventoryOrder ? (
+                        {r.type === "EXPORT_GIFT" ? (
+                          <span className="text-emerald-600 font-bold">Q.tặng (0 đ)</span>
+                        ) : r.inventoryOrder ? (
                           <div className="space-y-0.5">
                             <div className="text-emerald-600 font-semibold">Đã trả: {formatCurrency(Number(r.inventoryOrder.paidAmount))}</div>
                             <div className="text-rose-600 font-semibold">Còn nợ: {formatCurrency(Number(r.inventoryOrder.debtAmount))}</div>
@@ -376,7 +391,7 @@ export default function InventoryHistoryPage() {
                     <th className="py-2.5">Tên sản phẩm / phụ tùng</th>
                     <th className="py-2.5 text-center w-20">Số lượng</th>
                     <th className="py-2.5 text-center w-16">Đơn vị</th>
-                    {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
+                    {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
                       <>
                         <th className="py-2.5 text-right w-28">Đơn giá</th>
                         <th className="py-2.5 text-right w-28">Thành tiền</th>
@@ -392,10 +407,25 @@ export default function InventoryHistoryPage() {
                       <td className="py-2.5">{m.product?.name}</td>
                       <td className="py-2.5 text-center">{m.quantity}</td>
                       <td className="py-2.5 text-center">{m.product?.unit}</td>
-                      {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
+                      {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
                         <>
-                          <td className="py-2.5 text-right">{formatCurrency(Number(m.unitCost))}</td>
-                          <td className="py-2.5 text-right font-semibold text-zinc-950">{formatCurrency(Number(m.totalCost))}</td>
+                          <td className="py-2.5 text-right text-zinc-650">
+                            {m.type === "EXPORT_GIFT" ? (
+                              <div className="text-right flex flex-col items-end">
+                                <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 rounded font-bold">Hàng tặng</span>
+                                <span className="text-[10px] text-zinc-400 font-mono mt-0.5">(Vốn: {formatCurrency(Number(m.unitCost))})</span>
+                              </div>
+                            ) : (
+                              formatCurrency(Number(m.unitCost))
+                            )}
+                          </td>
+                          <td className="py-2.5 text-right font-semibold text-zinc-950">
+                            {m.type === "EXPORT_GIFT" ? (
+                              <span className="text-emerald-605 font-bold">0 đ (Quà tặng)</span>
+                            ) : (
+                              formatCurrency(Number(m.totalCost))
+                            )}
+                          </td>
                         </>
                       )}
                     </tr>
@@ -404,15 +434,19 @@ export default function InventoryHistoryPage() {
               </table>
 
               {/* Total Summary */}
-              {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT") && (
+              {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
                 <div className="border-t border-zinc-300 pt-4 flex justify-between items-start">
                   <div className="text-xs text-zinc-500 italic max-w-sm">
                     {selectedReceipt.type === "IMPORT" 
                       ? "* Giá trị trên được tính theo đơn giá trung bình nhập kho thực tế."
+                      : selectedReceipt.type === "EXPORT_GIFT"
+                      ? "* Đây là phiếu xuất quà tặng không thu tiền. Giá trị vốn tổn hao được ghi nhận để tính toán chi phí showroom."
                       : "* Giá trị xuất kho được tính dựa theo hình thức bán (Bán lẻ hoặc Bán buôn)."}
                   </div>
                   <div className="text-right">
-                    <span className="text-xs text-zinc-500 font-bold uppercase mr-4">Tổng cộng:</span>
+                    <span className="text-xs text-zinc-500 font-bold uppercase mr-4">
+                      {selectedReceipt.type === "EXPORT_GIFT" ? "Tổng giá vốn quà tặng:" : "Tổng cộng:"}
+                    </span>
                     <span className="text-lg font-black text-zinc-950">{formatCurrency(selectedReceipt.items.reduce((sum: number, it: any) => sum + Number(it.totalCost || 0), 0))}</span>
                   </div>
                 </div>

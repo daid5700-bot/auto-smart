@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
 
     // 6. Count all exports (sales, RO parts exports, manual exports, etc.)
     const exportWhere: any = {
-      type: "EXPORT",
+      type: { in: ["EXPORT", "EXPORT_GIFT"] },
     };
     if (branchId) {
       exportWhere.product = { productBranches: { some: { branchId } } };

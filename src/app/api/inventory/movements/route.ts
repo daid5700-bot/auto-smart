@@ -13,7 +13,13 @@ export async function GET(req: NextRequest) {
     const branchId = getActiveBranchId();
 
     const where: any = {};
-    if (type) where.type = type;
+    if (type) {
+      if (type === "EXPORT") {
+        where.type = { in: ["EXPORT", "EXPORT_GIFT"] };
+      } else {
+        where.type = type;
+      }
+    }
     if (branchId) {
       where.product = { productBranches: { some: { branchId } } };
     }

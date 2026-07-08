@@ -781,6 +781,45 @@ export default function DocumentsPage() {
                 </div>
               )}
 
+              {selectedVehicle.partsRequisitions && selectedVehicle.partsRequisitions.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Quà tặng phụ tùng đi kèm</p>
+                    {selectedVehicle.partsRequisitions[0].status === "APPROVED" ? (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                        Đã duyệt xuất quà tặng
+                      </span>
+                    ) : selectedVehicle.partsRequisitions[0].status === "PENDING" ? (
+                      <span className="text-[10px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                        Chờ kho duyệt quà tặng
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-rose-500/10 text-rose-600 border border-rose-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                        Bị từ chối
+                      </span>
+                    )}
+                  </div>
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                    <ul className="space-y-2 text-sm">
+                      {selectedVehicle.partsRequisitions[0].items.map((it: any) => {
+                        const prod = it.product || {};
+                        const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
+                        return (
+                          <li key={it.id} className="flex items-center justify-between">
+                            <span className="font-semibold text-foreground">{prod.name || "Sản phẩm không rõ"}</span>
+                            <div className="text-right">
+                              <span className="text-xs text-muted-foreground">x{it.quantity}</span>
+                              <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1 py-0.5 rounded font-bold ml-1.5 font-sans">Quà tặng (0đ)</span>
+                              <span className="text-[10px] text-zinc-400 font-mono block mt-0.5">({formatCurrency(Number(priceVal))})</span>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <p className="text-xs font-bold text-muted-foreground mb-1">Ghi chú thủ tục</p>
                 {selectedVehicle.notes ? (

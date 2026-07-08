@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ClipboardList, Check, X, Eye, AlertCircle, Loader2, Calendar, Car, User, Settings, Package, Wrench } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate, fetchWithDedup } from "@/lib/utils";
@@ -68,15 +68,24 @@ export default function UnifiedRequisitionsApprovalPage() {
     }
   };
 
-  // Vehicle accessories approval handlers
-  const handleVehicleApprove = async (id: number) => {
+  // Vehicle accessories approval handlers (handles both paid and gifts grouped together)
+  const handleVehicleGroupApprove = async (card: any) => {
     if (!confirm("Bạn có chắc chắn muốn duyệt xuất kho cho phụ kiện kèm xe này? Tồn kho sẽ trừ ngay.")) return;
-    setProcessingId(id);
+    const processId = card.paidOrderId || card.giftRequisitionId;
+    if (!processId) return;
+    setProcessingId(processId);
     setMessage(null);
     try {
-      const res = await fetch(`/api/inventory/pending-exports/${id}/approve`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Gặp lỗi khi phê duyệt.");
+      if (card.paidOrderId) {
+        const res = await fetch(`/api/inventory/pending-exports/${card.paidOrderId}/approve`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Gặp lỗi khi duyệt phụ kiện mua kèm.");
+      }
+      if (card.giftRequisitionId) {
+        const res = await fetch(`/api/workshop/requisitions/${card.giftRequisitionId}/approve`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Gặp lỗi khi duyệt quà tặng phụ tùng.");
+      }
       setMessage({ text: "Đã duyệt xuất phụ kiện kèm xe thành công.", type: "success" });
       fetchData();
     } catch (e: any) {
@@ -86,19 +95,28 @@ export default function UnifiedRequisitionsApprovalPage() {
     }
   };
 
-  const handleVehicleReject = async (id: number) => {
+  const handleVehicleGroupReject = async (card: any) => {
     const reason = prompt("Nhập lý do từ chối yêu cầu xuất kho:");
     if (reason === null) return;
-    setProcessingId(id);
+    const processId = card.paidOrderId || card.giftRequisitionId;
+    if (!processId) return;
+    setProcessingId(processId);
     setMessage(null);
     try {
-      const res = await fetch(`/api/inventory/pending-exports/${id}/approve`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: reason || "Không đủ hàng tồn kho" })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Gặp lỗi khi từ chối.");
+      if (card.paidOrderId) {
+        const res = await fetch(`/api/inventory/pending-exports/${card.paidOrderId}/approve`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: reason || "Không đủ hàng tồn kho" })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Gặp lỗi khi từ chối phụ kiện mua kèm.");
+      }
+      if (card.giftRequisitionId) {
+        const res = await fetch(`/api/workshop/requisitions/${card.giftRequisitionId}/reject`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Gặp lỗi khi từ chối quà tặng.");
+      }
       setMessage({ text: "Đã từ chối yêu cầu xuất phụ kiện kèm xe.", type: "success" });
       fetchData();
     } catch (e: any) {
@@ -109,11 +127,176 @@ export default function UnifiedRequisitionsApprovalPage() {
   };
 
   // Filtration logic
-  const pendingWorkshop = requisitions.filter((r) => r.status === "PENDING");
-  const historyWorkshop = requisitions.filter((r) => r.status !== "PENDING");
+  // 1. Workshop tab: Only requisitions that belong to a Repair Order (repairOrderId is not null)
+  const workshopReqs = useMemo(() => {
+    return requisitions.filter(r => r.repairOrderId !== null);
+  }, [requisitions]);
 
-  const pendingVehicle = vehicleOrders.filter((o) => o.status === "PENDING");
-  const historyVehicle = vehicleOrders.filter((o) => o.status !== "PENDING");
+  const pendingWorkshop = useMemo(() => {
+    return workshopReqs.filter((r) => r.status === "PENDING");
+  }, [workshopReqs]);
+
+  const historyWorkshop = useMemo(() => {
+    return workshopReqs.filter((r) => r.status !== "PENDING");
+  }, [workshopReqs]);
+
+  // 2. Vehicle Accessories tab: Merge Paid Accessories (from vehicleOrders) and Free Gift Accessories (from requisitions where vehicleId is not null)
+  const normalizedVehicleItems = useMemo(() => {
+    const paidItems = vehicleOrders.map(o => {
+      const customer = o.customer || {};
+      const vehicle = o.vehicle || {};
+      return {
+        id: o.id,
+        isGift: false,
+        code: o.code,
+        status: o.status, // PENDING, PAID, CANCELLED
+        createdAt: o.createdAt,
+        customerName: customer.name || "Khách vãng lai",
+        customerPhone: customer.phone || "",
+        vehicleModel: vehicle.model || "N/A",
+        vehicleVin: vehicle.vin || "",
+        totalAmount: o.totalAmount,
+        reason: o.reason,
+        items: (o.accessories || []).map((acc: any) => ({
+          name: acc.name,
+          sku: acc.productId || acc.id,
+          quantity: acc.quantity,
+          price: acc.price,
+          subTotal: Number(acc.quantity || 1) * Number(acc.price || 0),
+          isGift: false
+        }))
+      };
+    });
+
+    const giftReqs = requisitions.filter(r => r.vehicleId !== null).map(r => {
+      const vehicle = r.vehicle || {};
+      const customer = vehicle.customer || {};
+      const totalBill = r.items.reduce((s: number, item: any) => {
+        const prod = item.product || {};
+        const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
+        return s + Number(item.quantity) * Number(priceVal);
+      }, 0);
+
+      let statusStr = "PENDING";
+      if (r.status === "APPROVED") statusStr = "PAID";
+      else if (r.status === "REJECTED") statusStr = "CANCELLED";
+
+      return {
+        id: r.id,
+        isGift: true,
+        code: `YCT-GIFT-${r.id}`,
+        status: statusStr,
+        createdAt: r.createdAt,
+        customerName: customer.name || "Khách mua xe",
+        customerPhone: customer.phone || "",
+        vehicleModel: vehicle.model || "N/A",
+        vehicleVin: vehicle.vin || "",
+        totalAmount: totalBill, // For UI audit
+        reason: r.reason || "Tặng phụ kiện kèm xe",
+        items: r.items.map((it: any) => {
+          const prod = it.product || {};
+          const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
+          return {
+            name: prod.name || "Sản phẩm không rõ",
+            sku: prod.sku || "MÃ-PT",
+            quantity: it.quantity,
+            price: priceVal,
+            subTotal: it.quantity * priceVal,
+            isGift: true
+          };
+        })
+      };
+    });
+
+    // Group items by vehicleVin (if present)
+    const grouped = new Map<string, any>();
+    
+    // Process paidItems
+    paidItems.forEach(item => {
+      if (item.vehicleVin) {
+        grouped.set(item.vehicleVin, {
+          ...item,
+          paidOrderId: item.id,
+          paidOrderCode: item.code,
+          giftRequisitionId: null,
+          giftRequisitionCode: null,
+          hasPaid: true,
+          hasGift: false,
+          giftValue: 0
+        });
+      } else {
+        grouped.set(`NO-VIN-${item.id}`, {
+          ...item,
+          paidOrderId: item.id,
+          paidOrderCode: item.code,
+          giftRequisitionId: null,
+          giftRequisitionCode: null,
+          hasPaid: true,
+          hasGift: false,
+          giftValue: 0
+        });
+      }
+    });
+
+    // Process giftReqs
+    giftReqs.forEach(item => {
+      if (item.vehicleVin) {
+        const existing = grouped.get(item.vehicleVin);
+        if (existing) {
+          existing.giftRequisitionId = item.id;
+          existing.giftRequisitionCode = item.code;
+          existing.hasGift = true;
+          existing.giftValue = item.totalAmount;
+          // Combine item list
+          existing.items = [...existing.items, ...item.items];
+          
+          // Determine status: if either is PENDING, overall is PENDING.
+          // Otherwise, if both are CANCELLED, overall is CANCELLED.
+          // Otherwise, overall is PAID.
+          if (item.status === "PENDING" || existing.status === "PENDING") {
+            existing.status = "PENDING";
+          } else if (item.status === "CANCELLED" && existing.status === "CANCELLED") {
+            existing.status = "CANCELLED";
+          } else {
+            existing.status = "PAID";
+          }
+        } else {
+          // If no paid order, create a card with only gift items
+          grouped.set(item.vehicleVin, {
+            ...item,
+            paidOrderId: null,
+            paidOrderCode: null,
+            giftRequisitionId: item.id,
+            giftRequisitionCode: item.code,
+            hasPaid: false,
+            hasGift: true,
+            giftValue: item.totalAmount
+          });
+        }
+      } else {
+        grouped.set(`NO-VIN-GIFT-${item.id}`, {
+          ...item,
+          paidOrderId: null,
+          paidOrderCode: null,
+          giftRequisitionId: item.id,
+          giftRequisitionCode: item.code,
+          hasPaid: false,
+          hasGift: true,
+          giftValue: item.totalAmount
+        });
+      }
+    });
+
+    return Array.from(grouped.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [vehicleOrders, requisitions]);
+
+  const pendingVehicle = useMemo(() => {
+    return normalizedVehicleItems.filter((o) => o.status === "PENDING");
+  }, [normalizedVehicleItems]);
+
+  const historyVehicle = useMemo(() => {
+    return normalizedVehicleItems.filter((o) => o.status !== "PENDING");
+  }, [normalizedVehicleItems]);
 
   const activePendingCount = sourceTab === "WORKSHOP" ? pendingWorkshop.length : pendingVehicle.length;
   const activeHistoryCount = sourceTab === "WORKSHOP" ? historyWorkshop.length : historyVehicle.length;
@@ -356,35 +539,51 @@ export default function UnifiedRequisitionsApprovalPage() {
           ) : (
             // VEHICLE RENDER SECTION
             displayList.map((order) => {
-              const vehicle = order.vehicle || {};
-              const customer = order.customer || {};
               const statusColors: any = {
                 PENDING: "bg-amber-500/10 text-amber-600 border border-amber-500/20",
                 PAID: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
                 CANCELLED: "bg-rose-500/10 text-rose-600 border border-rose-500/20",
               };
 
+              const uniqueKey = order.vehicleVin ? `group-${order.vehicleVin}` : `group-no-vin-${order.paidOrderId || order.giftRequisitionId}`;
               return (
-                <div key={order.id} className="glass-card rounded-2xl p-5 border border-border/60 space-y-4">
+                <div key={uniqueKey} className="glass-card rounded-2xl p-5 border border-border/60 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border/40 pb-3 gap-3">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs bg-secondary px-2.5 py-0.5 rounded-full font-mono font-bold text-muted-foreground">{order.code}</span>
+                      <div className="flex items-center flex-wrap gap-2">
+                        <span className="text-xs bg-secondary px-2.5 py-0.5 rounded-full font-mono font-bold text-muted-foreground">
+                          {order.paidOrderCode && order.giftRequisitionCode
+                            ? `${order.paidOrderCode} & ${order.giftRequisitionCode}`
+                            : (order.paidOrderCode || order.giftRequisitionCode)}
+                        </span>
+                        {order.hasPaid && (
+                          <span className="text-[10px] uppercase font-bold bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full">Tính tiền</span>
+                        )}
+                        {order.hasGift && (
+                          <span className="text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded-full">Quà tặng (0đ)</span>
+                        )}
                         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${statusColors[order.status]}`}>
                           {order.status === "PENDING" ? "Chờ duyệt" : order.status === "PAID" ? "Đã duyệt xuất" : "Đã từ chối"}
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><User size={13}/> <strong>Khách hàng:</strong> {customer.name || "Khách vãng lai"} ({customer.phone || "N/A"})</span>
-                        {vehicle.vin && (
-                          <span className="flex items-center gap-1"><Car size={13}/> <strong>Xe VIN:</strong> {vehicle.model} ({vehicle.vin.slice(-6)})</span>
+                        <span className="flex items-center gap-1"><User size={13}/> <strong>Khách hàng:</strong> {order.customerName} ({order.customerPhone || "N/A"})</span>
+                        {order.vehicleVin && (
+                          <span className="flex items-center gap-1"><Car size={13}/> <strong>Xe VIN:</strong> {order.vehicleModel} ({order.vehicleVin.slice(-6)})</span>
                         )}
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase">Giá trị phụ kiện</p>
-                      <p className="text-sm font-black text-primary">{formatCurrency(order.totalAmount)}</p>
+                      <div className="flex flex-col items-end">
+                        {order.hasPaid && (
+                          <p className="text-sm font-black text-primary">{formatCurrency(order.totalAmount)}</p>
+                        )}
+                        {order.hasGift && (
+                          <p className="text-[10px] font-bold text-emerald-600">Quà tặng: {formatCurrency(order.giftValue)}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -399,23 +598,28 @@ export default function UnifiedRequisitionsApprovalPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {order.accessories.map((item: any, idx: number) => {
-                          const subTotal = Number(item.quantity || 1) * Number(item.price || 0);
-
+                        {order.items.map((item: any, idx: number) => {
                           return (
                             <tr key={idx} className="hover:bg-secondary/5 transition-colors">
                               <td className="p-3 font-semibold text-foreground">
                                 {item.name}
-                                <span className="text-[10px] text-muted-foreground block font-normal">Mã SP: {item.productId || item.id}</span>
+                                <span className="text-[10px] text-muted-foreground block font-normal">Mã SP: {item.sku}</span>
                               </td>
                               <td className="p-3 text-center font-bold text-foreground">
                                 {item.quantity}
                               </td>
                               <td className="p-3 text-right text-muted-foreground">
-                                {formatCurrency(Number(item.price))}
+                                {item.isGift ? (
+                                  <div className="text-right">
+                                    <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1 py-0.5 rounded font-bold">Quà tặng (0đ)</span>
+                                    <span className="text-[10px] text-zinc-400 font-mono block mt-0.5">({formatCurrency(Number(item.price))})</span>
+                                  </div>
+                                ) : (
+                                  formatCurrency(Number(item.price))
+                                )}
                               </td>
                               <td className="p-3 text-right font-bold text-foreground">
-                                {formatCurrency(subTotal)}
+                                {item.isGift ? "0 đ" : formatCurrency(item.subTotal)}
                               </td>
                             </tr>
                           );
@@ -434,17 +638,17 @@ export default function UnifiedRequisitionsApprovalPage() {
                       <div className="flex items-center gap-2 self-end">
                         <button
                           disabled={processingId !== null}
-                          onClick={() => handleVehicleReject(order.id)}
+                          onClick={() => handleVehicleGroupReject(order)}
                           className="px-3.5 py-2 border border-border hover:bg-rose-500/10 text-muted-foreground hover:text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
                         >
                           <X size={13} /> Từ chối
                         </button>
                         <button
                           disabled={processingId !== null}
-                          onClick={() => handleVehicleApprove(order.id)}
+                          onClick={() => handleVehicleGroupApprove(order)}
                           className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
                         >
-                          {processingId === order.id ? (
+                          {processingId === (order.paidOrderId || order.giftRequisitionId) ? (
                             <Loader2 size={13} className="animate-spin" />
                           ) : (
                             <Check size={13} />
