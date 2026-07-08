@@ -6,7 +6,7 @@ import {
   Loader2, FileText, Plus, Edit, Trash2, Search, User, 
   Sparkles, Wrench, Check, Car, DollarSign, X, Eye
 } from "lucide-react";
-import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { fetchWithDedup, formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 
 interface Accessory {
@@ -94,8 +94,7 @@ export default function DocumentsPage() {
   const fetchData = async (targetPage = 1, append = false) => {
     try {
       append ? setLoadingMore(true) : setLoading(true);
-      const res = await fetch(`/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}`);
-      const data = await res.json();
+      const data = await fetchWithDedup(`/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}`);
       setVehicles((prev) => append ? [...prev, ...(data.vehicles || [])] : (data.vehicles || []));
       setTotalPages(data.pagination?.totalPages || 1);
       setPage(targetPage);

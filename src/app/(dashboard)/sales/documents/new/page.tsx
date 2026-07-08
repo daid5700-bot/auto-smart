@@ -6,7 +6,7 @@ import {
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
   Sparkles, Receipt, Car, Trash2, ChevronDown
 } from "lucide-react";
-import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
+import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 
 interface Accessory {
@@ -92,8 +92,7 @@ export default function NewDocumentPage() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch("/api/inventory?limit=100");
-      const data = await res.json();
+      const data = await fetchWithDedup("/api/inventory?limit=100");
       setProducts(data.products || []);
     } catch (e) {
       console.error(e);
@@ -102,8 +101,7 @@ export default function NewDocumentPage() {
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch("/api/crm?tab=customers&limit=200&allBranches=true");
-      const data = await res.json();
+      const data = await fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true");
       setSystemCustomers(data.customers || []);
     } catch (e) {
       console.error(e);
@@ -112,8 +110,7 @@ export default function NewDocumentPage() {
 
   const fetchWarehouseVehicles = async () => {
     try {
-      const res = await fetch("/api/sales?limit=1000");
-      const data = await res.json();
+      const data = await fetchWithDedup("/api/sales?limit=1000");
       const filtered = (data.vehicles || []).filter(
         (v: any) => v.status === "AVAILABLE" || v.status === "INCOMING"
       );
@@ -193,8 +190,7 @@ export default function NewDocumentPage() {
     if (val.trim().length > 1) {
       searchTimeoutRef.current = setTimeout(async () => {
         try {
-          const res = await fetch(`/api/search/phone?q=${encodeURIComponent(val)}`);
-          const data = await res.json();
+          const data = await fetchWithDedup(`/api/search/phone?q=${encodeURIComponent(val)}`);
           setWholesaleSuggestions(data.customers || []);
           setShowWholesaleSuggestions(true);
         } catch (e) {
@@ -774,4 +770,3 @@ export default function NewDocumentPage() {
     </div>
   );
 }
-
