@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
@@ -85,19 +85,21 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const fetchVehicleAndData = async () => {
     try {
       setLoading(true);
-      // Fetch products, customers, and the specific vehicle in parallel
-      const [productsData, customersData, vehicle] = await Promise.all([
-        fetchWithDedup("/api/inventory?limit=100"),
-        fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true"),
-        fetchWithDedup(`/api/sales/${vehicleId}`)
-      ]);
-
-      setProducts(productsData.products || []);
-
-      const loadedCustomers = customersData.customers || [];
-      setSystemCustomers(loadedCustomers);
+      // Fetch the specific vehicle first to get its branchId
+      const vehicle = await fetchWithDedup(`/api/sales/${vehicleId}`);
 
       if (vehicle) {
+        // Fetch products filtering by vehicle's branch, and customers
+        const [productsData, customersData] = await Promise.all([
+          fetchWithDedup(`/api/inventory?limit=100&branchFilter=${vehicle.branchId || ""}`),
+          fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true")
+        ]);
+
+        setProducts(productsData.products || []);
+
+        const loadedCustomers = customersData.customers || [];
+        setSystemCustomers(loadedCustomers);
+
         setVin(vehicle.vin || "");
         setModel(vehicle.model || "");
         setVariant(vehicle.variant || "");
@@ -270,15 +272,31 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     }
   };
 
-  const filteredAccessories = products.filter(p => 
-    p.name.toLowerCase().includes(accessorySearch.toLowerCase()) ||
-    p.sku.toLowerCase().includes(accessorySearch.toLowerCase())
-  );
+  const filteredAccessories = useMemo(() => {
+    const term = accessorySearch.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  }, [products, accessorySearch]);
 
-  const filteredCustomers = systemCustomers.filter(cust => 
-    (cust.name || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-    (cust.phone || "").includes(customerSearchQuery)
-  );
+  const filteredCustomers = useMemo(() => {
+    const term = customerSearchQuery.toLowerCase().trim();
+    return systemCustomers.filter(cust => 
+      (cust.name || "").toLowerCase().includes(term) ||
+      (cust.phone || "").includes(term)
+    );
+  }, [systemCustomers, customerSearchQuery]);
+
+  const filteredGifts = useMemo(() => {
+    const term = giftSearch.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  }, [products, giftSearch]);
 
   if (loading) {
     return (
@@ -735,7 +753,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                     />
                   </div>
                   <div className="max-h-[160px] overflow-y-auto space-y-1.5 divide-y divide-emerald-500/20">
-                    {products.filter(p => p.name.toLowerCase().includes(giftSearch.toLowerCase()) || p.sku.toLowerCase().includes(giftSearch.toLowerCase())).map((p) => {
+                    {filteredGifts.map((p) => {
                       return (
                         <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
                           <div>
@@ -752,7 +770,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                         </div>
                       );
                     })}
-                    {products.filter(p => p.name.toLowerCase().includes(giftSearch.toLowerCase()) || p.sku.toLowerCase().includes(giftSearch.toLowerCase())).length === 0 && (
+                    {filteredGifts.length === 0 && (
                       <p className="text-xs text-muted-foreground italic text-center py-4">Không tìm thấy phụ tùng phù hợp.</p>
                     )}
                   </div>

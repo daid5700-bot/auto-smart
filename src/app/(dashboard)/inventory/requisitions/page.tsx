@@ -157,13 +157,15 @@ export default function UnifiedRequisitionsApprovalPage() {
         vehicleVin: vehicle.vin || "",
         totalAmount: o.totalAmount,
         reason: o.reason,
+        branch: o.branch,
         items: (o.accessories || []).map((acc: any) => ({
           name: acc.name,
           sku: acc.productId || acc.id,
           quantity: acc.quantity,
           price: acc.price,
           subTotal: Number(acc.quantity || 1) * Number(acc.price || 0),
-          isGift: false
+          isGift: false,
+          stockCount: Number(acc.stockCount || 0)
         }))
       };
     });
@@ -193,6 +195,7 @@ export default function UnifiedRequisitionsApprovalPage() {
         vehicleVin: vehicle.vin || "",
         totalAmount: totalBill, // For UI audit
         reason: r.reason || "Tặng phụ kiện kèm xe",
+        branch: r.branch,
         items: r.items.map((it: any) => {
           const prod = it.product || {};
           const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
@@ -202,7 +205,8 @@ export default function UnifiedRequisitionsApprovalPage() {
             quantity: it.quantity,
             price: priceVal,
             subTotal: it.quantity * priceVal,
-            isGift: true
+            isGift: true,
+            stockCount: Number(prod.stockCount || 0)
           };
         })
       };
@@ -222,7 +226,9 @@ export default function UnifiedRequisitionsApprovalPage() {
           giftRequisitionCode: null,
           hasPaid: true,
           hasGift: false,
-          giftValue: 0
+          giftValue: 0,
+          branch: item.branch,
+          giftBranch: null
         });
       } else {
         grouped.set(`NO-VIN-${item.id}`, {
@@ -233,7 +239,9 @@ export default function UnifiedRequisitionsApprovalPage() {
           giftRequisitionCode: null,
           hasPaid: true,
           hasGift: false,
-          giftValue: 0
+          giftValue: 0,
+          branch: item.branch,
+          giftBranch: null
         });
       }
     });
@@ -249,6 +257,8 @@ export default function UnifiedRequisitionsApprovalPage() {
           existing.giftValue = item.totalAmount;
           // Combine item list
           existing.items = [...existing.items, ...item.items];
+          // Store gift branch
+          existing.giftBranch = item.branch;
           
           // Determine status: if either is PENDING, overall is PENDING.
           // Otherwise, if both are CANCELLED, overall is CANCELLED.
@@ -270,7 +280,9 @@ export default function UnifiedRequisitionsApprovalPage() {
             giftRequisitionCode: item.code,
             hasPaid: false,
             hasGift: true,
-            giftValue: item.totalAmount
+            giftValue: item.totalAmount,
+            branch: null,
+            giftBranch: item.branch
           });
         }
       } else {
@@ -282,7 +294,9 @@ export default function UnifiedRequisitionsApprovalPage() {
           giftRequisitionCode: item.code,
           hasPaid: false,
           hasGift: true,
-          giftValue: item.totalAmount
+          giftValue: item.totalAmount,
+          branch: null,
+          giftBranch: item.branch
         });
       }
     });
@@ -571,6 +585,16 @@ export default function UnifiedRequisitionsApprovalPage() {
                         {order.vehicleVin && (
                           <span className="flex items-center gap-1"><Car size={13}/> <strong>Xe VIN:</strong> {order.vehicleModel} ({order.vehicleVin.slice(-6)})</span>
                         )}
+                        {order.branch && (
+                          <span className="flex items-center gap-1 text-blue-600 font-semibold bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/10">
+                            Cơ sở xuất: {order.branch.name} ({order.branch.code})
+                          </span>
+                        )}
+                        {order.giftBranch && (!order.branch || order.giftBranch.id !== order.branch.id) && (
+                          <span className="flex items-center gap-1 text-emerald-600 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/10">
+                            Cơ sở quà tặng: {order.giftBranch.name} ({order.giftBranch.code})
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -593,12 +617,14 @@ export default function UnifiedRequisitionsApprovalPage() {
                         <tr className="border-b border-border bg-secondary/15 text-muted-foreground font-semibold">
                           <th className="p-3">Mã &amp; Tên Phụ Tùng</th>
                           <th className="p-3 text-center">Số lượng yêu cầu</th>
+                          <th className="p-3 text-center bg-secondary/5">Tồn hiện tại</th>
                           <th className="p-3 text-right">Đơn giá</th>
                           <th className="p-3 text-right">Thành tiền</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
                         {order.items.map((item: any, idx: number) => {
+                          const isOut = item.stockCount < item.quantity;
                           return (
                             <tr key={idx} className="hover:bg-secondary/5 transition-colors">
                               <td className="p-3 font-semibold text-foreground">
@@ -606,7 +632,10 @@ export default function UnifiedRequisitionsApprovalPage() {
                                 <span className="text-[10px] text-muted-foreground block font-normal">Mã SP: {item.sku}</span>
                               </td>
                               <td className="p-3 text-center font-bold text-foreground">
-                                {item.quantity}
+                                {item.quantity} cái
+                              </td>
+                              <td className={`p-3 text-center font-bold bg-secondary/5 ${isOut && order.status === "PENDING" ? "text-rose-600" : "text-foreground"}`}>
+                                {item.stockCount} cái {isOut && order.status === "PENDING" && <span className="text-[9px] font-medium block text-rose-500 font-normal mt-0.5">(Không đủ tồn)</span>}
                               </td>
                               <td className="p-3 text-right text-muted-foreground">
                                 {item.isGift ? (

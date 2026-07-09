@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   if (branchFilter && branchFilter !== "all") {
     targetBranchId = Number(branchFilter);
-  } else if (!isAdmin && scope === "current" && branchId) {
+  } else if (scope !== "other" && branchId) {
     targetBranchId = branchId;
   }
 
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         branchId: targetBranchId
       }
     };
-  } else if (!isAdmin && scope === "other" && branchId) {
+  } else if (scope === "other" && branchId) {
     where.productBranches = {
       some: {
         branchId: { not: branchId }

@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
           include: {
             product: {
               include: {
-                prices: true
+                prices: true,
+                productBranches: {
+                  where: { branchId }
+                }
               }
             }
           }
@@ -41,16 +44,20 @@ export async function GET(req: NextRequest) {
     // Handle Decimal serialization safely
     const serializedRequisitions = requisitions.map((req) => ({
       ...req,
-      items: req.items.map((item) => ({
-        ...item,
-        product: item.product ? {
-          ...item.product,
-          prices: (item.product.prices || []).map((p) => ({
-            ...p,
-            amount: Number(p.amount)
-          }))
-        } : null
-      })),
+      items: req.items.map((item) => {
+        const pb = item.product?.productBranches?.[0];
+        return {
+          ...item,
+          product: item.product ? {
+            ...item.product,
+            stockCount: pb?.stockCount || 0,
+            prices: (item.product.prices || []).map((p) => ({
+              ...p,
+              amount: Number(p.amount)
+            }))
+          } : null
+        };
+      }),
       repairOrder: req.repairOrder ? {
         ...req.repairOrder,
         laborCost: Number(req.repairOrder.laborCost),
