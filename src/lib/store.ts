@@ -29,12 +29,20 @@ interface AuthState {
   hydrate: () => void;
 }
 
-const ROLE_ACCOUNTS: Record<UserRole, { email: string; password: string }> = {
-  ADMIN: { email: "admin@autosmart.vn", password: "admin123" },
-  WAREHOUSE: { email: "kho@autosmart.vn", password: "kho123" },
-  WORKSHOP: { email: "xuong@autosmart.vn", password: "xuong123" },
-  SALES: { email: "sales@autosmart.vn", password: "sales123" },
-};
+const ROLE_ACCOUNTS: Record<UserRole, { email: string; password: string }> = 
+  process.env.NODE_ENV === "production"
+    ? {
+        ADMIN: { email: "", password: "" },
+        WAREHOUSE: { email: "", password: "" },
+        WORKSHOP: { email: "", password: "" },
+        SALES: { email: "", password: "" },
+      }
+    : {
+        ADMIN: { email: "admin@autosmart.vn", password: "admin123" },
+        WAREHOUSE: { email: "kho@autosmart.vn", password: "kho123" },
+        WORKSHOP: { email: "xuong@autosmart.vn", password: "xuong123" },
+        SALES: { email: "sales@autosmart.vn", password: "sales123" },
+      };
 
 export const useAuth = create<AuthState>((set) => ({
   user: null,
@@ -87,6 +95,7 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   loginAs: async (role) => {
+    if (process.env.NODE_ENV === "production") return;
     const acc = ROLE_ACCOUNTS[role];
     const res = await fetch("/api/auth/login", {
       method: "POST",

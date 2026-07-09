@@ -5,6 +5,7 @@ import {
   Car, Package, Loader2, Download, Printer, Minus, RefreshCw, X, Calendar
 } from "lucide-react";
 import { formatCurrency, exportToCsv } from "@/lib/utils";
+import { generateReportPDF } from "@/lib/report-pdf";
 
 interface ReportData {
   branchId: number | null;
@@ -115,7 +116,19 @@ export default function ReportsPage() {
     exportToCsv(`Bao_cao_ERP_${new Date().toISOString().split("T")[0]}.csv`, headers, rows);
   };
 
-  const handlePrint = () => window.print();
+  const [isPrintLoading, setIsPrintLoading] = useState(false);
+
+  const handlePrint = async () => {
+    if (!data) return;
+    setIsPrintLoading(true);
+    try {
+      // Dynamic import để tránh load jsPDF khi không cần
+      const { generateReportPDF } = await import("@/lib/report-pdf");
+      generateReportPDF(data, startDate, endDate);
+    } finally {
+      setIsPrintLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -181,8 +194,13 @@ export default function ReportsPage() {
             <button onClick={fetchData} className="bg-card border border-border hover:bg-secondary text-foreground p-2.5 rounded-xl text-sm font-semibold flex items-center justify-center transition-all" title="Làm mới">
               <RefreshCw size={15} />
             </button>
-            <button onClick={handlePrint} className="bg-card border border-border hover:bg-secondary text-foreground px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all w-fit">
-              <Printer size={16} /> In báo cáo (PDF)
+            <button
+              onClick={handlePrint}
+              disabled={isPrintLoading}
+              className="bg-card border border-border hover:bg-secondary text-foreground px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all w-fit disabled:opacity-60"
+            >
+              {isPrintLoading ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+              {isPrintLoading ? "Đang tạo báo cáo" : "In báo cáo"}
             </button>
             <button onClick={handleExportExcel} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all w-fit">
               <Download size={16} /> Xuất Excel
@@ -248,7 +266,7 @@ export default function ReportsPage() {
                     </div>
                     <div
                       style={{ height: `${heightPct}px` }}
-                      className={`w-full rounded-t-lg transition-all ${m.revenue > 0 ? "bg-gradient-to-t from-primary to-cyan-500 glow-blue hover:opacity-95" : "bg-border"}`}
+                      className={`w-full rounded-t-lg transition-all ${m.revenue > 0 ? "bg-gradient-to-t from-primary to-cyan-500 glow-blue hover:opacity-95 print-bar-active" : "bg-border print-bar-empty"}`}
                     />
                     <span className="text-[9px] font-semibold text-muted-foreground mt-1 text-center">{m.month}</span>
                   </div>
@@ -330,7 +348,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Recent Completed Repair Orders */}
-      <div className="glass-card rounded-xl overflow-hidden">
+      <div className="glass-card rounded-xl overflow-hidden print-table-wrap">
         <div className="px-6 py-4 border-b border-border">
           <h3 className="font-bold">Lệnh sửa chữa hoàn thành gần nhất</h3>
         </div>

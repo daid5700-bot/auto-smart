@@ -196,18 +196,7 @@ export async function POST(req: NextRequest) {
           }))
         });
 
-        // 2. Bulk create OrderItem
-        await tx.orderItem.createMany({
-          data: items.map((item: any) => ({
-            repairOrderId: ro.id,
-            productId: Number(item.productId),
-            quantity: Number(item.quantity),
-            unitPrice: Number(item.unitPrice),
-            totalPrice: Number(item.unitPrice) * Number(item.quantity),
-          }))
-        });
-
-        // 3. Sequentially increment reservedStock
+        // 2. Sequentially increment reservedStock
         for (const item of items) {
           await tx.productBranch.update({
             where: { productId_branchId: { productId: Number(item.productId), branchId } },

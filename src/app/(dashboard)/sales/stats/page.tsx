@@ -130,7 +130,7 @@ export default function SalesStatsPage() {
                 {data.soldList?.map((item: any, idx: number) => {
                   const pCost = Number(item.plateCost)||0;
                   let aCost = 0;
-                  try { const a = JSON.parse(item.accessoriesJson||"[]"); aCost = a.reduce((s:number,x:any)=>{const p=parseInt(String(x.price||"0").replace(/\D/g,""),10)||0;const q=parseFloat(String(x.quantity||"1").replace(/[^0-9.]/g,""))||1;return s+p*q;},0); } catch{}
+                  try { const a = typeof item.accessoriesJson === "string" ? JSON.parse(item.accessoriesJson) : item.accessoriesJson || []; aCost = a.reduce((s:number,x:any)=>{const p=parseInt(String(x.price||"0").replace(/\D/g,""),10)||0;const q=parseFloat(String(x.quantity||"1").replace(/[^0-9.]/g,""))||1;return s+p*q;},0); } catch{}
                   return (
                     <tr key={item.id} className="hover:bg-secondary/10 transition-colors">
                       <td className="p-3 text-center text-muted-foreground font-semibold">{idx+1}</td>

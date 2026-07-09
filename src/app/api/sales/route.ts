@@ -235,8 +235,8 @@ export async function POST(req: NextRequest) {
         await tx.customer.update({
           where: { id: customerId },
           data: {
-            totalDebt: { increment: initialDebtAmount },
-            totalSpent: { increment: initialDebtAmount }
+            totalDebt: { increment: v.debtAmount.toNumber() },
+            totalSpent: { increment: v.paidAmount.toNumber() }
           }
         });
       }

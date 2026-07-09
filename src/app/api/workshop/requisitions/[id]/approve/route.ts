@@ -176,17 +176,66 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
         const partsCost = roItems.reduce((acc, curr) => acc + Number(curr.totalPrice), 0);
         const laborCost = Number(requisition.repairOrder.laborCost);
-        const totalAmount = partsCost + laborCost;
+
+        const redeemTx = await tx.loyaltyTransaction.findFirst({
+          where: {
+            relatedRoId: requisition.repairOrderId,
+            type: "REDEEM",
+            points: { lt: 0 },
+          },
+        });
+        const pointsDiscount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
+
+        let serviceDiscountPercent = 0;
+        let partsDiscountPercent = 0;
+        let isJson = false;
+
+        if (requisition.repairOrder.symptoms) {
+          try {
+            const parsed = JSON.parse(requisition.repairOrder.symptoms);
+            if (parsed && typeof parsed === "object") {
+              isJson = true;
+              serviceDiscountPercent = Number(parsed.serviceDiscountPercent) || 0;
+              partsDiscountPercent = Number(parsed.partsDiscountPercent) || 0;
+            }
+          } catch {}
+        }
+
+        let totalDiscountAmount = 0;
+        let discountPercentVal = 0;
+        if (isJson) {
+          const serviceDiscountAmount = Math.round(laborCost * (serviceDiscountPercent / 100));
+          const partsDiscountAmount = Math.round(partsCost * (partsDiscountPercent / 100));
+          totalDiscountAmount = serviceDiscountAmount + partsDiscountAmount;
+          discountPercentVal = serviceDiscountPercent;
+        } else {
+          discountPercentVal = Number(requisition.repairOrder.discountPercent || 0);
+          totalDiscountAmount = Math.round((laborCost + partsCost) * (discountPercentVal / 100));
+        }
+
+        const totalAmount = Math.max(0, (laborCost + partsCost) - pointsDiscount - totalDiscountAmount);
+        const paidAmount = Number(requisition.repairOrder.paidAmount || 0);
+        const newDebtAmount = totalAmount - paidAmount;
+        const debtDelta = newDebtAmount - Number(requisition.repairOrder.debtAmount || 0);
 
         const roStatus = "DOING";
         await tx.repairOrder.update({
           where: { id: requisition.repairOrderId },
           data: { 
             partsCost,
+            discountAmount: totalDiscountAmount,
             totalAmount,
+            debtAmount: newDebtAmount,
             status: roStatus 
           }
         });
+
+        if (debtDelta !== 0 && requisition.repairOrder.customerId) {
+          await tx.customer.update({
+            where: { id: requisition.repairOrder.customerId },
+            data: { totalDebt: { increment: debtDelta } }
+          });
+        }
       }
 
       return { success: true, branchId: requisition.branchId };

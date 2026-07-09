@@ -7,8 +7,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { amount } = await req.json();
     
     // Allow setting absolute paidAmount, just like inventory orders
-    const targetPaidAmount = Number(amount);
-    if (isNaN(targetPaidAmount) || targetPaidAmount < 0) {
+    const paymentDelta = Number(amount);
+    if (isNaN(paymentDelta) || paymentDelta < 0) {
       return NextResponse.json({ error: "Số tiền không hợp lệ" }, { status: 400 });
     }
 
@@ -20,16 +20,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!vehicle) return NextResponse.json({ error: "Không tìm thấy xe" }, { status: 404 });
 
     // Calculate total bill for the vehicle
-    const accessories = JSON.parse(vehicle.accessoriesJson || "[]");
+    const accessories = typeof vehicle.accessoriesJson === "string" ? JSON.parse(vehicle.accessoriesJson) : (vehicle.accessoriesJson as any) || [];
     const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
     const totalAmount = vehicle.listPrice.toNumber() + (vehicle.plateCost ? vehicle.plateCost.toNumber() : 0) + accCost;
 
-    const newPaidAmount = Math.min(targetPaidAmount, totalAmount);
-    const newDebtAmount = totalAmount - newPaidAmount;
-
-    // Delta debt to adjust customer's totalDebt
+    const oldPaidAmount = vehicle.paidAmount.toNumber();
     const oldDebtAmount = vehicle.debtAmount.toNumber();
-    const debtDelta = newDebtAmount - oldDebtAmount; // If debt increases, delta > 0. If debt decreases, delta < 0.
+    const actualPaymentDelta = Math.min(paymentDelta, oldDebtAmount);
+    const newPaidAmount = oldPaidAmount + actualPaymentDelta;
+    const newDebtAmount = oldDebtAmount - actualPaymentDelta;
+    const diffPaid = actualPaymentDelta;
+    const debtDelta = newDebtAmount - oldDebtAmount;
 
     const updatedVehicle = await prisma.$transaction(async (tx) => {
       // update vehicle
@@ -40,9 +41,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           debtAmount: newDebtAmount,
         }
       });
-
-      const oldPaidAmount = vehicle.paidAmount.toNumber();
-      const diffPaid = newPaidAmount - oldPaidAmount;
       
       if (diffPaid !== 0) {
         const pType = diffPaid > 0 ? "INCOME" : "EXPENSE";
@@ -62,12 +60,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         });
       }
 
-      // update customer debt
-      if (vehicle.customerId && debtDelta !== 0) {
+      // update customer debt and spent
+      if (vehicle.customerId && (debtDelta !== 0 || diffPaid > 0)) {
         await tx.customer.update({
           where: { id: vehicle.customerId },
           data: {
-            totalDebt: { increment: debtDelta }
+            ...(debtDelta !== 0 ? { totalDebt: { increment: debtDelta } } : {}),
+            ...(diffPaid > 0 ? { totalSpent: { increment: diffPaid } } : {})
           }
         });
       }

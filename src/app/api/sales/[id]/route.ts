@@ -175,7 +175,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const vehicle = await prisma.$transaction(async (tx) => {
       // 1. Calculate old amounts
-      const oldAccessories = JSON.parse(currentVehicle.accessoriesJson || "[]");
+      const oldAccessories = typeof currentVehicle.accessoriesJson === "string" ? JSON.parse(currentVehicle.accessoriesJson) : (currentVehicle.accessoriesJson as any) || [];
       const oldAccCost = oldAccessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
       const oldTotalAmount = currentVehicle.listPrice.toNumber() + (currentVehicle.plateCost ? currentVehicle.plateCost.toNumber() : 0) + oldAccCost;
       const oldDebtAmount = currentVehicle.debtAmount.toNumber();
@@ -204,6 +204,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // 4. Handle customer debt and spent adjustments
       const oldCustomerId = currentVehicle.customerId;
       const newCustomerId = v.customerId;
+      const oldPaidAmount = currentVehicle.paidAmount.toNumber();
+      const newPaidAmount = v.paidAmount.toNumber();
 
       if (oldCustomerId !== newCustomerId) {
         // Customer changed: Revert from old customer (if was active), apply to new customer (if now active)
@@ -212,7 +214,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             where: { id: oldCustomerId },
             data: {
               totalDebt: { decrement: oldDebtAmount },
-              totalSpent: { decrement: oldTotalAmount }
+              totalSpent: { decrement: oldPaidAmount }
             }
           });
         }
@@ -221,7 +223,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             where: { id: newCustomerId },
             data: {
               totalDebt: { increment: newDebtAmount },
-              totalSpent: { increment: newTotalAmount }
+              totalSpent: { increment: newPaidAmount }
             }
           });
         }
@@ -233,15 +235,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (!wasActive && isNowActive) {
           // Transition to SOLD/RESERVED
           debtChange = newDebtAmount;
-          spentChange = newTotalAmount;
+          spentChange = newPaidAmount;
         } else if (wasActive && !isNowActive) {
           // Transition out of SOLD/RESERVED
           debtChange = -oldDebtAmount;
-          spentChange = -oldTotalAmount;
+          spentChange = -oldPaidAmount;
         } else if (wasActive && isNowActive) {
           // Kept SOLD/RESERVED, but prices might have changed
           debtChange = newDebtAmount - oldDebtAmount;
-          spentChange = newTotalAmount - oldTotalAmount;
+          spentChange = newPaidAmount - oldPaidAmount;
         }
 
         if (debtChange !== 0 || spentChange !== 0) {
@@ -434,16 +436,14 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     await prisma.$transaction(async (tx) => {
       // Revert customer debt and spent if it was sold/reserved
       if (currentVehicle.customerId && ["RESERVED", "SOLD"].includes(currentVehicle.status)) {
-        const accessories = JSON.parse(currentVehicle.accessoriesJson || "[]");
-        const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
-        const totalAmount = currentVehicle.listPrice.toNumber() + (currentVehicle.plateCost ? currentVehicle.plateCost.toNumber() : 0) + accCost;
         const debtAmount = currentVehicle.debtAmount.toNumber();
+        const paidAmount = currentVehicle.paidAmount.toNumber();
 
         await tx.customer.update({
           where: { id: currentVehicle.customerId },
           data: {
             totalDebt: { decrement: debtAmount },
-            totalSpent: { decrement: totalAmount }
+            totalSpent: { decrement: paidAmount }
           }
         });
       }

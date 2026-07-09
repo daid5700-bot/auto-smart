@@ -65,9 +65,9 @@ export async function POST(req: NextRequest) {
     
     // Calculate total amount
     const totalAmount = items.reduce((sum: number, item: any) => sum + (Number(item.quantity) * Number(item.unitPrice)), 0);
-    const paidAmount = 0; // Removed from UI
-    const debtAmount = totalAmount;
-    const status = "DEBT";
+    const paidAmount = Number(body.paidAmount || 0);
+    const debtAmount = Math.max(0, totalAmount - paidAmount);
+    const status = debtAmount <= 0 ? "PAID" : "DEBT";
 
     // Generate unique code
     const code = `PX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
           customerId: finalCustomerId,
           type: type || "EXPORT_RETAIL",
           totalAmount,
-          paidAmount: Number(paidAmount || 0),
+          paidAmount,
           debtAmount,
           status,
           reason,
@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
           movements: {
             create: items.map((item: any) => ({
               productId: item.productId,
+              branchId: branchId,
               type: "EXPORT",
               quantity: item.quantity,
               unitCost: item.unitPrice,
@@ -176,11 +177,11 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      if (Number(paidAmount) > 0) {
+      if (paidAmount > 0) {
         await tx.paymentTransaction.create({
           data: {
             code: `PT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            amount: Number(paidAmount),
+            amount: paidAmount,
             method: "CASH",
             type: "INCOME",
             referenceId: newOrder.id,
@@ -197,7 +198,7 @@ export async function POST(req: NextRequest) {
         await tx.customer.update({
           where: { id: finalCustomerId },
           data: {
-            totalSpent: { increment: Number(paidAmount || 0) },
+            totalSpent: { increment: paidAmount },
             totalDebt: { increment: debtAmount },
             lastVisit: new Date(),
           }

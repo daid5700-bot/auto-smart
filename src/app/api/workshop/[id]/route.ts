@@ -176,6 +176,28 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.status === "DONE" && currentRo.status !== "DONE") {
       if (ro.technicianId) {
         await prisma.technician.update({ where: { id: ro.technicianId }, data: { status: "IDLE" } });
+        
+        const commissionRate = ro.technician?.commissionRate ?? 0;
+        const laborCost = Number(ro.laborCost || 0);
+        const commissionAmount = Math.round(laborCost * (commissionRate / 100));
+
+        const existingPerformance = await prisma.techPerformance.findFirst({
+          where: {
+            repairOrderId: ro.id,
+            technicianId: ro.technicianId,
+          }
+        });
+
+        if (!existingPerformance) {
+          await prisma.techPerformance.create({
+            data: {
+              technicianId: ro.technicianId,
+              repairOrderId: ro.id,
+              commissionAmount: commissionAmount,
+              date: new Date(),
+            }
+          });
+        }
       }
 
       // Only process customer rewards/debt if there is an associated customer profile

@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = parseInt(params.id);
-    const { paidAmount } = await req.json(); // Exact new paid amount
+    const { amount } = await req.json();
     
-    if (paidAmount === undefined || paidAmount < 0) {
-      return NextResponse.json({ error: "Số tiền đã trả không hợp lệ" }, { status: 400 });
+    if (amount === undefined || Number(amount) < 0) {
+      return NextResponse.json({ error: "Số tiền thanh toán không hợp lệ" }, { status: 400 });
     }
 
     const order = await prisma.inventoryOrder.findUnique({
@@ -17,27 +17,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if (!order) return NextResponse.json({ error: "Không tìm thấy đơn hàng" }, { status: 404 });
     
-    const actualPaid = Math.min(Number(paidAmount), order.totalAmount.toNumber());
-    const newDebtAmount = order.totalAmount.toNumber() - actualPaid;
-    const newStatus = newDebtAmount <= 0 ? "PAID" : "DEBT";
-    
-    // Calculate difference to update customer's total debt correctly
+    const paymentDelta = Number(amount);
+    const oldPaidAmount = order.paidAmount.toNumber();
     const oldDebtAmount = order.debtAmount.toNumber();
-    const debtDelta = newDebtAmount - oldDebtAmount; // If new debt is less, delta is negative
+    const actualPaymentDelta = Math.min(paymentDelta, oldDebtAmount);
+    const newPaidAmount = oldPaidAmount + actualPaymentDelta;
+    const newDebtAmount = oldDebtAmount - actualPaymentDelta;
+    const newStatus = newDebtAmount <= 0 ? "PAID" : "DEBT";
+    const diffPaid = actualPaymentDelta;
+    const debtDelta = newDebtAmount - oldDebtAmount;
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
       // update order
       const o = await tx.inventoryOrder.update({
         where: { id },
         data: {
-          paidAmount: actualPaid,
+          paidAmount: newPaidAmount,
           debtAmount: newDebtAmount,
           status: newStatus
         }
       });
-
-      const oldPaidAmount = order.paidAmount.toNumber();
-      const diffPaid = actualPaid - oldPaidAmount;
       
       if (diffPaid !== 0) {
         const pType = diffPaid > 0 ? "INCOME" : "EXPENSE";

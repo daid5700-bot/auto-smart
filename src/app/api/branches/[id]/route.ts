@@ -7,7 +7,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
-      return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thực hiện thao tác này" }, { status: 403 });
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const id = parseInt(params.id);
@@ -34,7 +34,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
-      return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thực hiện thao tác này" }, { status: 403 });
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const id = parseInt(params.id);

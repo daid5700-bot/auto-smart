@@ -61,13 +61,13 @@ export async function GET(req: NextRequest) {
       let latestOrderAmount = 0;
       if (customer.vehicles.length > 0) {
         const latestVeh = customer.vehicles[0];
-        const accs = JSON.parse(latestVeh.accessoriesJson || "[]");
+        const accs = typeof latestVeh.accessoriesJson === "string" ? JSON.parse(latestVeh.accessoriesJson) : (latestVeh.accessoriesJson as any) || [];
         const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
         latestOrderAmount = latestVeh.listPrice.toNumber() + (latestVeh.plateCost ? latestVeh.plateCost.toNumber() : 0) + accsCost;
       }
 
       for (const veh of customer.vehicles) {
-        const accs = JSON.parse(veh.accessoriesJson || "[]");
+        const accs = typeof veh.accessoriesJson === "string" ? JSON.parse(veh.accessoriesJson) : (veh.accessoriesJson as any) || [];
         const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
         const contractTotal = veh.listPrice.toNumber() + (veh.plateCost ? veh.plateCost.toNumber() : 0) + accsCost;
 

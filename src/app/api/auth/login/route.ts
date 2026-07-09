@@ -19,15 +19,12 @@ export async function POST(req: NextRequest) {
     });
     if (!user) return NextResponse.json({ error: "Email không tồn tại" }, { status: 401 });
 
-    // Verify using bcrypt first, fallback to plaintext comparison for legacy seeded accounts
+    // Verify using bcrypt only
     let isMatch = false;
     try {
       isMatch = bcrypt.compareSync(password, user.password);
     } catch (e) {
       isMatch = false;
-    }
-    if (!isMatch) {
-      isMatch = user.password === password;
     }
 
     if (!isMatch) return NextResponse.json({ error: "Mật khẩu không đúng" }, { status: 401 });

@@ -76,9 +76,12 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const parseAccessories = (jsonStr: string): Accessory[] => {
+  const parseAccessories = (val: any): Accessory[] => {
     try {
-      return JSON.parse(jsonStr || "[]");
+      if (!val) return [];
+      if (typeof val === "string") return JSON.parse(val);
+      if (Array.isArray(val)) return val;
+      return [];
     } catch (e) {
       return [];
     }

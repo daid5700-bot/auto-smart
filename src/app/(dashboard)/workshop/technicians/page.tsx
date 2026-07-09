@@ -14,7 +14,7 @@ export default function TechniciansPage() {
     code: "",
     name: "",
     phone: "",
-    commissionRate: 0,
+    commissionRate: 10,
     status: "IDLE",
   });
 
@@ -51,7 +51,7 @@ export default function TechniciansPage() {
 
   const handleOpenAdd = () => {
     setEditingId(null);
-    setFormData({ code: "", name: "", phone: "", commissionRate: 0, status: "IDLE" });
+    setFormData({ code: "", name: "", phone: "", commissionRate: 10, status: "IDLE" });
     setModalOpen(true);
   };
 
@@ -61,7 +61,7 @@ export default function TechniciansPage() {
       code: t.code,
       name: t.name,
       phone: t.phone || "",
-      commissionRate: 0,
+      commissionRate: t.commissionRate || 0,
       status: t.status,
     });
     setModalOpen(true);
@@ -111,6 +111,7 @@ export default function TechniciansPage() {
               <th>Mã KTV</th>
               <th>Họ và tên</th>
               <th>Số điện thoại</th>
+              <th>Tỷ lệ hoa hồng (%)</th>
               <th>Trạng thái</th>
               <th>Số lệnh đã sửa</th>
               <th>Thao tác</th>
@@ -122,6 +123,7 @@ export default function TechniciansPage() {
                 <td><code className="text-xs font-bold text-primary">{t.code}</code></td>
                 <td className="font-semibold">{t.name}</td>
                 <td>{t.phone || "—"}</td>
+                <td className="font-semibold">{t.commissionRate}%</td>
                 <td>
                   <span className={`badge ${t.status === "IDLE" ? "badge-success" : "badge-warning"}`}>
                     {t.status === "IDLE" ? "Đang rảnh" : "Đang làm việc"}
@@ -164,6 +166,11 @@ export default function TechniciansPage() {
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại</label>
                 <input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: 0901234567" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tỷ lệ hoa hồng (%)</label>
+                <input type="number" step="0.1" min="0" max="100" required value={formData.commissionRate} onChange={(e) => setFormData({ ...formData, commissionRate: Number(e.target.value) })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: 10" />
               </div>
 
               <div>

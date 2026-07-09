@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     const productBranchPairs: { productId: number; branchId: number }[] = [];
     for (const v of vehiclesList) {
       try {
-        const rawAcc = JSON.parse(v.accessoriesJson || "[]");
+        const rawAcc = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : (v.accessoriesJson as any) || [];
         for (const a of rawAcc) {
           const pid = Number(a.productId || a.id);
           if (!isNaN(pid)) {
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       let accessories = [];
       if (vehicle) {
         try {
-          const rawAcc = JSON.parse(vehicle.accessoriesJson || "[]");
+          const rawAcc = typeof vehicle.accessoriesJson === "string" ? JSON.parse(vehicle.accessoriesJson) : (vehicle.accessoriesJson as any) || [];
           accessories = rawAcc.map((a: any) => {
             const pid = Number(a.productId || a.id);
             const key = `${vehicle.branchId || branchId || 1}_${pid}`;

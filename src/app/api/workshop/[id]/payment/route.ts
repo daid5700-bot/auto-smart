@@ -6,8 +6,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const id = parseInt(params.id);
     const { amount } = await req.json();
     
-    const targetPaidAmount = Number(amount);
-    if (isNaN(targetPaidAmount) || targetPaidAmount < 0) {
+    const paymentDelta = Number(amount);
+    if (isNaN(paymentDelta) || paymentDelta < 0) {
       return NextResponse.json({ error: "Số tiền không hợp lệ" }, { status: 400 });
     }
 
@@ -18,12 +18,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if (!ro) return NextResponse.json({ error: "Không tìm thấy lệnh sửa chữa" }, { status: 404 });
 
-    const totalAmount = ro.totalAmount.toNumber();
-    const newPaidAmount = Math.min(targetPaidAmount, totalAmount);
-    const newDebtAmount = totalAmount - newPaidAmount;
-
-    // Delta debt to adjust customer's totalDebt
+    const oldPaidAmount = ro.paidAmount.toNumber();
     const oldDebtAmount = ro.debtAmount.toNumber();
+    const actualPaymentDelta = Math.min(paymentDelta, oldDebtAmount);
+    const newPaidAmount = oldPaidAmount + actualPaymentDelta;
+    const newDebtAmount = oldDebtAmount - actualPaymentDelta;
+    const diffPaid = actualPaymentDelta;
     const debtDelta = newDebtAmount - oldDebtAmount;
 
     const updatedRo = await prisma.$transaction(async (tx) => {
@@ -35,9 +35,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           debtAmount: newDebtAmount,
         }
       });
-
-      const oldPaidAmount = ro.paidAmount.toNumber();
-      const diffPaid = newPaidAmount - oldPaidAmount;
       
       if (diffPaid !== 0) {
         const pType = diffPaid > 0 ? "INCOME" : "EXPENSE";

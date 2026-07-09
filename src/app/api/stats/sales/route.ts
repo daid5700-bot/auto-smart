@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     soldList.forEach(v => {
       try {
-        const accs = JSON.parse(v.accessoriesJson || "[]");
+        const accs = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : (v.accessoriesJson as any) || [];
         accs.forEach((a: any) => {
           const priceStr = String(a.price || "0").replace(/[^0-9]/g, "");
           const qtyStr = String(a.quantity || "1").replace(/[^0-9.]/g, "");
