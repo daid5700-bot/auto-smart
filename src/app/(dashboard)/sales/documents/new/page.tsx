@@ -63,6 +63,8 @@ export default function NewDocumentPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
 
   // Wholesale suggestions
   const [showWholesaleSuggestions, setShowWholesaleSuggestions] = useState(false);
@@ -133,6 +135,26 @@ export default function NewDocumentPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (customerSearchQuery.trim().length > 1) {
+      setIsSearchingCustomers(true);
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(customerSearchQuery)}`);
+          const data = await res.json();
+          setSearchResults(data.customers || []);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsSearchingCustomers(false);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setSearchResults([]);
+    }
+  }, [customerSearchQuery]);
 
   const handleAddAccessory = (p: any) => {
     const exists = selectedAccessories.find(a => a.id === p.id);
@@ -288,12 +310,18 @@ export default function NewDocumentPage() {
   }, [products, accessorySearch]);
 
   const filteredCustomers = useMemo(() => {
+    if (customerSearchQuery.trim().length > 1) {
+      return searchResults;
+    }
     const term = customerSearchQuery.toLowerCase().trim();
-    return systemCustomers.filter(cust => 
-      (cust.name || "").toLowerCase().includes(term) ||
-      (cust.phone || "").includes(term)
-    );
-  }, [systemCustomers, customerSearchQuery]);
+    if (term) {
+      return systemCustomers.filter(cust => 
+        (cust.name || "").toLowerCase().includes(term) ||
+        (cust.phone || "").includes(term)
+      );
+    }
+    return systemCustomers.slice(0, 15);
+  }, [systemCustomers, customerSearchQuery, searchResults]);
 
   const filteredVehicles = useMemo(() => {
     const term = vehSearchQuery.toLowerCase().trim();
@@ -615,6 +643,12 @@ export default function NewDocumentPage() {
                           className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary font-semibold" />
                       </div>
                     </div>
+                    {isSearchingCustomers && (
+                      <div className="p-2 text-center text-[10px] text-muted-foreground bg-secondary/5 flex items-center justify-center gap-1.5 border-b border-border/40">
+                        <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                        Đang tìm kiếm...
+                      </div>
+                    )}
                     <div className="max-h-52 overflow-y-auto p-1 divide-y divide-border/20">
                       {filteredCustomers.length===0
                         ? <div className="px-3 py-3 text-xs text-muted-foreground text-center">Không tìm thấy</div>

@@ -185,33 +185,34 @@ export async function POST(req: NextRequest) {
         });
 
         // Execute all creations and updates concurrently to avoid N+1 transaction locking
-        await Promise.all([
-          // 1. Bulk create PartsRequisitionItem
-          tx.partsRequisitionItem.createMany({
-            data: items.map((item: any) => ({
-              requisitionId: requisition.id,
-              productId: Number(item.productId),
-              quantity: Number(item.quantity),
-            }))
-          }),
-          // 2. Bulk create OrderItem
-          tx.orderItem.createMany({
-            data: items.map((item: any) => ({
-              repairOrderId: ro.id,
-              productId: Number(item.productId),
-              quantity: Number(item.quantity),
-              unitPrice: Number(item.unitPrice),
-              totalPrice: Number(item.unitPrice) * Number(item.quantity),
-            }))
-          }),
-          // 3. Concurrently increment reservedStock
-          ...items.map((item: any) => 
-            tx.productBranch.update({
-              where: { productId_branchId: { productId: Number(item.productId), branchId } },
-              data: { reservedStock: { increment: Number(item.quantity) } }
-            })
-          )
-        ]);
+        // Execute creations and updates sequentially to prevent transaction deadlocks, connection exhaustion, or transaction timeouts on the interactive transaction client
+        // 1. Bulk create PartsRequisitionItem
+        await tx.partsRequisitionItem.createMany({
+          data: items.map((item: any) => ({
+            requisitionId: requisition.id,
+            productId: Number(item.productId),
+            quantity: Number(item.quantity),
+          }))
+        });
+
+        // 2. Bulk create OrderItem
+        await tx.orderItem.createMany({
+          data: items.map((item: any) => ({
+            repairOrderId: ro.id,
+            productId: Number(item.productId),
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice),
+            totalPrice: Number(item.unitPrice) * Number(item.quantity),
+          }))
+        });
+
+        // 3. Sequentially increment reservedStock
+        for (const item of items) {
+          await tx.productBranch.update({
+            where: { productId_branchId: { productId: Number(item.productId), branchId } },
+            data: { reservedStock: { increment: Number(item.quantity) } }
+          });
+        }
       }
 
       return ro;

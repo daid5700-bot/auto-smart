@@ -25,33 +25,86 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Enrich with vehicle info from VIN embedded in reason
-    const enriched = await Promise.all(orders.map(async (order) => {
-      const vinMatch = order.reason?.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
-      const vin = vinMatch ? vinMatch[1].trim() : null;
-      let vehicle = null;
-      let accessories = [];
-      if (vin) {
-        vehicle = await prisma.vehicle.findUnique({
-          where: { vin },
+    // Enrich with vehicle info from VIN embedded in reason in batch to avoid N+1 query crashes
+    // 1. Gather all unique VINs
+    const vinMatches = orders.map(order => {
+      const match = order.reason?.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
+      return match ? match[1].trim() : null;
+    });
+    const uniqueVins = Array.from(new Set(vinMatches.filter(Boolean))) as string[];
+
+    // 2. Fetch all vehicles in one batch query
+    const vehiclesList = uniqueVins.length > 0
+      ? await prisma.vehicle.findMany({
+          where: { vin: { in: uniqueVins } },
           select: { id: true, vin: true, model: true, variant: true, color: true, year: true, accessoriesJson: true, branchId: true }
-        });
-      }
-      if (vehicle) {
-        const rawAcc = JSON.parse(vehicle.accessoriesJson || "[]");
-        const productIds = rawAcc.map((a: any) => Number(a.productId || a.id)).filter((id: number) => !isNaN(id));
-        const pbs = await prisma.productBranch.findMany({
-          where: {
-            productId: { in: productIds },
-            branchId: vehicle.branchId || branchId || 1
+        })
+      : [];
+
+    const vehiclesMap = new Map<string, typeof vehiclesList[number]>();
+    for (const v of vehiclesList) {
+      vehiclesMap.set(v.vin.toUpperCase(), v);
+    }
+
+    // 3. Gather all productIds and branchIds to batch query product branch stocks
+    const productBranchPairs: { productId: number; branchId: number }[] = [];
+    for (const v of vehiclesList) {
+      try {
+        const rawAcc = JSON.parse(v.accessoriesJson || "[]");
+        for (const a of rawAcc) {
+          const pid = Number(a.productId || a.id);
+          if (!isNaN(pid)) {
+            productBranchPairs.push({
+              productId: pid,
+              branchId: v.branchId || branchId || 1
+            });
           }
-        });
-        const stockMap = new Map(pbs.map(pb => [pb.productId, pb.stockCount]));
-        accessories = rawAcc.map((a: any) => ({
-          ...a,
-          stockCount: stockMap.get(Number(a.productId || a.id)) || 0
-        }));
+        }
+      } catch (err) {
+        // ignore JSON parsing error
       }
+    }
+
+    // De-duplicate product branch search criteria
+    const uniqueProductIds = Array.from(new Set(productBranchPairs.map(p => p.productId)));
+    const uniqueBranchIds = Array.from(new Set(productBranchPairs.map(p => p.branchId)));
+
+    const pbs = (uniqueProductIds.length > 0 && uniqueBranchIds.length > 0)
+      ? await prisma.productBranch.findMany({
+          where: {
+            productId: { in: uniqueProductIds },
+            branchId: { in: uniqueBranchIds }
+          }
+        })
+      : [];
+
+    // Map: key = `${branchId}_${productId}`, value = stockCount
+    const stockMap = new Map<string, number>();
+    for (const pb of pbs) {
+      stockMap.set(`${pb.branchId}_${pb.productId}`, pb.stockCount);
+    }
+
+    // 4. Construct enriched response synchronously
+    const enriched = orders.map((order, idx) => {
+      const vin = vinMatches[idx];
+      const vehicle = vin ? (vehiclesMap.get(vin.toUpperCase()) || null) : null;
+      let accessories = [];
+      if (vehicle) {
+        try {
+          const rawAcc = JSON.parse(vehicle.accessoriesJson || "[]");
+          accessories = rawAcc.map((a: any) => {
+            const pid = Number(a.productId || a.id);
+            const key = `${vehicle.branchId || branchId || 1}_${pid}`;
+            return {
+              ...a,
+              stockCount: stockMap.get(key) || 0
+            };
+          });
+        } catch {
+          // ignore
+        }
+      }
+
       return {
         id: order.id,
         code: order.code,
@@ -64,7 +117,7 @@ export async function GET(req: NextRequest) {
         vehicle,
         accessories,
       };
-    }));
+    });
 
     return NextResponse.json({ orders: enriched, total: enriched.length });
   } catch (error: any) {

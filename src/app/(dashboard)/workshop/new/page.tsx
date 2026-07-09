@@ -43,6 +43,8 @@ export default function NewRepairOrderPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [matchedPlates, setMatchedPlates] = useState<string[]>([]);
+  const [showPlateSuggestions, setShowPlateSuggestions] = useState(false);
+  const [plateSuggestions, setPlateSuggestions] = useState<any[]>([]);
 
   // Loyalty states
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -113,6 +115,7 @@ export default function NewRepairOrderPage() {
     setSelectedCustomerId(c.id);
     setCustomerLoyaltyPoints(c.loyaltyPoints || 0);
     setPointsToRedeem("");
+    setMatchedPlates(c.vehiclePlates || []);
     
     if (c.vehiclePlates && c.vehiclePlates.length > 0) {
       setPlateNumber(c.vehiclePlates[0]);
@@ -132,17 +135,53 @@ export default function NewRepairOrderPage() {
     setShowSuggestions(false);
   };
 
+  const handlePlateChange = (val: string) => {
+    setPlateNumber(val);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    if (val.trim().length > 1) {
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search/plate?q=${encodeURIComponent(val)}`);
+          const data = await res.json();
+          setPlateSuggestions(data.suggestions || []);
+          setShowPlateSuggestions(true);
+        } catch (e) {
+          console.error(e);
+        }
+      }, 500);
+    } else {
+      setPlateSuggestions([]);
+      setShowPlateSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestedPlate = (s: any) => {
+    setPlateNumber(s.plateNumber);
+    setVehicleModel(s.vehicleModel);
+    if (s.phone) setPhone(s.phone);
+    if (s.customerName) setCustomerName(s.customerName);
+    if (s.customerId) setSelectedCustomerId(s.customerId);
+    setCustomerLoyaltyPoints(s.loyaltyPoints || 0);
+    setPointsToRedeem("");
+    setBirthday(s.birthday || "");
+    setShowPlateSuggestions(false);
+  };
+
   useEffect(() => {
     const matchedCustomer = customers.find((c) => c.phone.trim() === phone.trim());
     if (matchedCustomer) {
       setSelectedCustomerId(matchedCustomer.id);
       setCustomerLoyaltyPoints(matchedCustomer.loyaltyPoints || 0);
       setBirthday(matchedCustomer.birthday ? matchedCustomer.birthday.substring(0, 10) : "");
+      setMatchedPlates(matchedCustomer.vehiclePlates || []);
     } else {
       setSelectedCustomerId(null);
       setCustomerLoyaltyPoints(0);
       setPointsToRedeem("");
       setBirthday("");
+      setMatchedPlates([]);
     }
   }, [phone, customers]);
 
@@ -435,9 +474,14 @@ export default function NewRepairOrderPage() {
                   <input
                     required
                     value={plateNumber}
-                    onChange={(e) => setPlateNumber(e.target.value)}
+                    onChange={(e) => handlePlateChange(e.target.value)}
+                    onFocus={() => {
+                      if (plateNumber.trim().length > 1) {
+                        setShowPlateSuggestions(true);
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                    placeholder="VD: 30A-123.45"
+                    placeholder="VD: 30A-123.45 (Nhập để tìm kiếm xe)"
                   />
                   {/* Quick-select if suggested customer has multiple plates */}
                   {matchedPlates.length > 0 && (
@@ -455,6 +499,31 @@ export default function NewRepairOrderPage() {
                         </button>
                       ))}
                     </div>
+                  )}
+
+                  {/* Plate Suggestions List */}
+                  {showPlateSuggestions && plateSuggestions.length > 0 && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40 cursor-default"
+                        onClick={() => setShowPlateSuggestions(false)}
+                      />
+                      <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-card border border-border rounded-xl shadow-2xl p-2 max-h-48 overflow-y-auto animate-slide-in-bottom">
+                        {plateSuggestions.map((s) => (
+                          <button
+                            key={s.plateNumber}
+                            type="button"
+                            onClick={() => handleSelectSuggestedPlate(s)}
+                            className="w-full text-left px-3 py-2 hover:bg-secondary/80 rounded-lg text-xs transition-colors block border-b border-border/20 last:border-0"
+                          >
+                            <div className="font-semibold text-primary">{s.plateNumber}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {s.vehicleModel} • {s.customerName} ({s.phone})
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>

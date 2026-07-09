@@ -57,6 +57,8 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
 
   // Metadata: Plate cost & Accessories
   const [plateCost, setPlateCost] = useState("");
@@ -172,6 +174,26 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     fetchVehicleAndData();
   }, [vehicleId]);
 
+  useEffect(() => {
+    if (customerSearchQuery.trim().length > 1) {
+      setIsSearchingCustomers(true);
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(customerSearchQuery)}`);
+          const data = await res.json();
+          setSearchResults(data.customers || []);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsSearchingCustomers(false);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setSearchResults([]);
+    }
+  }, [customerSearchQuery]);
+
   const handleAddAccessory = (p: any) => {
     const exists = selectedAccessories.find(a => a.id === p.id);
     if (exists) {
@@ -282,12 +304,18 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   }, [products, accessorySearch]);
 
   const filteredCustomers = useMemo(() => {
+    if (customerSearchQuery.trim().length > 1) {
+      return searchResults;
+    }
     const term = customerSearchQuery.toLowerCase().trim();
-    return systemCustomers.filter(cust => 
-      (cust.name || "").toLowerCase().includes(term) ||
-      (cust.phone || "").includes(term)
-    );
-  }, [systemCustomers, customerSearchQuery]);
+    if (term) {
+      return systemCustomers.filter(cust => 
+        (cust.name || "").toLowerCase().includes(term) ||
+        (cust.phone || "").includes(term)
+      );
+    }
+    return systemCustomers.slice(0, 15);
+  }, [systemCustomers, customerSearchQuery, searchResults]);
 
   const filteredGifts = useMemo(() => {
     const term = giftSearch.toLowerCase().trim();
@@ -444,6 +472,12 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
                       />
                     </div>
                   </div>
+                  {isSearchingCustomers && (
+                    <div className="p-2 text-center text-[10px] text-muted-foreground bg-secondary/5 flex items-center justify-center gap-1.5 border-b border-border/40">
+                      <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                      Đang tìm kiếm...
+                    </div>
+                  )}
 
                   {/* Options List */}
                   <div className="max-h-60 overflow-y-auto p-1 divide-y divide-border/20">
