@@ -28,40 +28,120 @@ export async function GET(req: NextRequest) {
 
     const branchId = getActiveBranchId();
 
-    // 1. Basic Counts
-    const [totalProducts, lowStockCount] = await Promise.all([
-      prisma.product.count({
+    // Declare filters for query parallelization
+    const movementWhere: any = {
+      product: {
+        ...(branchId ? { productBranches: { some: { branchId } } } : {}),
+      },
+    };
+    if (startDate || endDate) {
+      movementWhere.createdAt = {};
+      if (startDate) movementWhere.createdAt.gte = startDate;
+      if (endDate) movementWhere.createdAt.lte = endDate;
+    }
+
+    const exportWhere: any = {
+      type: { in: ["EXPORT", "EXPORT_GIFT"] },
+    };
+    if (branchId) {
+      exportWhere.product = { productBranches: { some: { branchId } } };
+    }
+    if (startDate || endDate) {
+      exportWhere.createdAt = {};
+      if (startDate) exportWhere.createdAt.gte = startDate;
+      if (endDate) exportWhere.createdAt.lte = endDate;
+    }
+
+    // Run all database calls concurrently in a single Promise.all block
+    const [
+      [totalProducts, lowStockCount],
+      rawProducts,
+      recentMovements,
+      exports,
+      giftRequisitions
+    ] = await Promise.all([
+      Promise.all([
+        prisma.product.count({
+          where: {
+            status: "ACTIVE",
+            ...(branchId ? { productBranches: { some: { branchId } } } : {}),
+          },
+        }),
+        prisma.product.count({
+          where: {
+            status: "ACTIVE",
+            productBranches: {
+               some: {
+                  ...(branchId ? { branchId } : {}),
+                  stockCount: { lte: prisma.productBranch.fields.stockMin }
+               }
+            }
+          },
+        }),
+      ]),
+      prisma.product.findMany({
         where: {
           status: "ACTIVE",
           ...(branchId ? { productBranches: { some: { branchId } } } : {}),
         },
-      }),
-      prisma.product.count({
-        where: {
-          status: "ACTIVE",
+        include: {
+          prices: true,
           productBranches: {
-             some: {
-                ...(branchId ? { branchId } : {}),
-                stockCount: { lte: prisma.productBranch.fields.stockMin }
-             }
+            where: branchId ? { branchId } : undefined
           }
         },
       }),
+      prisma.stockMovement.findMany({
+        where: movementWhere,
+        take: 10,
+        orderBy: { id: "desc" },
+        include: {
+          product: {
+            select: { name: true, sku: true, unit: true },
+          },
+        },
+      }),
+      prisma.stockMovement.findMany({
+        where: exportWhere,
+        include: {
+          product: {
+            include: {
+              prices: true,
+            },
+          },
+        },
+      }),
+      prisma.partsRequisition.findMany({
+        where: {
+          vehicleId: { not: null },
+          status: "APPROVED",
+          ...(branchId ? { branchId } : {}),
+          ...(startDate || endDate ? {
+            createdAt: {
+              ...(startDate ? { gte: startDate } : {}),
+              ...(endDate ? { lte: endDate } : {})
+            }
+          } : {})
+        },
+        include: {
+          vehicle: {
+            include: {
+              customer: true
+            }
+          },
+          items: {
+            include: {
+              product: {
+                include: {
+                  prices: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: { id: "desc" }
+      })
     ]);
-
-    // 2. Fetch products for detailed calculations (total stock, total valuation)
-    const rawProducts = await prisma.product.findMany({
-      where: {
-        status: "ACTIVE",
-        ...(branchId ? { productBranches: { some: { branchId } } } : {}),
-      },
-      include: {
-        prices: true,
-        productBranches: {
-          where: branchId ? { branchId } : undefined
-        }
-      },
-    });
 
     const products = rawProducts.map(p => {
        const pb = p.productBranches?.[0];
@@ -119,69 +199,27 @@ export async function GET(req: NextRequest) {
         };
       });
 
-    // 5. Recent stock movements
-    const movementWhere: any = {
-      product: {
-        ...(branchId ? { productBranches: { some: { branchId } } } : {}),
-      },
-    };
-    if (startDate || endDate) {
-      movementWhere.createdAt = {};
-      if (startDate) movementWhere.createdAt.gte = startDate;
-      if (endDate) movementWhere.createdAt.lte = endDate;
-    }
-
-    const recentMovements = await prisma.stockMovement.findMany({
-      where: movementWhere,
-      take: 10,
-      orderBy: { id: "desc" },
-      include: {
-        product: {
-          select: { name: true, sku: true, unit: true },
-        },
-      },
-    });
-
-    // 6. Count all exports (sales, RO parts exports, manual exports, etc.)
-    const exportWhere: any = {
-      type: "EXPORT",
-    };
-    if (branchId) {
-      exportWhere.product = { productBranches: { some: { branchId } } };
-    }
-    if (startDate || endDate) {
-      exportWhere.createdAt = {};
-      if (startDate) exportWhere.createdAt.gte = startDate;
-      if (endDate) exportWhere.createdAt.lte = endDate;
-    }
-
-    const exports = await prisma.stockMovement.findMany({
-      where: exportWhere,
-      include: {
-        product: {
-          include: {
-            prices: true,
-          },
-        },
-      },
-    });
-
     let totalSoldQty = 0;
     let totalSoldAmount = 0;
+    let totalGiftQty = 0;
+    let totalGiftAmount = 0;
 
-    exports.forEach((m) => {
-      totalSoldQty += m.quantity;
-      if (Number(m.totalCost) > 0) {
-        totalSoldAmount += Number(m.totalCost);
-      } else {
-        const retailPrice = m.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
-        totalSoldAmount += m.quantity * Number(retailPrice);
-      }
-    });
-
-    const serializedExports = exports.map(m => {
+    const serializedExports = exports.map((m) => {
       const retailPrice = m.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
       const actualPrice = Number(m.unitCost) > 0 ? Number(m.unitCost) : Number(retailPrice);
+      
+      if (m.type === "EXPORT_GIFT") {
+        totalGiftQty += m.quantity;
+        totalGiftAmount += m.quantity * actualPrice;
+      } else {
+        totalSoldQty += m.quantity;
+        if (Number(m.totalCost) > 0) {
+          totalSoldAmount += Number(m.totalCost);
+        } else {
+          totalSoldAmount += m.quantity * actualPrice;
+        }
+      }
+
       return {
         id: m.id,
         productId: m.productId,
@@ -202,6 +240,36 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const serializedGifts = giftRequisitions.map(r => ({
+      id: r.id,
+      createdAt: r.createdAt,
+      createdBy: r.createdBy,
+      status: r.status,
+      vehicle: r.vehicle ? {
+        id: r.vehicle.id,
+        vin: r.vehicle.vin,
+        model: r.vehicle.model,
+        variant: r.vehicle.variant,
+        color: r.vehicle.color,
+        customerName: r.vehicle.customer?.name || "Không rõ",
+        customerPhone: r.vehicle.customer?.phone || "—"
+      } : null,
+      items: r.items.map(item => {
+        const retailPrice = item.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
+        return {
+          id: item.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          product: {
+            sku: item.product.sku,
+            name: item.product.name,
+            unit: item.product.unit,
+            price: Number(retailPrice)
+          }
+        };
+      })
+    }));
+
     return NextResponse.json({
       totalProducts,
       totalStock,
@@ -212,7 +280,10 @@ export async function GET(req: NextRequest) {
       recentMovements,
       totalSoldQty,
       totalSoldAmount,
+      totalGiftQty,
+      totalGiftAmount,
       exports: serializedExports,
+      giftRequisitions: serializedGifts,
     });
   } catch (error) {
     console.error("Inventory Stats API error:", error);

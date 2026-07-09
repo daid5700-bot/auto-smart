@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
   Sparkles, Receipt, Car, Trash2, ChevronDown
 } from "lucide-react";
-import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
+import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 
 interface Accessory {
@@ -63,6 +63,8 @@ export default function NewDocumentPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
 
   // Wholesale suggestions
   const [showWholesaleSuggestions, setShowWholesaleSuggestions] = useState(false);
@@ -75,11 +77,13 @@ export default function NewDocumentPage() {
   // Metadata: Plate cost & Accessories
   const [plateCost, setPlateCost] = useState("");
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
+  const [giftItems, setGiftItems] = useState<Accessory[]>([]);
   const [rawNotes, setRawNotes] = useState("");
 
   // Accessory search & list
   const [products, setProducts] = useState<any[]>([]);
   const [accessorySearch, setAccessorySearch] = useState("");
+  const [giftSearch, setGiftSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const searchTimeoutRef = useRef<any>(null);
 
@@ -88,10 +92,12 @@ export default function NewDocumentPage() {
   const [wholesaleVehicles, setWholesaleVehicles] = useState<{id:number;vin:string;model:string;variant:string;color:string;listPrice:string}[]>([]);
   const [wholesaleSearch, setWholesaleSearch] = useState("");
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (branchFilterId?: number) => {
     try {
-      const res = await fetch("/api/inventory?limit=100");
-      const data = await res.json();
+      const url = branchFilterId 
+        ? `/api/inventory?limit=100&branchFilter=${branchFilterId}`
+        : "/api/inventory?limit=100";
+      const data = await fetchWithDedup(url);
       setProducts(data.products || []);
     } catch (e) {
       console.error(e);
@@ -100,8 +106,7 @@ export default function NewDocumentPage() {
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch("/api/crm?tab=customers&limit=200&allBranches=true");
-      const data = await res.json();
+      const data = await fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true");
       setSystemCustomers(data.customers || []);
     } catch (e) {
       console.error(e);
@@ -110,8 +115,7 @@ export default function NewDocumentPage() {
 
   const fetchWarehouseVehicles = async () => {
     try {
-      const res = await fetch("/api/sales?limit=1000");
-      const data = await res.json();
+      const data = await fetchWithDedup("/api/sales?limit=1000");
       const filtered = (data.vehicles || []).filter(
         (v: any) => v.status === "AVAILABLE" || v.status === "INCOMING"
       );
@@ -131,6 +135,26 @@ export default function NewDocumentPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (customerSearchQuery.trim().length > 1) {
+      setIsSearchingCustomers(true);
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(customerSearchQuery)}`);
+          const data = await res.json();
+          setSearchResults(data.customers || []);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsSearchingCustomers(false);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setSearchResults([]);
+    }
+  }, [customerSearchQuery]);
 
   const handleAddAccessory = (p: any) => {
     const exists = selectedAccessories.find(a => a.id === p.id);
@@ -157,6 +181,31 @@ export default function NewDocumentPage() {
     );
   };
 
+  const handleAddGiftItem = (p: any) => {
+    const exists = giftItems.find(a => a.id === p.id);
+    if (exists) {
+      setGiftItems(
+        giftItems.map(a => a.id === p.id ? { ...a, quantity: (Number(a.quantity) || 0) + 1 } : a)
+      );
+    } else {
+      const costPrice = p.movingAvgCost || 0;
+      setGiftItems([
+        ...giftItems,
+        { id: p.id, name: p.name, sku: p.sku, price: Number(costPrice), quantity: 1 }
+      ]);
+    }
+  };
+
+  const handleRemoveGiftItem = (id: number) => {
+    setGiftItems(giftItems.filter(a => a.id !== id));
+  };
+
+  const handleUpdateGiftItemQty = (id: number, qty: number | "") => {
+    setGiftItems(
+      giftItems.map(a => a.id === id ? { ...a, quantity: qty === "" ? "" : Math.max(1, qty) } : a)
+    );
+  };
+
   const handleWholesalePhoneChange = (val: string) => {
     setCustomerPhone(val);
     setSelectedCustomerId("");
@@ -166,8 +215,7 @@ export default function NewDocumentPage() {
     if (val.trim().length > 1) {
       searchTimeoutRef.current = setTimeout(async () => {
         try {
-          const res = await fetch(`/api/search/phone?q=${encodeURIComponent(val)}`);
-          const data = await res.json();
+          const data = await fetchWithDedup(`/api/search/phone?q=${encodeURIComponent(val)}`);
           setWholesaleSuggestions(data.customers || []);
           setShowWholesaleSuggestions(true);
         } catch (e) {
@@ -226,6 +274,7 @@ export default function NewDocumentPage() {
         status, bankStatus, plateStatus,
         plateCost: Number(plateCost)||0,
         accessoriesJson: JSON.stringify(selectedAccessories.map(a=>({...a, quantity:Number(a.quantity)||1}))),
+        giftItemsJson: JSON.stringify(giftItems.map(a=>({...a, quantity:Number(a.quantity)||1}))),
         notes: rawNotes, customerName, customerPhone,
         customerBirthday: customerBirthday||undefined,
         customerAddress,
@@ -251,22 +300,55 @@ export default function NewDocumentPage() {
     }
   };
 
-  const filteredAccessories = products.filter(p => 
-    p.name.toLowerCase().includes(accessorySearch.toLowerCase()) ||
-    p.sku.toLowerCase().includes(accessorySearch.toLowerCase())
-  );
+  const filteredAccessories = useMemo(() => {
+    const term = accessorySearch.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  }, [products, accessorySearch]);
 
-  const filteredCustomers = systemCustomers.filter(cust => 
-    (cust.name || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-    (cust.phone || "").includes(customerSearchQuery)
-  );
+  const filteredCustomers = useMemo(() => {
+    if (customerSearchQuery.trim().length > 1) {
+      return searchResults;
+    }
+    const term = customerSearchQuery.toLowerCase().trim();
+    if (term) {
+      return systemCustomers.filter(cust => 
+        (cust.name || "").toLowerCase().includes(term) ||
+        (cust.phone || "").includes(term)
+      );
+    }
+    return systemCustomers.slice(0, 15);
+  }, [systemCustomers, customerSearchQuery, searchResults]);
 
-  const filteredVehicles = warehouseVehicles.filter(v =>
-    (v.model || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
-    (v.vin || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
-    (v.variant || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
-    (v.color || "").toLowerCase().includes(vehSearchQuery.toLowerCase())
-  );
+  const filteredVehicles = useMemo(() => {
+    const term = vehSearchQuery.toLowerCase().trim();
+    return warehouseVehicles.filter(v =>
+      (v.model || "").toLowerCase().includes(term) ||
+      (v.vin || "").toLowerCase().includes(term) ||
+      (v.variant || "").toLowerCase().includes(term) ||
+      (v.color || "").toLowerCase().includes(term)
+    );
+  }, [warehouseVehicles, vehSearchQuery]);
+
+  const filteredWholesaleVehicles = useMemo(() => {
+    const term = wholesaleSearch.toLowerCase().trim();
+    return warehouseVehicles.filter(v =>
+      v.model?.toLowerCase().includes(term) ||
+      v.vin?.toLowerCase().includes(term)
+    );
+  }, [warehouseVehicles, wholesaleSearch]);
+
+  const filteredGifts = useMemo(() => {
+    const term = giftSearch.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  }, [products, giftSearch]);
 
   return (
     <div className="w-full space-y-6 stagger pb-12">
@@ -438,6 +520,9 @@ export default function NewDocumentPage() {
                               setYear((v.year || 2026).toString());
                               setListPrice(v.listPrice ? Number(v.listPrice).toString() : "");
                               setIsVehDropdownOpen(false);
+                              if (v.branchId) {
+                                fetchProducts(v.branchId);
+                              }
                             }} 
                             className={`w-full px-3 py-2 text-left text-xs font-bold rounded-lg flex flex-col hover:bg-secondary/40 ${selectedVehicleId === v.id.toString() ? "bg-primary/10 text-primary" : "text-foreground"}`}
                           >
@@ -475,7 +560,7 @@ export default function NewDocumentPage() {
                       className="w-full pl-8 pr-2 py-1.5 bg-background border border-border/50 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary" />
                   </div>
                   <div className="max-h-[260px] overflow-y-auto space-y-1 pr-1">
-                    {warehouseVehicles.filter(v=>v.model?.toLowerCase().includes(wholesaleSearch.toLowerCase())||v.vin?.toLowerCase().includes(wholesaleSearch.toLowerCase())).map(v=>{
+                    {filteredWholesaleVehicles.map(v=>{
                       if(wholesaleVehicles.some(wv=>wv.id===v.id))return null;
                       return(
                         <div key={v.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-background transition-colors text-xs border border-transparent hover:border-border/50">
@@ -558,6 +643,12 @@ export default function NewDocumentPage() {
                           className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary font-semibold" />
                       </div>
                     </div>
+                    {isSearchingCustomers && (
+                      <div className="p-2 text-center text-[10px] text-muted-foreground bg-secondary/5 flex items-center justify-center gap-1.5 border-b border-border/40">
+                        <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                        Đang tìm kiếm...
+                      </div>
+                    )}
                     <div className="max-h-52 overflow-y-auto p-1 divide-y divide-border/20">
                       {filteredCustomers.length===0
                         ? <div className="px-3 py-3 text-xs text-muted-foreground text-center">Không tìm thấy</div>
@@ -644,8 +735,8 @@ export default function NewDocumentPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground block">Chọn Phụ tùng mua kèm</label>
+            <div className="space-y-2 mt-4">
+              <label className="text-xs font-bold text-muted-foreground block">Chọn Phụ tùng mua kèm (Tính tiền chung)</label>
               <div className="grid grid-cols-2 gap-3">
                 <div className="border border-border rounded-xl p-3 space-y-2 bg-secondary/5">
                   <div className="relative">
@@ -667,7 +758,7 @@ export default function NewDocumentPage() {
                   </div>
                 </div>
                 <div className="border border-border rounded-xl p-3 space-y-2 bg-secondary/5">
-                  <p className="text-xs font-bold text-primary">Danh sách đã chọn:</p>
+                  <p className="text-xs font-bold text-primary">Danh sách mua kèm:</p>
                   <div className="max-h-[150px] overflow-y-auto space-y-1.5">
                     {selectedAccessories.map((a)=>(
                       <div key={a.id} className="flex items-center gap-2 text-xs bg-background p-2 rounded-lg border border-border">
@@ -679,7 +770,48 @@ export default function NewDocumentPage() {
                         <button type="button" onClick={()=>handleRemoveAccessory(a.id)} className="p-1 hover:bg-rose-500/10 text-rose-500 rounded shrink-0"><Trash2 size={13}/></button>
                       </div>
                     ))}
-                    {selectedAccessories.length===0&&<p className="text-xs text-muted-foreground italic text-center py-3">Chưa chọn phụ tùng nào.</p>}
+                    {selectedAccessories.length===0&&<p className="text-xs text-muted-foreground italic text-center py-3">Chưa chọn phụ tùng mua kèm.</p>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 mt-4 pt-4 border-t border-border">
+              <label className="text-xs font-bold text-emerald-600 block flex items-center gap-2">
+                <Sparkles size={14} /> Chọn Quà tặng (Không tính tiền, chờ kho duyệt)
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border border-emerald-500/20 rounded-xl p-3 space-y-2 bg-emerald-500/5">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={13} />
+                    <input type="text" placeholder="Tìm phụ tùng tặng..." value={giftSearch} onChange={(e)=>setGiftSearch(e.target.value)}
+                      className="w-full pl-8 pr-2 py-1.5 bg-background border border-emerald-500/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                  <div className="max-h-[150px] overflow-y-auto space-y-1 divide-y divide-emerald-500/20">
+                    {filteredGifts.map((p)=>{
+                      return (
+                        <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
+                          <div className="flex-1 min-w-0 pr-1"><p className="font-bold text-foreground truncate">{p.name}</p><p className="text-[10px] text-muted-foreground">Tồn: {p.stockCount||0}</p></div>
+                          <button type="button" onClick={()=>handleAddGiftItem(p)} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg shrink-0">Tặng</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="border border-emerald-500/20 rounded-xl p-3 space-y-2 bg-emerald-500/5">
+                  <p className="text-xs font-bold text-emerald-600">Danh sách quà tặng:</p>
+                  <div className="max-h-[150px] overflow-y-auto space-y-1.5">
+                    {giftItems.map((a)=>(
+                      <div key={a.id} className="flex items-center gap-2 text-xs bg-background p-2 rounded-lg border border-emerald-500/20">
+                        <div className="flex-1 min-w-0"><p className="font-bold text-foreground truncate">{a.name}</p><p className="text-[10px] text-muted-foreground">Q.tặng</p></div>
+                        <NumericInput
+                          value={a.quantity}
+                          onChange={(c)=>handleUpdateGiftItemQty(a.id,c===""?"":parseInt(c,10))}
+                          className="w-10 text-center py-0.5 border border-emerald-500/40 rounded bg-secondary/30 text-xs font-bold shrink-0 text-emerald-600" />
+                        <button type="button" onClick={()=>handleRemoveGiftItem(a.id)} className="p-1 hover:bg-rose-500/10 text-rose-500 rounded shrink-0"><Trash2 size={13}/></button>
+                      </div>
+                    ))}
+                    {giftItems.length===0&&<p className="text-xs text-emerald-600/70 italic text-center py-3">Chưa chọn quà tặng nào.</p>}
                   </div>
                 </div>
               </div>
@@ -705,4 +837,3 @@ export default function NewDocumentPage() {
     </div>
   );
 }
-

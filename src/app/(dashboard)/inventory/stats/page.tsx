@@ -7,7 +7,7 @@ import { toast } from "@/lib/toast";
 import {
   Package, DollarSign, AlertTriangle, TrendingUp,
   ArrowUpRight, ArrowDownLeft, Boxes, PieChart,
-  Loader2, RefreshCw, X
+  Loader2, RefreshCw, X, Sparkles
 } from "lucide-react";
 
 export default function InventoryStatsPage() {
@@ -19,6 +19,7 @@ export default function InventoryStatsPage() {
   const [draftStartDate, setDraftStartDate] = useState<string>("");
   const [draftEndDate, setDraftEndDate] = useState<string>("");
   const [showInvoicesModal, setShowInvoicesModal] = useState(false);
+  const [showGiftsModal, setShowGiftsModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
   const lastStatsFetchKey = useRef<string | null>(null);
   const activeStatsRequestId = useRef(0);
@@ -72,7 +73,7 @@ export default function InventoryStatsPage() {
 
   const getReceiptCode = (type: string, dateStr: string) => {
     const cleanDate = dateStr.replace(/\D/g, "").slice(2, 12);
-    const prefix = type === "IMPORT" ? "PN" : type === "EXPORT" ? "PX" : "PK";
+    const prefix = type === "IMPORT" ? "PN" : type === "EXPORT" ? "PX" : type === "EXPORT_GIFT" ? "PQT" : "PK";
     return `${prefix}-${cleanDate}`;
   };
 
@@ -219,7 +220,7 @@ export default function InventoryStatsPage() {
       </div>
 
       {/* Stats Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Tổng mặt hàng */}
         <div className="glass-card rounded-xl p-4 border-l-4 border-l-blue-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
           <div className="flex items-center justify-between">
@@ -319,6 +320,44 @@ export default function InventoryStatsPage() {
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">
             Theo giá bán lẻ (Click xem chi tiết)
+          </p>
+        </div>
+
+        {/* Tổng quà tặng đã xuất */}
+        <div 
+          onClick={() => setShowGiftsModal(true)}
+          className="glass-card rounded-xl p-4 border-l-4 border-l-emerald-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/5 transition-all flex flex-col justify-between cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider group-hover:text-emerald-500 transition-colors">
+              Tổng quà tặng
+            </p>
+            <Sparkles size={14} className="text-emerald-500 group-hover:scale-110 transition-transform" />
+          </div>
+          <p className="text-2xl font-black mt-2 tracking-tight text-emerald-600 dark:text-emerald-400">
+            {data.totalGiftQty || 0}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Tổng sản phẩm tặng (Click xem chi tiết)
+          </p>
+        </div>
+
+        {/* Tổng giá trị quà tặng */}
+        <div 
+          onClick={() => setShowGiftsModal(true)}
+          className="glass-card rounded-xl p-4 border-l-4 border-l-teal-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-teal-500/5 transition-all flex flex-col justify-between cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider group-hover:text-teal-500 transition-colors">
+              Trị giá quà tặng
+            </p>
+            <TrendingUp size={14} className="text-teal-500 group-hover:scale-105 transition-transform" />
+          </div>
+          <p className="text-lg font-black mt-2.5 tracking-tight text-teal-600 dark:text-teal-400 truncate">
+            {formatCurrency(data.totalGiftAmount || 0)}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Tổng trị giá quà tặng đã phát
           </p>
         </div>
       </div>
@@ -553,10 +592,12 @@ export default function InventoryStatsPage() {
 
                     <div className="border-t border-zinc-200 pt-4 flex justify-between items-center">
                       <div className="text-[10px] text-zinc-400 italic">
-                        * Giá bán lẻ tại quầy đã bao gồm thuế.
+                        {selectedReceipt.type === "EXPORT_GIFT" ? "* Sản phẩm quà tặng khuyến mãi 0đ." : "* Giá bán lẻ tại quầy đã bao gồm thuế."}
                       </div>
                       <div className="text-right">
-                        <span className="text-xs text-zinc-500 font-bold uppercase mr-4">Tổng tiền:</span>
+                        <span className="text-xs text-zinc-500 font-bold uppercase mr-4">
+                          {selectedReceipt.type === "EXPORT_GIFT" ? "Trị giá quà tặng:" : "Tổng tiền:"}
+                        </span>
                         <span className="text-base font-black text-zinc-950">{formatCurrency(selectedReceipt.totalAmount)}</span>
                       </div>
                     </div>
@@ -581,7 +622,12 @@ export default function InventoryStatsPage() {
                         const receiptCode = getReceiptCode(r.type, r.createdAt);
                         return (
                           <tr key={r.id} className="hover:bg-primary/[0.02]">
-                            <td className="px-4 py-3 font-mono font-bold text-primary text-xs">{receiptCode}</td>
+                            <td className="px-4 py-3 font-mono font-bold text-primary text-xs flex items-center gap-1.5">
+                              {receiptCode}
+                              {r.type === "EXPORT_GIFT" && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-bold">Quà tặng</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-muted-foreground text-xs">
                               {formatDate(r.createdAt)} {new Date(r.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })}
                             </td>
@@ -622,6 +668,112 @@ export default function InventoryStatsPage() {
                   setShowInvoicesModal(false);
                   setSelectedReceipt(null);
                 }}
+                className="px-4 py-2 bg-secondary border border-border text-foreground rounded-xl text-xs font-bold hover:bg-secondary/80 transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GIFTS MODAL */}
+      {showGiftsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+          <div className="bg-card border border-border w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-emerald-500/5">
+              <div>
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2 text-emerald-600">
+                  <Sparkles size={18} /> Chi tiết Quà tặng bàn giao kèm xe
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {startDate || endDate ? `Thời gian: ${startDate || "..."} đến ${endDate || "..."}` : "Tất cả thời gian"}
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowGiftsModal(false)}
+                className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead className="bg-secondary/40 border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-center">Hồ sơ xe (VIN)</th>
+                      <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-center">Khách hàng</th>
+                      <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-left">Phụ tùng tặng</th>
+                      <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-center">Tổng SL</th>
+                      <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-right">Trị giá quà</th>
+                      <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-center">Ngày duyệt</th>
+                      <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-center">Người duyệt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {(data.giftRequisitions || []).map((req: any) => {
+                      const totalQty = req.items.reduce((acc: number, curr: any) => acc + curr.quantity, 0);
+                      const totalVal = req.items.reduce((acc: number, curr: any) => acc + (curr.quantity * (curr.product?.price || 0)), 0);
+                      return (
+                        <tr key={req.id} className="hover:bg-emerald-500/[0.01]">
+                          <td className="px-4 py-3 text-center">
+                            <p className="font-bold text-foreground">{req.vehicle?.model} {req.vehicle?.variant ? `(${req.vehicle?.variant})` : ""}</p>
+                            <p className="text-[10px] font-mono text-muted-foreground">VIN: {req.vehicle?.vin}</p>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <p className="font-semibold text-foreground">{req.vehicle?.customerName}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono">{req.vehicle?.customerPhone}</p>
+                          </td>
+                          <td className="px-4 py-3 text-left max-w-[320px] whitespace-normal">
+                            <div className="space-y-1">
+                              {req.items.map((item: any) => (
+                                <div key={item.id} className="flex items-center gap-1.5 py-0.5">
+                                  <span className="font-mono text-[9px] bg-emerald-500/10 text-emerald-600 px-1 py-0.2 rounded font-semibold shrink-0">
+                                    {item.product?.sku}
+                                  </span>
+                                  <span className="text-foreground font-medium text-[11px] truncate max-w-[180px]" title={item.product?.name}>
+                                    {item.product?.name}
+                                  </span>
+                                  <span className="text-muted-foreground text-[10px] font-bold shrink-0">
+                                    x{item.quantity} {item.product?.unit}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-xs">{totalQty}</td>
+                          <td className="px-4 py-3 text-right font-bold text-emerald-600 text-xs">
+                            {formatCurrency(totalVal)}
+                          </td>
+                          <td className="px-4 py-3 text-center text-muted-foreground text-xs">
+                            {formatDate(req.createdAt)}
+                          </td>
+                          <td className="px-4 py-3 text-center font-medium text-xs">
+                            {req.createdBy}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {(data.giftRequisitions || []).length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="text-center py-12 text-muted-foreground text-xs italic">
+                          Không tìm thấy hồ sơ quà tặng nào trong khoảng thời gian này.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-border bg-secondary/15 flex justify-end">
+              <button
+                onClick={() => setShowGiftsModal(false)}
                 className="px-4 py-2 bg-secondary border border-border text-foreground rounded-xl text-xs font-bold hover:bg-secondary/80 transition-colors"
               >
                 Đóng

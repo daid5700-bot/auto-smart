@@ -149,21 +149,38 @@ export async function GET(req: NextRequest) {
     let lowStockParts: any[] = [];
     try {
       if (branchId) {
+        const countRes = await prisma.$queryRaw<Array<{count: any}>>`
+          SELECT COUNT(*)::int as count
+          FROM "Product" p
+          JOIN "ProductBranch" pb ON p.id = pb."productId"
+          WHERE pb."stockCount" <= pb."stockMin" AND p.status = 'ACTIVE' AND pb."branchId" = ${branchId}
+        `;
+        lowStockProducts = Number(countRes[0]?.count || 0);
+
         lowStockParts = await prisma.$queryRaw<Array<{id: number, name: string, sku: string, stockCount: number, stockMin: number}>>`
           SELECT p.id, p.name, p.sku, pb."stockCount", pb."stockMin" 
           FROM "Product" p
           JOIN "ProductBranch" pb ON p.id = pb."productId"
           WHERE pb."stockCount" <= pb."stockMin" AND p.status = 'ACTIVE' AND pb."branchId" = ${branchId}
+          LIMIT 5
         `;
       } else {
+        const countRes = await prisma.$queryRaw<Array<{count: any}>>`
+          SELECT COUNT(*)::int as count
+          FROM "Product" p
+          JOIN "ProductBranch" pb ON p.id = pb."productId"
+          WHERE pb."stockCount" <= pb."stockMin" AND p.status = 'ACTIVE'
+        `;
+        lowStockProducts = Number(countRes[0]?.count || 0);
+
         lowStockParts = await prisma.$queryRaw<Array<{id: number, name: string, sku: string, stockCount: number, stockMin: number}>>`
           SELECT p.id, p.name, p.sku, pb."stockCount", pb."stockMin" 
           FROM "Product" p
           JOIN "ProductBranch" pb ON p.id = pb."productId"
           WHERE pb."stockCount" <= pb."stockMin" AND p.status = 'ACTIVE'
+          LIMIT 5
         `;
       }
-      lowStockProducts = lowStockParts.length;
     } catch (e) {
       console.error(e);
     }
@@ -197,20 +214,21 @@ export async function GET(req: NextRequest) {
       previousROsFilter.completedAt = { gte: sixtyDaysAgo, lt: thirtyDaysAgo };
     }
 
-    const [currentROs, previousROs] = await Promise.all([
-      prisma.repairOrder.findMany({
+    const [currentAgg, previousAgg] = await Promise.all([
+      prisma.repairOrder.aggregate({
         where: currentROsFilter,
-        select: { totalAmount: true },
+        _sum: { totalAmount: true },
+        _count: true,
       }),
-      prisma.repairOrder.findMany({
+      prisma.repairOrder.aggregate({
         where: previousROsFilter,
-        select: { totalAmount: true },
+        _sum: { totalAmount: true },
       })
     ]);
 
-    const revenue30Days = currentROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
-    const closedROsCount = currentROs.length;
-    const previous30DaysRevenue = previousROs.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+    const revenue30Days = Number(currentAgg._sum.totalAmount || 0);
+    const closedROsCount = currentAgg._count || 0;
+    const previous30DaysRevenue = Number(previousAgg._sum.totalAmount || 0);
     
     // Calculate trend percentage
     let trendPercentage = 0;
@@ -228,27 +246,35 @@ export async function GET(req: NextRequest) {
       techROWhere.completedAt = { gte: startDate, lte: endDate };
     }
 
-    const techs = await prisma.technician.findMany({
-      where: branchId ? { branchId } : {},
-      include: {
-        repairOrders: {
-          where: {
-            ...techROWhere,
-            isDeleted: false,
-          },
-          select: { totalAmount: true },
-        },
+    const techStats = await prisma.repairOrder.groupBy({
+      by: ["technicianId"],
+      where: {
+        ...techROWhere,
+        isDeleted: false,
+        technicianId: { not: null },
+        ...(branchId ? { branchId } : {}),
       },
+      _sum: { totalAmount: true },
+      _count: { id: true },
     });
 
-    const topKtv = techs.map((t) => {
-      const completedOrders = t.repairOrders.length;
-      const totalRevenue = t.repairOrders.reduce((sum, ro) => sum + Number(ro.totalAmount), 0);
+    const activeTechIds = techStats.map(s => s.technicianId as number);
+    const technicians = await prisma.technician.findMany({
+      where: {
+        id: { in: activeTechIds },
+      },
+      select: { id: true, name: true },
+    });
+
+    const techMap = new Map(technicians.map(t => [t.id, t.name]));
+
+    const topKtv = techStats.map((s) => {
+      const techId = s.technicianId as number;
       return {
-        id: t.id,
-        name: t.name,
-        completedOrders,
-        totalRevenue,
+        id: techId,
+        name: techMap.get(techId) || `KTV #${techId}`,
+        completedOrders: s._count.id,
+        totalRevenue: Number(s._sum.totalAmount || 0),
       };
     }).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 5);
 
@@ -272,7 +298,7 @@ export async function GET(req: NextRequest) {
         ...(branchId ? { branchId } : {}),
       },
       orderBy: { lastVisit: "desc" },
-      take: 10,
+      take: 5,
     });
     const careSchedules = allCustomers.map((c) => {
       const baseDate = c.lastVisit ? new Date(c.lastVisit) : new Date(c.createdAt);
@@ -296,15 +322,24 @@ export async function GET(req: NextRequest) {
     const startRange = startDate || twelveMonthsAgo;
     const endRange = endDate || new Date();
 
-    const allYearROs = await prisma.repairOrder.findMany({
-      where: {
-        status: { in: ["DONE", "DELIVERED"] },
-        completedAt: { gte: startRange, lte: endRange },
-        isDeleted: false,
-        ...(branchId ? { branchId } : {}),
-      },
-      select: { completedAt: true, totalAmount: true },
-    });
+    let monthlyRaw: Array<{ month: Date; total: number | string }> = [];
+    if (branchId) {
+      monthlyRaw = await prisma.$queryRaw`
+        SELECT DATE_TRUNC('month', "completedAt") as month, SUM("totalAmount")::numeric as total
+        FROM "RepairOrder"
+        WHERE status IN ('DONE', 'DELIVERED') AND "isDeleted" = false AND "completedAt" >= ${startRange} AND "completedAt" <= ${endRange} AND "branchId" = ${branchId}
+        GROUP BY DATE_TRUNC('month', "completedAt")
+        ORDER BY month ASC
+      `;
+    } else {
+      monthlyRaw = await prisma.$queryRaw`
+        SELECT DATE_TRUNC('month', "completedAt") as month, SUM("totalAmount")::numeric as total
+        FROM "RepairOrder"
+        WHERE status IN ('DONE', 'DELIVERED') AND "isDeleted" = false AND "completedAt" >= ${startRange} AND "completedAt" <= ${endRange}
+        GROUP BY DATE_TRUNC('month', "completedAt")
+        ORDER BY month ASC
+      `;
+    }
 
     const monthlyRevenue = [];
     if (startDate && endDate) {
@@ -318,12 +353,14 @@ export async function GET(req: NextRequest) {
       while (current <= endLimit) {
         const y = current.getFullYear();
         const m = current.getMonth();
-        const start = new Date(y, m, 1, 0, 0, 0);
-        const end = new Date(y, m + 1, 0, 23, 59, 59);
         const label = `T${m + 1}/${y.toString().slice(-2)}`;
-        const total = allYearROs
-          .filter(ro => ro.completedAt && ro.completedAt >= start && ro.completedAt <= end)
-          .reduce((sum, ro) => sum + Number(ro.totalAmount) / 1000000, 0);
+        
+        const match = monthlyRaw.find(row => {
+          const rowDate = new Date(row.month);
+          return rowDate.getFullYear() === y && rowDate.getMonth() === m;
+        });
+        const total = match ? Number(match.total) / 1000000 : 0;
+        
         monthlyRevenue.push({ label, value: Number(total.toFixed(1)) });
         current.setMonth(current.getMonth() + 1);
       }
@@ -334,12 +371,14 @@ export async function GET(req: NextRequest) {
         d.setMonth(d.getMonth() - i);
         const monthLabel = `T${d.getMonth() + 1}`;
         
-        const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-        const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+        const y = d.getFullYear();
+        const m = d.getMonth();
         
-        const total = allYearROs
-          .filter(ro => ro.completedAt && ro.completedAt >= startOfMonth && ro.completedAt <= endOfMonth)
-          .reduce((sum, ro) => sum + Number(ro.totalAmount) / 1000000, 0);
+        const match = monthlyRaw.find(row => {
+          const rowDate = new Date(row.month);
+          return rowDate.getFullYear() === y && rowDate.getMonth() === m;
+        });
+        const total = match ? Number(match.total) / 1000000 : 0;
         
         monthlyRevenue.push({ label: monthLabel, value: Number(total.toFixed(1)) });
       }

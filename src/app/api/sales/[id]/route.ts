@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { releaseReservedStock, restoreStockOnce, type ReturnSourceItem } from "@/lib/inventory-cancellation";
 
 // Helper to find or upsert a Customer
 async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null, address?: string) {
@@ -50,7 +51,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         id,
         ...(branchId ? { branchId } : {}),
       },
-      include: { customer: true }
+      include: { 
+        customer: true,
+        partsRequisitions: {
+          where: { reason: { contains: "tặng phụ tùng", mode: "insensitive" }, status: { in: ["PENDING", "APPROVED"] } },
+          include: {
+            items: {
+              include: { product: true }
+            }
+          }
+        }
+      }
     });
 
     if (!vehicle) {
@@ -94,7 +105,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const {
       vin, sku, engineNumber, importPrice, importDate, stockCount, branchId: selectBranchId, warehouse,
       model, variant, color, year, status, listPrice, floorPrice, image,
-      bankStatus, plateStatus, plateCost, accessoriesJson, notes,
+      bankStatus, plateStatus, plateCost, accessoriesJson, giftItemsJson, notes,
       customerName, customerPhone, customerBirthday, customerAddress, saleType
     } = body;
 
@@ -297,6 +308,89 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         }
       }
 
+      // Xử lý phụ tùng quà tặng (gift items)
+      if (giftItemsJson !== undefined) {
+        const giftItems = JSON.parse(giftItemsJson || "[]");
+        
+        const allReqs = await tx.partsRequisition.findMany({
+          where: {
+            vehicleId: v.id,
+            reason: { contains: "tặng phụ tùng", mode: "insensitive" }
+          },
+          include: { items: true }
+        });
+        
+        const hasProcessedReq = allReqs.some(r => r.status === "APPROVED" || r.status === "REJECTED");
+        const existingReq = allReqs.find(r => r.status === "PENDING");
+
+        // Chỉ cho phép sửa/tạo/huỷ tự động nếu kho CHƯA duyệt hoặc từ chối phiếu nào
+        if (!hasProcessedReq) {
+          if (giftItems.length > 0) {
+            if (existingReq) {
+              // Revert reservedStock for old items
+              for (const item of existingReq.items) {
+                await tx.productBranch.updateMany({
+                  where: { productId: item.productId, branchId: existingReq.branchId },
+                  data: { reservedStock: { decrement: item.quantity } }
+                });
+              }
+              // Xóa chi tiết cũ và tạo lại
+              await tx.partsRequisitionItem.deleteMany({
+                where: { requisitionId: existingReq.id }
+              });
+              await tx.partsRequisition.update({
+                where: { id: existingReq.id },
+                data: {
+                  items: {
+                    create: giftItems.map((item: any) => ({
+                      productId: item.productId || item.id,
+                      quantity: item.quantity
+                    }))
+                  }
+                }
+              });
+            } else {
+              await tx.partsRequisition.create({
+                data: {
+                  branchId: v.branchId || branchId || 1,
+                  status: "PENDING",
+                  reason: `Quà tặng phụ tùng bán xe VIN: ${v.vin}`,
+                  vehicleId: v.id,
+                  createdBy: "Hệ thống (Bán Xe)",
+                  items: {
+                    create: giftItems.map((item: any) => ({
+                      productId: item.productId || item.id,
+                      quantity: item.quantity
+                    }))
+                  }
+                }
+              });
+            }
+
+            // Tăng reservedStock cho các phụ tùng mới
+            const currentBranchId = existingReq ? existingReq.branchId : (v.branchId || branchId || 1);
+            for (const item of giftItems) {
+              await tx.productBranch.updateMany({
+                where: { productId: item.productId || item.id, branchId: currentBranchId },
+                data: { reservedStock: { increment: Number(item.quantity) || 1 } }
+              });
+            }
+          } else if (existingReq) {
+            await tx.partsRequisition.update({
+              where: { id: existingReq.id },
+              data: { status: "CANCELLED" }
+            });
+            // Revert reservedStock
+            for (const item of existingReq.items) {
+              await tx.productBranch.updateMany({
+                where: { productId: item.productId, branchId: existingReq.branchId },
+                data: { reservedStock: { decrement: item.quantity } }
+              });
+            }
+          }
+        }
+      }
+
       return v;
     });
     return NextResponse.json(vehicle);
@@ -321,6 +415,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     if (!currentVehicle) {
       return NextResponse.json({ error: "Thông tin xe không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
     }
+    if (currentVehicle.status === "CANCELLED") {
+      return NextResponse.json({ success: true, message: "Hồ sơ xe đã được hủy trước đó" });
+    }
 
     await prisma.$transaction(async (tx) => {
       // Revert customer debt and spent if it was sold/reserved
@@ -339,24 +436,86 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         });
       }
 
-      // FIX BIZ-005: Cancel any PENDING accessory export orders for this VIN
-      // so warehouse staff don't accidentally approve stock deduction for a cancelled sale
-      const pendingExportOrder = await tx.inventoryOrder.findFirst({
+      // Cancel or return any accessory export orders for this VIN.
+      const exportOrders = await tx.inventoryOrder.findMany({
         where: {
           reason: `Xuất phụ kiện bán kèm xe VIN: ${currentVehicle.vin}`,
           createdBy: "Hệ thống (Bán Xe)",
-          status: "PENDING",
+          status: { in: ["PENDING", "PAID"] },
         },
+        include: { movements: true },
       });
-      if (pendingExportOrder) {
+      for (const exportOrder of exportOrders) {
+        if (exportOrder.status === "PAID") {
+          await restoreStockOnce(tx, {
+            branchId: exportOrder.branchId || currentVehicle.branchId || branchId || 1,
+            items: exportOrder.movements
+              .filter((movement) => movement.type === "EXPORT")
+              .map((movement) => ({
+                productId: movement.productId,
+                quantity: movement.quantity,
+                unitCost: Number(movement.unitCost || 0),
+              })),
+            reason: `Hoàn kho phụ kiện do hủy hồ sơ xe VIN ${currentVehicle.vin}`,
+            inventoryOrderId: exportOrder.id,
+            createdBy: "system",
+          });
+        }
         await tx.inventoryOrder.update({
-          where: { id: pendingExportOrder.id },
+          where: { id: exportOrder.id },
           data: {
             status: "CANCELLED",
-            reason: `${pendingExportOrder.reason} | Tự động hủy do xe bị hủy hồ sơ`
+            reason: exportOrder.reason?.includes("Tự động hủy do xe bị hủy hồ sơ")
+              ? exportOrder.reason
+              : `${exportOrder.reason} | Tự động hủy do xe bị hủy hồ sơ`
           },
         });
       }
+
+      // Cancel or return gift item requisitions for this vehicle.
+      const giftRequisitions = await tx.partsRequisition.findMany({
+        where: {
+          vehicleId: id,
+          status: { in: ["PENDING", "APPROVED"] },
+          reason: { contains: "tặng phụ tùng", mode: "insensitive" }
+        },
+        include: { items: true }
+      });
+      const giftExportReason = `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${currentVehicle.vin}`;
+      const giftExportMovements = await tx.stockMovement.findMany({
+        where: { type: "EXPORT_GIFT", reason: giftExportReason },
+      });
+      const giftUnitCostByProduct = new Map<number, number>();
+      for (const movement of giftExportMovements) {
+        if (!giftUnitCostByProduct.has(movement.productId)) {
+          giftUnitCostByProduct.set(movement.productId, Number(movement.unitCost || 0));
+        }
+      }
+      const approvedGiftItems: ReturnSourceItem[] = [];
+
+      for (const requisition of giftRequisitions) {
+        if (requisition.status === "PENDING") {
+          await releaseReservedStock(tx, requisition.branchId, requisition.items);
+        } else if (requisition.status === "APPROVED") {
+          approvedGiftItems.push(
+            ...requisition.items.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitCost: giftUnitCostByProduct.get(item.productId) || 0,
+            })),
+          );
+        }
+        await tx.partsRequisition.update({
+          where: { id: requisition.id },
+          data: { status: "REJECTED" }
+        });
+      }
+      await restoreStockOnce(tx, {
+        branchId: currentVehicle.branchId || branchId || 1,
+        items: approvedGiftItems,
+        reason: `Hoàn kho quà tặng do hủy hồ sơ xe VIN ${currentVehicle.vin}`,
+        createdBy: "system",
+      });
 
       await tx.vehicle.update({
         where: { id },

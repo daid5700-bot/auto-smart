@@ -22,7 +22,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               }
             }
           },
-          repairOrder: true
+          repairOrder: true,
+          vehicle: true
         }
       });
 
@@ -98,30 +99,62 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
         const totalPrice = unitPrice * item.quantity;
 
-        // Create OrderItem (để chính thức ghi nhận vào hóa đơn xe của khách)
-        await tx.orderItem.create({
-          data: {
-            repairOrderId: requisition.repairOrderId,
-            productId: product.id,
-            quantity: item.quantity,
-            unitPrice,
-            totalPrice,
+        // Nếu là đơn sửa chữa thì ghi nhận vào hóa đơn
+        if (requisition.repairOrderId) {
+          const existingOrderItem = await tx.orderItem.findFirst({
+            where: {
+              repairOrderId: requisition.repairOrderId,
+              productId: product.id,
+            }
+          });
+          if (!existingOrderItem) {
+            await tx.orderItem.create({
+              data: {
+                repairOrderId: requisition.repairOrderId,
+                productId: product.id,
+                quantity: item.quantity,
+                unitPrice,
+                totalPrice,
+              }
+            });
+          } else if (Number(existingOrderItem.quantity) !== Number(item.quantity) || Number(existingOrderItem.unitPrice) !== Number(unitPrice)) {
+            await tx.orderItem.update({
+              where: { id: existingOrderItem.id },
+              data: {
+                quantity: item.quantity,
+                unitPrice,
+                totalPrice,
+              }
+            });
           }
-        });
 
-        // Create StockMovement (EXPORT)
-        await tx.stockMovement.create({
-          data: {
-            productId: product.id,
-            type: "EXPORT",
-            quantity: item.quantity,
-            unitCost: currentMac || unitPrice,
-            totalCost: (currentMac || unitPrice) * item.quantity,
-            reason: `Xuất kho duyệt phụ tùng cho RO #${requisition.repairOrderId}`,
-            relatedRoId: requisition.repairOrderId,
-            createdBy: "Thủ kho",
-          }
-        });
+          // Create StockMovement (EXPORT)
+          await tx.stockMovement.create({
+            data: {
+              productId: product.id,
+              type: "EXPORT",
+              quantity: item.quantity,
+              unitCost: currentMac || unitPrice,
+              totalCost: (currentMac || unitPrice) * item.quantity,
+              reason: `Xuất kho duyệt phụ tùng cho RO #${requisition.repairOrderId}`,
+              relatedRoId: requisition.repairOrderId,
+              createdBy: "Thủ kho",
+            }
+          });
+        } else if (requisition.vehicleId) {
+          // Nếu là quà tặng xe bán lẻ
+          await tx.stockMovement.create({
+            data: {
+              productId: product.id,
+              type: "EXPORT_GIFT",
+              quantity: item.quantity,
+              unitCost: currentMac || unitPrice,
+              totalCost: (currentMac || unitPrice) * item.quantity,
+              reason: `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${requisition.vehicle?.vin || requisition.vehicleId}`,
+              createdBy: "Thủ kho",
+            }
+          });
+        }
       }
 
       // 3. Update requisition status to APPROVED and clean the reason
@@ -134,22 +167,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
 
       // 4. Recalculate bill for the RepairOrder and Transition status to DOING
-      const roItems = await tx.orderItem.findMany({
-        where: { repairOrderId: requisition.repairOrderId },
-      });
-      const partsCost = roItems.reduce((acc, curr) => acc + Number(curr.totalPrice), 0);
-      const laborCost = Number(requisition.repairOrder.laborCost);
-      const totalAmount = partsCost + laborCost;
+      if (requisition.repairOrderId && requisition.repairOrder) {
+        const roItems = await tx.orderItem.findMany({
+          where: { repairOrderId: requisition.repairOrderId },
+        });
+        const partsCost = roItems.reduce((acc, curr) => acc + Number(curr.totalPrice), 0);
+        const laborCost = Number(requisition.repairOrder.laborCost);
+        const totalAmount = partsCost + laborCost;
 
-      const roStatus = "DOING";
-      await tx.repairOrder.update({
-        where: { id: requisition.repairOrderId },
-        data: { 
-          partsCost,
-          totalAmount,
-          status: roStatus 
-        }
-      });
+        const roStatus = "DOING";
+        await tx.repairOrder.update({
+          where: { id: requisition.repairOrderId },
+          data: { 
+            partsCost,
+            totalAmount,
+            status: roStatus 
+          }
+        });
+      }
 
       return { success: true, branchId: requisition.branchId };
     });

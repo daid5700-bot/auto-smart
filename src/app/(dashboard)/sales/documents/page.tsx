@@ -6,7 +6,7 @@ import {
   Loader2, FileText, Plus, Edit, Trash2, Search, User, 
   Sparkles, Wrench, Check, Car, DollarSign, X, Eye
 } from "lucide-react";
-import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { fetchWithDedup, formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 
 interface Accessory {
@@ -94,8 +94,7 @@ export default function DocumentsPage() {
   const fetchData = async (targetPage = 1, append = false) => {
     try {
       append ? setLoadingMore(true) : setLoading(true);
-      const res = await fetch(`/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}`);
-      const data = await res.json();
+      const data = await fetchWithDedup(`/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}`);
       setVehicles((prev) => append ? [...prev, ...(data.vehicles || [])] : (data.vehicles || []));
       setTotalPages(data.pagination?.totalPages || 1);
       setPage(targetPage);
@@ -469,8 +468,13 @@ export default function DocumentsPage() {
                 const notesText = v.notes || "";
                 return (
                   <tr key={v.id} className="hover:bg-secondary/10 transition-colors">
-                    <td className="p-4 font-mono font-bold text-foreground">
-                      {v.vin}
+                    <td className="p-4">
+                      <div className="font-mono font-bold text-foreground">{v.vin}</div>
+                      {v.createdAt && (
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          Ngày tạo: {new Date(v.createdAt).toLocaleDateString("vi-VN")}
+                        </div>
+                      )}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
@@ -688,6 +692,9 @@ export default function DocumentsPage() {
                     <p className="font-bold text-primary">{selectedVehicle.model} {selectedVehicle.variant ? `(${selectedVehicle.variant})` : ""}</p>
                     <p className="text-xs text-muted-foreground font-mono">VIN: {selectedVehicle.vin}</p>
                     <p className="text-xs mt-1">Màu: <b>{selectedVehicle.color || "Khác"}</b> • Đời: <b>{selectedVehicle.year}</b></p>
+                    {selectedVehicle.createdAt && (
+                      <p className="text-xs mt-1 text-muted-foreground">Ngày tạo hồ sơ: <b>{new Date(selectedVehicle.createdAt).toLocaleString("vi-VN")}</b></p>
+                    )}
                   </div>
                   <div className="pt-2">
                     <span className="text-xs font-semibold mr-2">Trạng thái:</span>
@@ -777,6 +784,45 @@ export default function DocumentsPage() {
                           <span className="text-muted-foreground text-xs">x{a.quantity} ({formatCurrency(Number(a.price))}/cái)</span>
                         </li>
                       ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {selectedVehicle.partsRequisitions && selectedVehicle.partsRequisitions.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Quà tặng phụ tùng đi kèm</p>
+                    {selectedVehicle.partsRequisitions[0].status === "APPROVED" ? (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                        Đã duyệt xuất quà tặng
+                      </span>
+                    ) : selectedVehicle.partsRequisitions[0].status === "PENDING" ? (
+                      <span className="text-[10px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                        Chờ kho duyệt quà tặng
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-rose-500/10 text-rose-600 border border-rose-500/20 px-2 py-1 rounded font-bold uppercase tracking-wider">
+                        Bị từ chối
+                      </span>
+                    )}
+                  </div>
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                    <ul className="space-y-2 text-sm">
+                      {selectedVehicle.partsRequisitions[0].items.map((it: any) => {
+                        const prod = it.product || {};
+                        const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
+                        return (
+                          <li key={it.id} className="flex items-center justify-between">
+                            <span className="font-semibold text-foreground">{prod.name || "Sản phẩm không rõ"}</span>
+                            <div className="text-right">
+                              <span className="text-xs text-muted-foreground">x{it.quantity}</span>
+                              <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1 py-0.5 rounded font-bold ml-1.5 font-sans">Quà tặng (0đ)</span>
+                              <span className="text-[10px] text-zinc-400 font-mono block mt-0.5">({formatCurrency(Number(priceVal))})</span>
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 </div>

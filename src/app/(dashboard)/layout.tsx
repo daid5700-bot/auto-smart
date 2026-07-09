@@ -131,7 +131,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [searchQuery]);
 
   useEffect(() => {
-    if (!isAuth) return;
+    if (!isAuth || !activeBranch?.id) return;
+
+    let socket: globalThis.WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
+    let pollInterval: NodeJS.Timeout;
+    let hasAttemptedInit = false;
+
     const fetchPendingCount = () => {
       fetch("/api/inventory/requisitions/count")
         .then((r) => r.json())
@@ -139,17 +145,68 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .catch((e) => console.error("Error fetching requisitions count:", e));
     };
 
-    const source = new EventSource("/api/inventory/requisitions/stream");
-    source.addEventListener("count", (event) => {
-      const data = JSON.parse((event as MessageEvent).data);
-      setPendingReqCount(Number(data.count) || 0);
-    });
-    source.onerror = () => {
-      source.close();
-      fetchPendingCount();
+    const connectWebSocket = () => {
+      try {
+        const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${proto}//${window.location.hostname}:3001`;
+
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+          console.log("WebSocket connected successfully");
+          if (socket && socket.readyState === socket.OPEN) {
+            socket.send(JSON.stringify({ type: "subscribe", branchId: activeBranch.id }));
+          }
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "count") {
+              setPendingReqCount(Number(data.count) || 0);
+            }
+          } catch (e) {
+            console.error("Error parsing WS message:", e);
+          }
+        };
+
+        socket.onclose = () => {
+          reconnectTimeout = setTimeout(connectWebSocket, 5000);
+        };
+
+        socket.onerror = async () => {
+          // If connection fails, the WebSocket server might not be initialized yet.
+          // Trigger initialization only once to avoid spamming HTTP requests, and fetch count as fallback.
+          if (!hasAttemptedInit) {
+            hasAttemptedInit = true;
+            console.log("WebSocket connection failed, initializing server...");
+            fetch("/api/socket/init")
+              .then(fetchPendingCount)
+              .catch((err) => console.error("Failed to initialize socket server:", err));
+          } else {
+            fetchPendingCount();
+          }
+          socket?.close();
+        };
+
+      } catch (err) {
+        console.error("Failed to connect WebSocket, falling back to HTTP polling:", err);
+        fetchPendingCount();
+        pollInterval = setInterval(fetchPendingCount, 15000);
+      }
     };
 
-    return () => source.close();
+    // Connect websocket
+    connectWebSocket();
+
+    return () => {
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+      }
+      clearTimeout(reconnectTimeout);
+      clearInterval(pollInterval);
+    };
   }, [isAuth, activeBranch?.id]);
 
   if (!hydrated || !user) {

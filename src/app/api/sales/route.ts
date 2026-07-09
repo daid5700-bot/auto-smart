@@ -80,7 +80,17 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
-      include: { customer: true }
+      include: {
+        customer: true,
+        partsRequisitions: {
+          where: { reason: { contains: "tặng phụ tùng", mode: "insensitive" }, status: { in: ["PENDING", "APPROVED"] } },
+          include: {
+            items: {
+              include: { product: true }
+            }
+          }
+        }
+      }
     }),
     prisma.vehicle.count({ where }),
     prisma.vehicle.count({ where: { status: "AVAILABLE", ...(branchId ? { branchId } : {}) } }),
@@ -121,6 +131,8 @@ export async function GET(req: NextRequest) {
       }
     }
   });
+
+
 
   const vehiclesWithExportStatus = vehicles.map(v => ({
     ...v,
@@ -270,6 +282,35 @@ export async function POST(req: NextRequest) {
           }
         });
         pendingExportBranchId = pendingOrder.branchId;
+      }
+
+      // Xử lý quà tặng phụ tùng
+      const giftItems = body.giftItemsJson ? JSON.parse(body.giftItemsJson) : [];
+      if (giftItems.length > 0 && branchId) {
+        await tx.partsRequisition.create({
+          data: {
+            vehicleId: v.id,
+            branchId: branchId,
+            status: "PENDING",
+            reason: `Quà tặng phụ tùng bán xe VIN: ${v.vin}`,
+            createdBy: "Hệ thống (Bán Xe)",
+            items: {
+              create: giftItems.map((item: any) => ({
+                productId: Number(item.productId || item.id),
+                quantity: Number(item.quantity)
+              }))
+            }
+          }
+        });
+        
+        for (const item of giftItems) {
+          await tx.productBranch.updateMany({
+            where: { productId: Number(item.productId || item.id), branchId },
+            data: { reservedStock: { increment: Number(item.quantity) || 1 } }
+          });
+        }
+        
+        pendingExportBranchId = branchId;
       }
 
       return v;

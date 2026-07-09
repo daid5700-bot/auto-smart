@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       address: true,
       birthday: true,
       loyaltyPoints: true,
+      vehiclePlates: true,
     };
 
     if (type === "workshop") {
@@ -62,6 +63,7 @@ export async function GET(req: NextRequest) {
         address: c.address,
         birthday: c.birthday,
         loyaltyPoints: c.loyaltyPoints,
+        vehiclePlates: c.vehiclePlates || [],
       };
 
       if (type === "workshop" && c.repairOrders && c.repairOrders.length > 0) {
