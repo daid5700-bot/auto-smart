@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { releaseReservedStock, restoreStockOnce, type ReturnSourceItem } from "@/lib/inventory-cancellation";
+import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
 // Helper to find or upsert a Customer
 async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null, address?: string) {
@@ -170,6 +171,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     updateData.debtAmount = newDebtAmount;
 
+    let requisitionEventBranchId: number | null | undefined = null;
+
     const vehicle = await prisma.$transaction(async (tx) => {
       // 1. Calculate old amounts
       const oldAccessories = JSON.parse(currentVehicle.accessoriesJson || "[]");
@@ -266,7 +269,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
           const orderCode = `PKX-${dateStr}-${randomStr}`;
 
-          await tx.inventoryOrder.create({
+          const pendingOrder = await tx.inventoryOrder.create({
             data: {
               code: orderCode,
               customerId: v.customerId,
@@ -280,9 +283,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               createdBy: "Hệ thống (Bán Xe)",
             }
           });
+          requisitionEventBranchId = pendingOrder.branchId;
         } else if (existingOrder.status !== "PAID") {
           // If already exists but not paid, update status to PENDING and update totalAmount
-          await tx.inventoryOrder.update({
+          const pendingOrder = await tx.inventoryOrder.update({
             where: { id: existingOrder.id },
             data: {
               status: "PENDING",
@@ -291,6 +295,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               customerId: v.customerId,
             }
           });
+          requisitionEventBranchId = pendingOrder.branchId;
         }
       } else {
         // If they updated the vehicle and removed all accessories, cancel the pending order if any
@@ -301,10 +306,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           }
         });
         if (existingOrder && existingOrder.status === "PENDING") {
-          await tx.inventoryOrder.update({
+          const cancelledOrder = await tx.inventoryOrder.update({
             where: { id: existingOrder.id },
             data: { status: "CANCELLED", reason: `${existingOrder.reason} | Hủy do xóa hết phụ kiện` }
           });
+          requisitionEventBranchId = cancelledOrder.branchId;
         }
       }
 
@@ -327,6 +333,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (!hasProcessedReq) {
           if (giftItems.length > 0) {
             if (existingReq) {
+              requisitionEventBranchId = existingReq.branchId;
               // Revert reservedStock for old items
               for (const item of existingReq.items) {
                 await tx.productBranch.updateMany({
@@ -350,7 +357,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                 }
               });
             } else {
-              await tx.partsRequisition.create({
+              const requisition = await tx.partsRequisition.create({
                 data: {
                   branchId: v.branchId || branchId || 1,
                   status: "PENDING",
@@ -365,6 +372,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                   }
                 }
               });
+              requisitionEventBranchId = requisition.branchId;
             }
 
             // Tăng reservedStock cho các phụ tùng mới
@@ -380,6 +388,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               where: { id: existingReq.id },
               data: { status: "CANCELLED" }
             });
+            requisitionEventBranchId = existingReq.branchId;
             // Revert reservedStock
             for (const item of existingReq.items) {
               await tx.productBranch.updateMany({
@@ -393,6 +402,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
       return v;
     });
+    notifyRequisitionCountChanged(requisitionEventBranchId);
     return NextResponse.json(vehicle);
   } catch (error: any) {
     console.error("PATCH /api/sales/[id] error details:", error);
@@ -418,6 +428,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     if (currentVehicle.status === "CANCELLED") {
       return NextResponse.json({ success: true, message: "Hồ sơ xe đã được hủy trước đó" });
     }
+
+    let requisitionEventBranchId: number | null | undefined = null;
 
     await prisma.$transaction(async (tx) => {
       // Revert customer debt and spent if it was sold/reserved
@@ -445,6 +457,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         },
         include: { movements: true },
       });
+      if (exportOrders.length > 0) {
+        requisitionEventBranchId = exportOrders[0].branchId || currentVehicle.branchId || branchId;
+      }
       for (const exportOrder of exportOrders) {
         if (exportOrder.status === "PAID") {
           await restoreStockOnce(tx, {
@@ -481,6 +496,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         },
         include: { items: true }
       });
+      if (giftRequisitions.length > 0) {
+        requisitionEventBranchId = giftRequisitions[0].branchId;
+      }
       const giftExportReason = `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${currentVehicle.vin}`;
       const giftExportMovements = await tx.stockMovement.findMany({
         where: { type: "EXPORT_GIFT", reason: giftExportReason },
@@ -525,6 +543,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         }
       });
     });
+    notifyRequisitionCountChanged(requisitionEventBranchId);
     return NextResponse.json({ success: true, message: "Đã hủy (xóa mềm) hồ sơ xe thành công" });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
