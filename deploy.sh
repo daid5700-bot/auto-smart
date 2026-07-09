@@ -12,7 +12,7 @@ git pull
 
 echo "🐳 Step 2: Rebuilding and restarting Docker containers..."
 # Rebuild the next.js app image and restart all services (app + db) in detached mode
-docker compose up -d --build
+docker-compose up -d --build
 
 echo "=================================================="
 echo "🎉 DOCKER DEPLOYMENT COMPLETED SUCCESSFULLY! 🎉"

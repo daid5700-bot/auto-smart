@@ -20,23 +20,66 @@ if (!globalForRequisitionEvents.requisitionEvents) {
 }
 
 export async function getPendingRequisitionCount(branchId: number) {
-  const [partsRequisitionCount, vehicleAccessoryExportCount] = await Promise.all([
-    prisma.partsRequisition.count({
-      where: {
-        branchId,
-        status: "PENDING",
+  const pendingRequisitions = await prisma.partsRequisition.findMany({
+    where: {
+      branchId,
+      status: "PENDING",
+    },
+    select: {
+      repairOrderId: true,
+      vehicleId: true,
+      vehicle: {
+        select: {
+          vin: true,
+        },
       },
-    }),
-    prisma.inventoryOrder.count({
-      where: {
-        branchId,
-        status: "PENDING",
-        createdBy: "Hệ thống (Bán Xe)",
-      },
-    }),
-  ]);
+    },
+  });
 
-  return partsRequisitionCount + vehicleAccessoryExportCount;
+  const pendingVehicleOrders = await prisma.inventoryOrder.findMany({
+    where: {
+      branchId,
+      status: "PENDING",
+      createdBy: "Hệ thống (Bán Xe)",
+    },
+    select: {
+      id: true,
+      reason: true,
+    },
+  });
+
+  // Workshop requisitions are displayed on the Workshop tab
+  const workshopReqs = pendingRequisitions.filter(r => r.repairOrderId !== null);
+  const pendingWorkshopCount = workshopReqs.length;
+
+  // Vehicle accessory exports (paid & gifts) are displayed on the Vehicle tab
+  const giftReqs = pendingRequisitions.filter(r => r.vehicleId !== null);
+
+  const uniqueVins = new Set<string>();
+  let noVinCount = 0;
+
+  for (const order of pendingVehicleOrders) {
+    const vinMatch = order.reason?.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
+    const vin = vinMatch ? vinMatch[1].trim() : null;
+    if (vin) {
+      uniqueVins.add(vin);
+    } else {
+      noVinCount++;
+    }
+  }
+
+  for (const gift of giftReqs) {
+    const vin = gift.vehicle?.vin;
+    if (vin) {
+      uniqueVins.add(vin);
+    } else {
+      noVinCount++;
+    }
+  }
+
+  const pendingVehicleCount = uniqueVins.size + noVinCount;
+
+  return pendingWorkshopCount + pendingVehicleCount;
 }
 
 export function notifyRequisitionCountChanged(branchId: number | null | undefined) {
