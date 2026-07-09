@@ -25,11 +25,9 @@ jobs:
             # 1. Di chuyển vào thư mục dự án trên VPS
             cd ~/auto-smart
             
-            # 2. Kéo code mới nhất từ git về
-            git pull origin main
+            # 2. Cấp quyền thực thi và chạy file deploy tự động
+            chmod +x ./deploy.sh
+            ./deploy.sh
             
-            # 3. Build lại Docker và khởi động lại ngầm
-            docker-compose up -d --build
-            
-            # 4. Xóa các file build cũ/rác của Docker để VPS không bị đầy ổ cứng
+            # 3. Xóa các file build cũ/rác của Docker để VPS không bị đầy ổ cứng
             docker image prune -f
