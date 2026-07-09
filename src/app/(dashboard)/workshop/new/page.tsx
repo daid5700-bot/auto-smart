@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown, X, User } from "lucide-react";
 import Link from "next/link";
@@ -307,10 +307,13 @@ export default function NewRepairOrderPage() {
   };
 
   // Filter products based on query
-  const filteredProducts = products.filter((p) => {
-    const term = searchQuery.toLowerCase();
-    return p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term);
-  });
+  const filteredProducts = useMemo(() => {
+    const term = searchQuery.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter((p) => {
+      return p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term);
+    });
+  }, [products, searchQuery]);
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
@@ -90,9 +90,12 @@ export default function NewDocumentPage() {
   const [wholesaleVehicles, setWholesaleVehicles] = useState<{id:number;vin:string;model:string;variant:string;color:string;listPrice:string}[]>([]);
   const [wholesaleSearch, setWholesaleSearch] = useState("");
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (branchFilterId?: number) => {
     try {
-      const data = await fetchWithDedup("/api/inventory?limit=100");
+      const url = branchFilterId 
+        ? `/api/inventory?limit=100&branchFilter=${branchFilterId}`
+        : "/api/inventory?limit=100";
+      const data = await fetchWithDedup(url);
       setProducts(data.products || []);
     } catch (e) {
       console.error(e);
@@ -275,22 +278,49 @@ export default function NewDocumentPage() {
     }
   };
 
-  const filteredAccessories = products.filter(p => 
-    p.name.toLowerCase().includes(accessorySearch.toLowerCase()) ||
-    p.sku.toLowerCase().includes(accessorySearch.toLowerCase())
-  );
+  const filteredAccessories = useMemo(() => {
+    const term = accessorySearch.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  }, [products, accessorySearch]);
 
-  const filteredCustomers = systemCustomers.filter(cust => 
-    (cust.name || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-    (cust.phone || "").includes(customerSearchQuery)
-  );
+  const filteredCustomers = useMemo(() => {
+    const term = customerSearchQuery.toLowerCase().trim();
+    return systemCustomers.filter(cust => 
+      (cust.name || "").toLowerCase().includes(term) ||
+      (cust.phone || "").includes(term)
+    );
+  }, [systemCustomers, customerSearchQuery]);
 
-  const filteredVehicles = warehouseVehicles.filter(v =>
-    (v.model || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
-    (v.vin || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
-    (v.variant || "").toLowerCase().includes(vehSearchQuery.toLowerCase()) ||
-    (v.color || "").toLowerCase().includes(vehSearchQuery.toLowerCase())
-  );
+  const filteredVehicles = useMemo(() => {
+    const term = vehSearchQuery.toLowerCase().trim();
+    return warehouseVehicles.filter(v =>
+      (v.model || "").toLowerCase().includes(term) ||
+      (v.vin || "").toLowerCase().includes(term) ||
+      (v.variant || "").toLowerCase().includes(term) ||
+      (v.color || "").toLowerCase().includes(term)
+    );
+  }, [warehouseVehicles, vehSearchQuery]);
+
+  const filteredWholesaleVehicles = useMemo(() => {
+    const term = wholesaleSearch.toLowerCase().trim();
+    return warehouseVehicles.filter(v =>
+      v.model?.toLowerCase().includes(term) ||
+      v.vin?.toLowerCase().includes(term)
+    );
+  }, [warehouseVehicles, wholesaleSearch]);
+
+  const filteredGifts = useMemo(() => {
+    const term = giftSearch.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  }, [products, giftSearch]);
 
   return (
     <div className="w-full space-y-6 stagger pb-12">
@@ -462,6 +492,9 @@ export default function NewDocumentPage() {
                               setYear((v.year || 2026).toString());
                               setListPrice(v.listPrice ? Number(v.listPrice).toString() : "");
                               setIsVehDropdownOpen(false);
+                              if (v.branchId) {
+                                fetchProducts(v.branchId);
+                              }
                             }} 
                             className={`w-full px-3 py-2 text-left text-xs font-bold rounded-lg flex flex-col hover:bg-secondary/40 ${selectedVehicleId === v.id.toString() ? "bg-primary/10 text-primary" : "text-foreground"}`}
                           >
@@ -499,7 +532,7 @@ export default function NewDocumentPage() {
                       className="w-full pl-8 pr-2 py-1.5 bg-background border border-border/50 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary" />
                   </div>
                   <div className="max-h-[260px] overflow-y-auto space-y-1 pr-1">
-                    {warehouseVehicles.filter(v=>v.model?.toLowerCase().includes(wholesaleSearch.toLowerCase())||v.vin?.toLowerCase().includes(wholesaleSearch.toLowerCase())).map(v=>{
+                    {filteredWholesaleVehicles.map(v=>{
                       if(wholesaleVehicles.some(wv=>wv.id===v.id))return null;
                       return(
                         <div key={v.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-background transition-colors text-xs border border-transparent hover:border-border/50">
@@ -721,7 +754,7 @@ export default function NewDocumentPage() {
                       className="w-full pl-8 pr-2 py-1.5 bg-background border border-emerald-500/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
                   <div className="max-h-[150px] overflow-y-auto space-y-1 divide-y divide-emerald-500/20">
-                    {products.filter(p => p.name.toLowerCase().includes(giftSearch.toLowerCase()) || p.sku.toLowerCase().includes(giftSearch.toLowerCase())).map((p)=>{
+                    {filteredGifts.map((p)=>{
                       return (
                         <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
                           <div className="flex-1 min-w-0 pr-1"><p className="font-bold text-foreground truncate">{p.name}</p><p className="text-[10px] text-muted-foreground">Tồn: {p.stockCount||0}</p></div>

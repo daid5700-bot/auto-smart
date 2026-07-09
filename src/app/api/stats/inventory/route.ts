@@ -168,14 +168,22 @@ export async function GET(req: NextRequest) {
 
     let totalSoldQty = 0;
     let totalSoldAmount = 0;
+    let totalGiftQty = 0;
+    let totalGiftAmount = 0;
 
     exports.forEach((m) => {
-      totalSoldQty += m.quantity;
-      if (Number(m.totalCost) > 0) {
-        totalSoldAmount += Number(m.totalCost);
-      } else {
+      if (m.type === "EXPORT_GIFT") {
+        totalGiftQty += m.quantity;
         const retailPrice = m.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
-        totalSoldAmount += m.quantity * Number(retailPrice);
+        totalGiftAmount += m.quantity * Number(retailPrice);
+      } else {
+        totalSoldQty += m.quantity;
+        if (Number(m.totalCost) > 0) {
+          totalSoldAmount += Number(m.totalCost);
+        } else {
+          const retailPrice = m.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
+          totalSoldAmount += m.quantity * Number(retailPrice);
+        }
       }
     });
 
@@ -202,6 +210,67 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const giftRequisitions = await prisma.partsRequisition.findMany({
+      where: {
+        vehicleId: { not: null },
+        status: "APPROVED",
+        ...(branchId ? { branchId } : {}),
+        ...(startDate || endDate ? {
+          createdAt: {
+            ...(startDate ? { gte: startDate } : {}),
+            ...(endDate ? { lte: endDate } : {})
+          }
+        } : {})
+      },
+      include: {
+        vehicle: {
+          include: {
+            customer: true
+          }
+        },
+        items: {
+          include: {
+            product: {
+              include: {
+                prices: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { id: "desc" }
+    });
+
+    const serializedGifts = giftRequisitions.map(r => ({
+      id: r.id,
+      createdAt: r.createdAt,
+      createdBy: r.createdBy,
+      status: r.status,
+      vehicle: r.vehicle ? {
+        id: r.vehicle.id,
+        vin: r.vehicle.vin,
+        model: r.vehicle.model,
+        variant: r.vehicle.variant,
+        color: r.vehicle.color,
+        customerName: r.vehicle.customer?.name || "Không rõ",
+        customerPhone: r.vehicle.customer?.phone || "—"
+      } : null,
+      items: r.items.map(item => {
+        const retailPrice = item.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
+        return {
+          id: item.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          product: {
+            sku: item.product.sku,
+            name: item.product.name,
+            unit: item.product.unit,
+            price: Number(retailPrice)
+          }
+        };
+      })
+    }));
+
     return NextResponse.json({
       totalProducts,
       totalStock,
@@ -212,7 +281,10 @@ export async function GET(req: NextRequest) {
       recentMovements,
       totalSoldQty,
       totalSoldAmount,
+      totalGiftQty,
+      totalGiftAmount,
       exports: serializedExports,
+      giftRequisitions: serializedGifts,
     });
   } catch (error) {
     console.error("Inventory Stats API error:", error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
@@ -62,6 +62,8 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const [plateCost, setPlateCost] = useState("");
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
   const [giftItems, setGiftItems] = useState<Accessory[]>([]);
+  const [isGiftLocked, setIsGiftLocked] = useState(false);
+  const [isAccLocked, setIsAccLocked] = useState(false);
   const [rawNotes, setRawNotes] = useState("");
 
   // Accessory search & list
@@ -83,19 +85,21 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const fetchVehicleAndData = async () => {
     try {
       setLoading(true);
-      // Fetch products, customers, and the specific vehicle in parallel
-      const [productsData, customersData, vehicle] = await Promise.all([
-        fetchWithDedup("/api/inventory?limit=100"),
-        fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true"),
-        fetchWithDedup(`/api/sales/${vehicleId}`)
-      ]);
-
-      setProducts(productsData.products || []);
-
-      const loadedCustomers = customersData.customers || [];
-      setSystemCustomers(loadedCustomers);
+      // Fetch the specific vehicle first to get its branchId
+      const vehicle = await fetchWithDedup(`/api/sales/${vehicleId}`);
 
       if (vehicle) {
+        // Fetch products filtering by vehicle's branch, and customers
+        const [productsData, customersData] = await Promise.all([
+          fetchWithDedup(`/api/inventory?limit=100&branchFilter=${vehicle.branchId || ""}`),
+          fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true")
+        ]);
+
+        setProducts(productsData.products || []);
+
+        const loadedCustomers = customersData.customers || [];
+        setSystemCustomers(loadedCustomers);
+
         setVin(vehicle.vin || "");
         setModel(vehicle.model || "");
         setVariant(vehicle.variant || "");
@@ -127,9 +131,20 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
         setPlateCost(plateCostVal > 0 ? plateCostVal.toString() : "");
         setSelectedAccessories(parseAccessories(vehicle.accessoriesJson));
         
+        // Check lock status for accessories
+        if (vehicle.accessoriesExportStatus === "PAID") {
+          setIsAccLocked(true);
+        }
+
         // Extract gift items from partsRequisitions if available
         if (vehicle.partsRequisitions && vehicle.partsRequisitions.length > 0) {
           const req = vehicle.partsRequisitions[0];
+          
+          // Lock if requisition is APPROVED or REJECTED
+          if (req.status === "APPROVED" || req.status === "REJECTED") {
+            setIsGiftLocked(true);
+          }
+
           const mappedGifts = req.items.map((item: any) => ({
             id: item.product.id,
             name: item.product.name,
@@ -257,15 +272,31 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     }
   };
 
-  const filteredAccessories = products.filter(p => 
-    p.name.toLowerCase().includes(accessorySearch.toLowerCase()) ||
-    p.sku.toLowerCase().includes(accessorySearch.toLowerCase())
-  );
+  const filteredAccessories = useMemo(() => {
+    const term = accessorySearch.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  }, [products, accessorySearch]);
 
-  const filteredCustomers = systemCustomers.filter(cust => 
-    (cust.name || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-    (cust.phone || "").includes(customerSearchQuery)
-  );
+  const filteredCustomers = useMemo(() => {
+    const term = customerSearchQuery.toLowerCase().trim();
+    return systemCustomers.filter(cust => 
+      (cust.name || "").toLowerCase().includes(term) ||
+      (cust.phone || "").includes(term)
+    );
+  }, [systemCustomers, customerSearchQuery]);
+
+  const filteredGifts = useMemo(() => {
+    const term = giftSearch.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  }, [products, giftSearch]);
 
   if (loading) {
     return (
@@ -579,152 +610,204 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
 
           {/* Accessories Selection */}
           <div className="space-y-3 pt-2">
-            <label className="text-xs font-bold text-muted-foreground block">Chọn Phụ tùng mua kèm</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-muted-foreground block">Chọn Phụ tùng mua kèm</label>
+              {isAccLocked && (
+                <span className="text-[10px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-2 py-0.5 rounded font-bold uppercase">
+                  Đã duyệt xuất kho
+                </span>
+              )}
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Left Column: Selection List */}
-              <div className="border border-border rounded-xl p-4 space-y-3 bg-secondary/5">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                  <input
-                    type="text"
-                    placeholder="Tìm phụ tùng..."
-                    value={accessorySearch}
-                    onChange={(e) => setAccessorySearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div className="max-h-[160px] overflow-y-auto space-y-1.5 divide-y divide-border/60">
-                  {filteredAccessories.map((p) => {
-                    const price = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
-                    return (
-                      <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
-                        <div>
-                          <p className="font-bold text-foreground">{p.name}</p>
-                          <p className="text-[10px] text-muted-foreground">{p.sku} • {formatCurrency(price)}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleAddAccessory(p)}
-                          className="px-2 py-1 bg-primary text-white text-[10px] font-bold rounded-lg hover:scale-105 active:scale-95 transition-all"
-                        >
-                          Chọn
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {filteredAccessories.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic text-center py-4">Không tìm thấy phụ tùng phù hợp.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Column: Selected list */}
-              <div className="border border-border rounded-xl p-4 space-y-3 bg-secondary/5">
-                <p className="text-xs font-bold text-primary">Danh sách đã chọn:</p>
-                <div className="max-h-[160px] overflow-y-auto space-y-2">
+            {isAccLocked ? (
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-4 space-y-3">
+                <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                  * Bộ phận kho đã phê duyệt hoặc xuất kho cho đơn phụ kiện này. Danh sách phụ kiện mua kèm hiện đã bị khóa và không thể chỉnh sửa.
+                </p>
+                <div className="bg-background rounded-xl p-3 border border-border max-h-[160px] overflow-y-auto space-y-2">
                   {selectedAccessories.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between text-xs bg-background p-2 rounded-lg border border-border">
-                      <div className="flex-1 min-w-0 pr-2">
-                        <p className="font-bold text-foreground truncate">{a.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{formatCurrency(a.price)}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <NumericInput
-                          value={a.quantity}
-                          onChange={(c) => handleUpdateAccessoryQty(a.id, c === "" ? "" : parseInt(c, 10))}
-                          className="w-12 text-center py-0.5 border border-border rounded bg-secondary/30 text-xs font-bold"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAccessory(a.id)}
-                          className="p-1 hover:bg-rose-500/10 text-rose-500 rounded transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                    <div key={a.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-secondary/10">
+                      <span className="font-bold text-foreground truncate">{a.name}</span>
+                      <span className="text-muted-foreground text-xs font-bold shrink-0">x{a.quantity} ({formatCurrency(a.price)})</span>
                     </div>
                   ))}
                   {selectedAccessories.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic text-center py-4">Chưa chọn phụ tùng mua kèm.</p>
+                    <p className="text-xs text-muted-foreground italic text-center py-2">Không có phụ tùng mua kèm nào.</p>
                   )}
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Left Column: Selection List */}
+                <div className="border border-border rounded-xl p-4 space-y-3 bg-secondary/5">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                    <input
+                      type="text"
+                      placeholder="Tìm phụ tùng..."
+                      value={accessorySearch}
+                      onChange={(e) => setAccessorySearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="max-h-[160px] overflow-y-auto space-y-1.5 divide-y divide-border/60">
+                    {filteredAccessories.map((p) => {
+                      const price = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
+                      return (
+                        <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
+                          <div>
+                            <p className="font-bold text-foreground">{p.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{p.sku} • {formatCurrency(price)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAddAccessory(p)}
+                            className="px-2 py-1 bg-primary text-white text-[10px] font-bold rounded-lg hover:scale-105 active:scale-95 transition-all"
+                          >
+                            Chọn
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {filteredAccessories.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic text-center py-4">Không tìm thấy phụ tùng phù hợp.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column: Selected list */}
+                <div className="border border-border rounded-xl p-4 space-y-3 bg-secondary/5">
+                  <p className="text-xs font-bold text-primary">Danh sách đã chọn:</p>
+                  <div className="max-h-[160px] overflow-y-auto space-y-2">
+                    {selectedAccessories.map((a) => (
+                      <div key={a.id} className="flex items-center justify-between text-xs bg-background p-2 rounded-lg border border-border">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <p className="font-bold text-foreground truncate">{a.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{formatCurrency(a.price)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <NumericInput
+                            value={a.quantity}
+                            onChange={(c) => handleUpdateAccessoryQty(a.id, c === "" ? "" : parseInt(c, 10))}
+                            className="w-12 text-center py-0.5 border border-border rounded bg-secondary/30 text-xs font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAccessory(a.id)}
+                            className="p-1 hover:bg-rose-500/10 text-rose-500 rounded transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedAccessories.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic text-center py-4">Chưa chọn phụ tùng mua kèm.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3 pt-4 border-t border-border">
-            <label className="text-xs font-bold text-emerald-600 block flex items-center gap-2">
-              <Sparkles size={14} /> Chọn Quà tặng (Không tính tiền, chờ kho duyệt)
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-emerald-600 block flex items-center gap-2">
+                <Sparkles size={14} /> Chọn Quà tặng (Không tính tiền, chờ kho duyệt)
+              </label>
+              {isGiftLocked && (
+                <span className="text-[10px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-2 py-0.5 rounded font-bold uppercase">
+                  Đã duyệt/từ chối quà tặng
+                </span>
+              )}
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border border-emerald-500/20 rounded-xl p-4 space-y-3 bg-emerald-500/5">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                  <input
-                    type="text"
-                    placeholder="Tìm phụ tùng tặng..."
-                    value={giftSearch}
-                    onChange={(e) => setGiftSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-background border border-emerald-500/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-                <div className="max-h-[160px] overflow-y-auto space-y-1.5 divide-y divide-emerald-500/20">
-                  {products.filter(p => p.name.toLowerCase().includes(giftSearch.toLowerCase()) || p.sku.toLowerCase().includes(giftSearch.toLowerCase())).map((p) => {
-                    return (
-                      <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
-                        <div>
-                          <p className="font-bold text-foreground">{p.name}</p>
-                          <p className="text-[10px] text-muted-foreground">Tồn: {p.stockCount||0}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleAddGiftItem(p)}
-                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg hover:scale-105 active:scale-95 transition-all"
-                        >
-                          Tặng
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {products.filter(p => p.name.toLowerCase().includes(giftSearch.toLowerCase()) || p.sku.toLowerCase().includes(giftSearch.toLowerCase())).length === 0 && (
-                    <p className="text-xs text-muted-foreground italic text-center py-4">Không tìm thấy phụ tùng phù hợp.</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="border border-emerald-500/20 rounded-xl p-4 space-y-3 bg-emerald-500/5">
-                <p className="text-xs font-bold text-emerald-600">Danh sách quà tặng:</p>
-                <div className="max-h-[160px] overflow-y-auto space-y-2">
+            {isGiftLocked ? (
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-4 space-y-3">
+                <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                  * Bộ phận kho đã phê duyệt hoặc từ chối phiếu quà tặng này. Danh sách quà tặng hiện đã bị khóa và không thể chỉnh sửa từ hồ sơ xe.
+                </p>
+                <div className="bg-background rounded-xl p-3 border border-emerald-500/10 max-h-[160px] overflow-y-auto space-y-2">
                   {giftItems.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between text-xs bg-background p-2 rounded-lg border border-emerald-500/20">
-                      <div className="flex-1 min-w-0 pr-2">
-                        <p className="font-bold text-foreground truncate">{a.name}</p>
-                        <p className="text-[10px] text-muted-foreground">Quà tặng</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <NumericInput
-                          value={a.quantity}
-                          onChange={(c) => handleUpdateGiftItemQty(a.id, c === "" ? "" : parseInt(c, 10))}
-                          className="w-12 text-center py-0.5 border border-emerald-500/40 rounded bg-secondary/30 text-xs font-bold text-emerald-600"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveGiftItem(a.id)}
-                          className="p-1 hover:bg-rose-500/10 text-rose-500 rounded transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                    <div key={a.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                      <span className="font-bold text-foreground truncate">{a.name}</span>
+                      <span className="text-emerald-600 text-xs font-bold shrink-0">x{a.quantity} (Quà tặng)</span>
                     </div>
                   ))}
                   {giftItems.length === 0 && (
-                    <p className="text-xs text-emerald-600/70 italic text-center py-4">Chưa chọn quà tặng nào.</p>
+                    <p className="text-xs text-emerald-600/70 italic text-center py-2">Không có quà tặng nào.</p>
                   )}
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border border-emerald-500/20 rounded-xl p-4 space-y-3 bg-emerald-500/5">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                    <input
+                      type="text"
+                      placeholder="Tìm phụ tùng tặng..."
+                      value={giftSearch}
+                      onChange={(e) => setGiftSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-background border border-emerald-500/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div className="max-h-[160px] overflow-y-auto space-y-1.5 divide-y divide-emerald-500/20">
+                    {filteredGifts.map((p) => {
+                      return (
+                        <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
+                          <div>
+                            <p className="font-bold text-foreground">{p.name}</p>
+                            <p className="text-[10px] text-muted-foreground">Tồn: {p.stockCount||0}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAddGiftItem(p)}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg hover:scale-105 active:scale-95 transition-all"
+                          >
+                            Tặng
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {filteredGifts.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic text-center py-4">Không tìm thấy phụ tùng phù hợp.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border border-emerald-500/20 rounded-xl p-4 space-y-3 bg-emerald-500/5">
+                  <p className="text-xs font-bold text-emerald-600">Danh sách quà tặng:</p>
+                  <div className="max-h-[160px] overflow-y-auto space-y-2">
+                    {giftItems.map((a) => (
+                      <div key={a.id} className="flex items-center justify-between text-xs bg-background p-2 rounded-lg border border-emerald-500/20">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <p className="font-bold text-foreground truncate">{a.name}</p>
+                          <p className="text-[10px] text-muted-foreground">Quà tặng</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <NumericInput
+                            value={a.quantity}
+                            onChange={(c) => handleUpdateGiftItemQty(a.id, c === "" ? "" : parseInt(c, 10))}
+                            className="w-12 text-center py-0.5 border border-emerald-500/40 rounded bg-secondary/30 text-xs font-bold text-emerald-600"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGiftItem(a.id)}
+                            className="p-1 hover:bg-rose-500/10 text-rose-500 rounded transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {giftItems.length === 0 && (
+                      <p className="text-xs text-emerald-600/70 italic text-center py-4">Chưa chọn quà tặng nào.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
