@@ -16,6 +16,29 @@ if (process.env.NODE_ENV !== "production") {
       .then(() => console.log("Runtime migration: Column 'image' checked/created."))
       .catch((err) => console.error("Runtime migration failed:", err));
 
+    (async () => {
+      await prisma.$executeRawUnsafe('ALTER TABLE "PartsRequisition" ADD COLUMN IF NOT EXISTS "vehicleId" INTEGER;');
+      await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "PartsRequisition_vehicleId_idx" ON "PartsRequisition"("vehicleId");');
+      await prisma.$executeRawUnsafe(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'PartsRequisition_vehicleId_fkey'
+          ) THEN
+            ALTER TABLE "PartsRequisition"
+            ADD CONSTRAINT "PartsRequisition_vehicleId_fkey"
+            FOREIGN KEY ("vehicleId") REFERENCES "Vehicle"(id)
+            ON DELETE CASCADE ON UPDATE CASCADE;
+          END IF;
+        END $$;
+      `);
+    })()
+      .then(() => console.log("Runtime migration: PartsRequisition vehicle relation checked/created."))
+      .catch((err) => console.error("Runtime requisition vehicle migration failed:", err));
+
+
     prisma.$executeRawUnsafe('UPDATE "User" SET role = \'SALES\' WHERE role::text = \'CRM\';')
       .then((count) => {
         if (count > 0) {

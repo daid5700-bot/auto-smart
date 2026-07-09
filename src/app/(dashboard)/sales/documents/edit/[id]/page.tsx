@@ -6,7 +6,7 @@ import {
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
   Sparkles, Receipt, Car, Trash2, ChevronDown
 } from "lucide-react";
-import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
+import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 
 interface Accessory {
@@ -86,21 +86,18 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
     try {
       setLoading(true);
       // Fetch products, customers, and the specific vehicle in parallel
-      const [productsRes, customersRes, vehicleRes] = await Promise.all([
-        fetch("/api/inventory?limit=100"),
-        fetch("/api/crm?tab=customers&limit=200&allBranches=true"),
-        fetch(`/api/sales/${vehicleId}`)
+      const [productsData, customersData, vehicle] = await Promise.all([
+        fetchWithDedup("/api/inventory?limit=100"),
+        fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true"),
+        fetchWithDedup(`/api/sales/${vehicleId}`)
       ]);
 
-      const productsData = await productsRes.json();
       setProducts(productsData.products || []);
 
-      const customersData = await customersRes.json();
       const loadedCustomers = customersData.customers || [];
       setSystemCustomers(loadedCustomers);
 
-      if (vehicleRes.ok) {
-        const vehicle = await vehicleRes.json();
+      if (vehicle) {
         setVin(vehicle.vin || "");
         setModel(vehicle.model || "");
         setVariant(vehicle.variant || "");

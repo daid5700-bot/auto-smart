@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { fetchWithDedup, formatCurrency, formatDate } from "@/lib/utils";
 import { Car, DollarSign, CheckCircle, TrendingUp, TrendingDown, Banknote, ShieldCheck, Loader2, RefreshCw, X, Tag, Package, Boxes, BarChart2, Clock } from "lucide-react";
 
 function StatCard({ label, value, sub, color, icon }: any) {
@@ -36,9 +36,7 @@ export default function SalesStatsPage() {
       if (startDate) q.set("startDate", startDate);
       if (endDate) q.set("endDate", endDate);
       const qs = q.toString();
-      const [r1, r2] = await Promise.all([fetch(`/api/stats/sales?${qs}`), fetch(`/api/stats/inventory?${qs}`)]);
-      if (!r1.ok) throw new Error("Lỗi tải dữ liệu");
-      const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+      const [d1, d2] = await Promise.all([fetchWithDedup(`/api/stats/sales?${qs}`), fetchWithDedup(`/api/stats/inventory?${qs}`)]);
       setData(d1); setInvData(d2);
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   };

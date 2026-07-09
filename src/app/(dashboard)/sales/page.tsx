@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { formatCurrency, statusText, statusBadge, handleNumericInputChange } from "@/lib/utils";
+import { formatCurrency, statusText, statusBadge, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Car, Plus, Search, Grid3X3, List, Eye, Edit, Trash2, X, Loader2, Upload } from "lucide-react";
 
@@ -57,13 +57,11 @@ export default function SalesPage() {
   });
 
   useEffect(() => {
-    fetch("/api/branches")
-      .then((r) => r.json())
+    fetchWithDedup("/api/branches")
       .then((d) => setBranches(d.branches || []))
       .catch(console.error);
 
-    fetch("/api/inventory?limit=200")
-      .then((r) => r.json())
+    fetchWithDedup("/api/inventory?limit=200")
       .then((d) => setProducts(d.products || []))
       .catch(console.error);
   }, []);
@@ -81,8 +79,7 @@ export default function SalesPage() {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (statusF) params.set("status", statusF);
-    fetch(`/api/sales?${params}`)
-      .then((r) => r.json())
+    fetchWithDedup(`/api/sales?${params}`)
       .then(setData)
       .finally(() => setLoading(false));
   };

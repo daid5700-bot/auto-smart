@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Users, Search, Phone, User, DollarSign, Receipt, Eye, X, Edit3, Car } from "lucide-react";
-import { handleNumericInputChange } from "@/lib/utils";
+import { fetchWithDedup, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 
 export default function SalesCustomerDebtsPage() {
@@ -27,8 +27,7 @@ export default function SalesCustomerDebtsPage() {
   const fetchCustomers = async (p = 1) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/sales/customers?page=${p}&limit=20&saleType=${saleType}&search=${encodeURIComponent(search)}`);
-      const data = await res.json();
+      const data = await fetchWithDedup(`/api/sales/customers?page=${p}&limit=20&saleType=${saleType}&search=${encodeURIComponent(search)}`);
       setCustomers(data.customers || []);
       if (data.pagination) setTotalPages(data.pagination.totalPages);
     } catch (e) {
@@ -62,8 +61,7 @@ export default function SalesCustomerDebtsPage() {
     setSelectedCustomer(customer);
     try {
       setLoadingVehicles(true);
-      const res = await fetch(`/api/sales?customerId=${customer.id}&limit=100&status=RESERVED,SOLD&saleType=${saleType}`);
-      const data = await res.json();
+      const data = await fetchWithDedup(`/api/sales?customerId=${customer.id}&limit=100&status=RESERVED,SOLD&saleType=${saleType}`);
       // Sort vehicles by debt amount descending
       const sortedVehicles = (data.vehicles || []).sort((a: any, b: any) => Number(b.debtAmount) - Number(a.debtAmount));
       setCustomerVehicles(sortedVehicles);
