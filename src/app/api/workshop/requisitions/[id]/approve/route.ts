@@ -117,13 +117,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 totalPrice,
               }
             });
-          } else if (Number(existingOrderItem.quantity) !== Number(item.quantity) || Number(existingOrderItem.unitPrice) !== Number(unitPrice)) {
+          } else {
+            const newQuantity = Number(existingOrderItem.quantity) + item.quantity;
             await tx.orderItem.update({
               where: { id: existingOrderItem.id },
               data: {
-                quantity: item.quantity,
+                quantity: newQuantity,
                 unitPrice,
-                totalPrice,
+                totalPrice: unitPrice * newQuantity,
               }
             });
           }
@@ -139,6 +140,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               reason: `Xuất kho duyệt phụ tùng cho RO #${requisition.repairOrderId}`,
               relatedRoId: requisition.repairOrderId,
               createdBy: "Thủ kho",
+              branchId: requisition.branchId,
             }
           });
         } else if (requisition.vehicleId) {
@@ -152,6 +154,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               totalCost: (currentMac || unitPrice) * item.quantity,
               reason: `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${requisition.vehicle?.vin || requisition.vehicleId}`,
               createdBy: "Thủ kho",
+              branchId: requisition.branchId,
             }
           });
         }

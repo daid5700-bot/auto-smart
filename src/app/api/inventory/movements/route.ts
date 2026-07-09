@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       }
     }
     if (branchId) {
-      where.product = { productBranches: { some: { branchId } } };
+      where.branchId = branchId;
     }
 
     if (search) {

@@ -95,7 +95,7 @@ export function calculatePoints(totalAmount: number, ratePercent: number) {
 export function redeemPoints(points: number, currentBill: number) {
   const discount = points;
   const finalBill = Math.max(0, currentBill - discount);
-  const remainingPoints = 0;
+  const remainingPoints = Math.max(0, points - currentBill);
   return { finalBill, remainingPoints };
 }
 

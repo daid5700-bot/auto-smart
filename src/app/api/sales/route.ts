@@ -163,27 +163,7 @@ export async function POST(req: NextRequest) {
     console.log("POST /api/sales body:", body);
     const branchId = body.branchId !== undefined ? (body.branchId ? Number(body.branchId) : null) : getActiveBranchId();
 
-    // Release VINs of any old cancelled vehicles to avoid unique constraint failures on new creations
-    try {
-      const oldCancelled = await prisma.vehicle.findMany({
-        where: {
-          status: "CANCELLED",
-          NOT: {
-            vin: {
-              startsWith: "CANCELLED-",
-            },
-          },
-        },
-      });
-      for (const v of oldCancelled) {
-        await prisma.vehicle.update({
-          where: { id: v.id },
-          data: { vin: `CANCELLED-${v.id}-${v.vin}` },
-        });
-      }
-    } catch (e) {
-      console.error("Error auto-releasing cancelled VINs:", e);
-    }
+
 
     const {
       vin, sku, engineNumber, importPrice, importDate, stockCount, warehouse,

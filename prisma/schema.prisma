@@ -58,6 +58,7 @@ model Branch {
   partsRequisitions PartsRequisition[]
   inventoryOrders InventoryOrder[]
   paymentTransactions PaymentTransaction[]
+  stockMovements StockMovement[]
   isDeleted    Boolean       @default(false)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -130,12 +131,15 @@ model StockMovement {
   relatedRoId   Int?
   inventoryOrderId Int?
   inventoryOrder InventoryOrder? @relation(fields: [inventoryOrderId], references: [id], onDelete: Cascade)
+  branchId      Int?
+  branch        Branch?  @relation(fields: [branchId], references: [id])
   createdBy     String
   createdAt     DateTime @default(now())
 
   @@index([productId])
   @@index([createdAt])
   @@index([inventoryOrderId])
+  @@index([branchId])
 }
 
 model InventoryOrder {
@@ -198,7 +202,7 @@ model RepairOrder {
   discountAmount  Decimal     @default(0)
   serviceDiscountPercent Int   @default(0)
   partsDiscountPercent   Int   @default(0)
-  servicesJson          String?
+  servicesJson          Json?
   totalAmount   Decimal       @default(0)
   paidAmount    Decimal       @default(0)
   debtAmount    Decimal       @default(0)
@@ -268,7 +272,7 @@ model Vehicle {
   bankStatus      String?
   plateStatus     String?
   plateCost       Decimal?  @default(0)
-  accessoriesJson String?   @default("[]")
+  accessoriesJson Json?     @default("[]")
   saleType        String    @default("RETAIL") // RETAIL, WHOLESALE
   notes           String?
   warehouse       String?

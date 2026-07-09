@@ -92,7 +92,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             totalCost: cogsUnit * quantity,
             reason: `Duyệt lệnh xuất theo hồ sơ xe ${vin}`,
             inventoryOrderId: orderId,
-            createdBy: "Hệ thống (Bán Xe)"
+            createdBy: "Hệ thống (Bán Xe)",
+            branchId: branchId
           }
         });
 

@@ -2,6 +2,8 @@
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
+import { cookies } from "next/headers";
+import { verifyRole } from "@/lib/auth";
 
 // ===== INVENTORY LOGIC =====
 
@@ -14,6 +16,10 @@ export async function importStock(data: {
   unitCost: number;
   conversionFactor?: number;
 }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Unauthorized");
+
   if (data.conversionFactor !== undefined && data.conversionFactor <= 0) {
     throw new Error("Conversion factor must be greater than 0");
   }
@@ -25,7 +31,8 @@ export async function importStock(data: {
   const product = await prisma.product.findUnique({ where: { id: data.productId } });
   if (!product) throw new Error("Sản phẩm không tồn tại");
   const branchId = getActiveBranchId();
-  const targetBranchId = branchId || 1;
+  if (!branchId) throw new Error("Branch not found");
+  const targetBranchId = branchId;
 
   const result = await prisma.$transaction(async (tx) => {
     const pb = await tx.productBranch.upsert({
@@ -63,6 +70,7 @@ export async function importStock(data: {
         unitCost: avgCost,
         totalCost: data.unitCost * data.quantity,
         createdBy: "system",
+        branchId: targetBranchId,
       },
     });
     
@@ -83,7 +91,8 @@ export async function createManualImport(data: {
   createdBy: string;
 }) {
   const branchId = getActiveBranchId();
-  const targetBranchId = branchId || 1;
+  if (!branchId) throw new Error("Branch not found");
+  const targetBranchId = branchId;
 
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách nhập kho không được trống");
@@ -142,6 +151,7 @@ export async function createManualImport(data: {
           totalCost: item.unitCost * item.quantity,
           createdBy: data.createdBy,
           reason: item.note,
+          branchId: targetBranchId,
         },
       });
       movementsCreated.push(movement);
@@ -166,7 +176,8 @@ export async function sellItem(productId: number, quantity: number) {
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) throw new Error("Sản phẩm không tồn tại");
   const branchId = getActiveBranchId();
-  const targetBranchId = branchId || 1;
+  if (!branchId) throw new Error("Branch not found");
+  const targetBranchId = branchId;
 
   const updated = await prisma.$transaction(async (tx) => {
     const pb = await tx.productBranch.upsert({
@@ -207,6 +218,10 @@ export async function createDirectExport(data: {
   createdBy: string;
   exportType?: "RETAIL" | "WHOLESALE";
 }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Unauthorized");
+
   const branchId = getActiveBranchId();
 
   if (!data.items || data.items.length === 0) {
@@ -218,7 +233,8 @@ export async function createDirectExport(data: {
   const results = await prisma.$transaction(async (tx) => {
     const movementsCreated = [];
 
-    const targetBranchId = branchId || 1;
+    if (!branchId) throw new Error("Branch not found");
+    const targetBranchId = branchId;
     const productIds = Array.from(new Set(data.items.map(i => i.productId)));
 
     const products = await tx.product.findMany({
@@ -284,6 +300,7 @@ export async function createDirectExport(data: {
           totalCost: currentMac * actualQty,
           reason: finalReason,
           createdBy: data.createdBy,
+          branchId: targetBranchId,
         },
       });
       movementsCreated.push(movement);
@@ -309,6 +326,10 @@ export async function createManualAdjust(data: {
   }[];
   createdBy: string;
 }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Unauthorized");
+
   const branchId = getActiveBranchId();
 
   if (!data.items || data.items.length === 0) {
@@ -321,7 +342,8 @@ export async function createManualAdjust(data: {
     for (const item of data.items) {
       const product = await tx.product.findUnique({ where: { id: item.productId } });
       if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
-      const targetBranchId = branchId || 1;
+      if (!branchId) throw new Error("Branch not found");
+      const targetBranchId = branchId;
 
       const pb = await tx.productBranch.upsert({
         where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
@@ -346,7 +368,7 @@ export async function createManualAdjust(data: {
 
         // Nếu tăng tồn, tính toán lại MAC
         if (diff > 0) {
-           const avgCost = 0; // Điều chỉnh thì giá vốn hàng nhập thường là 0 nếu không biết
+           const avgCost = currentMac; // Điều chỉnh thì giá vốn hàng nhập thường là 0 nếu không biết
            const newMac = item.actualStock > 0 ? ((currentStock * currentMac) + (diff * avgCost)) / item.actualStock : currentMac;
            await tx.productBranch.update({
              where: { id: pb.id },
@@ -365,6 +387,7 @@ export async function createManualAdjust(data: {
             totalCost: unitCost * Math.abs(diff),
             createdBy: data.createdBy,
             reason: item.note || `Kiểm kê lệch ${diff > 0 ? "+" : ""}${diff}`,
+            branchId: targetBranchId,
           },
         });
         movementsCreated.push(movement);
@@ -386,6 +409,10 @@ export async function updateROStatus(data: {
   repairOrderId: number;
   newStatus: string;
 }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Unauthorized");
+
   const ro = await prisma.repairOrder.findUnique({
     where: { id: data.repairOrderId },
     include: { customer: true },
@@ -492,6 +519,10 @@ export async function exportStockForRO(data: {
   quantity: number;
   priceType: "RETAIL" | "WHOLESALE" | "INSURANCE";
 }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Unauthorized");
+
   const product = await prisma.product.findUnique({
     where: { id: data.productId },
     include: { prices: true },
@@ -499,7 +530,8 @@ export async function exportStockForRO(data: {
 
   if (!product) throw new Error("Sản phẩm không tồn tại");
   const branchId = getActiveBranchId();
-  const targetBranchId = branchId || 1;
+  if (!branchId) throw new Error("Branch not found");
+  const targetBranchId = branchId;
 
   const ro = await prisma.repairOrder.findUnique({ where: { id: data.repairOrderId } });
   if (!ro) throw new Error("Lệnh sửa chữa không tồn tại");
@@ -558,6 +590,7 @@ export async function exportStockForRO(data: {
         reason: "Xuất kho sửa chữa",
         relatedRoId: data.repairOrderId,
         createdBy: "system",
+        branchId: targetBranchId,
       },
     });
 
@@ -609,7 +642,7 @@ export async function redeemPointsDb(data: { customerId: number; points: number;
 
   const updated = await prisma.customer.update({
     where: { id: data.customerId },
-    data: { loyaltyPoints: customer.loyaltyPoints - data.points },
+    data: { loyaltyPoints: { decrement: data.points } },
   });
 
   // Ghi log giao dịch điểm (audit trail)
@@ -714,6 +747,10 @@ export async function createManualExport(data: {
   reason?: string;
   createdBy: string;
 }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Unauthorized");
+
   const branchId = getActiveBranchId();
 
   if (!data.items || data.items.length === 0) {
@@ -727,7 +764,8 @@ export async function createManualExport(data: {
     const movementsCreated = [];
     const orderItemsCreated = [];
 
-    const targetBranchId = branchId || 1;
+    if (!branchId) throw new Error("Branch not found");
+    const targetBranchId = branchId;
     const productIds = Array.from(new Set(data.items.map(i => i.productId)));
 
     const products = await tx.product.findMany({
@@ -789,6 +827,7 @@ export async function createManualExport(data: {
           reason: reasonText,
           relatedRoId: data.exportType === "REPAIR" ? data.repairOrderId : null,
           createdBy: data.createdBy,
+          branchId: targetBranchId,
         },
       });
       movementsCreated.push(movement);
@@ -872,6 +911,10 @@ export async function createPartsRequisition(data: {
   reason?: string;
   createdBy: string;
 }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Unauthorized");
+
   const activeBranchId = getActiveBranchId();
   if (!activeBranchId) {
     throw new Error("Không xác định được chi nhánh hiện tại");

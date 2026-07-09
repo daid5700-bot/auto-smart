@@ -78,10 +78,11 @@ export async function GET(req: NextRequest) {
       take: reminderLimit,
       orderBy: { lastVisit: "desc" },
       include: {
-        vehicles: true,
+        vehicles: { take: 1, orderBy: { createdAt: "desc" } },
         branch: true,
         repairOrders: {
           where: { status: { in: ["DONE", "DELIVERED"] } },
+          take: 1,
           include: {
             technician: true,
             items: {
@@ -93,6 +94,7 @@ export async function GET(req: NextRequest) {
           orderBy: { completedAt: "desc" }
         },
         znsLogs: {
+          take: 5,
           orderBy: { sentAt: "desc" }
         }
       }
@@ -254,27 +256,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const branchId = getActiveBranchId();
     if (body.type === "customer") {
-      // Release phone numbers of any old soft-deleted customers to avoid unique constraint failures
-      try {
-        const oldDeleted = await prisma.customer.findMany({
-          where: {
-            isDeleted: true,
-            NOT: {
-              phone: {
-                startsWith: "DELETED-",
-              },
-            },
-          },
-        });
-        for (const c of oldDeleted) {
-          await prisma.customer.update({
-            where: { id: c.id },
-            data: { phone: `DELETED-${c.id}-${c.phone}` },
-          });
-        }
-      } catch (e) {
-        console.error("Error auto-releasing customer phone:", e);
-      }
+      if (!body.name || !body.name.trim()) throw new Error("Tên khách hàng không được để trống");
+      if (!body.phone || !/^0[0-9]{9}$/.test(body.phone)) throw new Error("Số điện thoại không hợp lệ");
 
       const customer = await prisma.customer.create({
         data: {
@@ -305,6 +288,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(lead, { status: 201 });
     }
   } catch (error: any) {
+    if (error.code === 'P2002') return NextResponse.json({ error: "Số điện thoại này đã được đăng ký" }, { status: 400 });
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

@@ -35,22 +35,13 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    // Ensure table exists
-    await prisma.$executeRaw`
-      CREATE TABLE IF NOT EXISTS "SystemConfig" (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `;
-
     for (const [key, value] of Object.entries(body)) {
       const v = String(value);
-      await prisma.$executeRaw`
-        INSERT INTO "SystemConfig" (key, value, "updatedAt")
-        VALUES (${key}, ${v}, NOW())
-        ON CONFLICT (key) DO UPDATE SET value = ${v}, "updatedAt" = NOW()
-      `;
+      await prisma.systemConfig.upsert({
+        where: { key },
+        update: { value: v },
+        create: { key, value: v }
+      });
     }
 
     return NextResponse.json({ success: true });
