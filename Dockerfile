@@ -32,5 +32,5 @@ COPY --from=builder /app/prisma ./prisma
 # Expose port mặc định của Next.js (bên trong container)
 EXPOSE 3000
 
-# Script khởi chạy: Deploy schema Prisma (nếu cần) & start app
-CMD ["sh", "-c", "npm start"]
+# Script khởi chạy: Tự động cập nhật cấu trúc database & start app
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm start"]
