@@ -469,8 +469,13 @@ export default function DocumentsPage() {
                 const notesText = v.notes || "";
                 return (
                   <tr key={v.id} className="hover:bg-secondary/10 transition-colors">
-                    <td className="p-4 font-mono font-bold text-foreground">
-                      {v.vin}
+                    <td className="p-4">
+                      <div className="font-mono font-bold text-foreground">{v.vin}</div>
+                      {v.createdAt && (
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          Ngày tạo: {new Date(v.createdAt).toLocaleDateString("vi-VN")}
+                        </div>
+                      )}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
@@ -688,6 +693,9 @@ export default function DocumentsPage() {
                     <p className="font-bold text-primary">{selectedVehicle.model} {selectedVehicle.variant ? `(${selectedVehicle.variant})` : ""}</p>
                     <p className="text-xs text-muted-foreground font-mono">VIN: {selectedVehicle.vin}</p>
                     <p className="text-xs mt-1">Màu: <b>{selectedVehicle.color || "Khác"}</b> • Đời: <b>{selectedVehicle.year}</b></p>
+                    {selectedVehicle.createdAt && (
+                      <p className="text-xs mt-1 text-muted-foreground">Ngày tạo hồ sơ: <b>{new Date(selectedVehicle.createdAt).toLocaleString("vi-VN")}</b></p>
+                    )}
                   </div>
                   <div className="pt-2">
                     <span className="text-xs font-semibold mr-2">Trạng thái:</span>
