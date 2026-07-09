@@ -101,16 +101,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         // Nếu là đơn sửa chữa thì ghi nhận vào hóa đơn
         if (requisition.repairOrderId) {
-          // Create OrderItem (để chính thức ghi nhận vào hóa đơn xe của khách)
-          await tx.orderItem.create({
-            data: {
+          const existingOrderItem = await tx.orderItem.findFirst({
+            where: {
               repairOrderId: requisition.repairOrderId,
               productId: product.id,
-              quantity: item.quantity,
-              unitPrice,
-              totalPrice,
             }
           });
+          if (!existingOrderItem) {
+            await tx.orderItem.create({
+              data: {
+                repairOrderId: requisition.repairOrderId,
+                productId: product.id,
+                quantity: item.quantity,
+                unitPrice,
+                totalPrice,
+              }
+            });
+          } else if (Number(existingOrderItem.quantity) !== Number(item.quantity) || Number(existingOrderItem.unitPrice) !== Number(unitPrice)) {
+            await tx.orderItem.update({
+              where: { id: existingOrderItem.id },
+              data: {
+                quantity: item.quantity,
+                unitPrice,
+                totalPrice,
+              }
+            });
+          }
 
           // Create StockMovement (EXPORT)
           await tx.stockMovement.create({

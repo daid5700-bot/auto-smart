@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { releaseReservedStock, restoreStockOnce, type ReturnSourceItem } from "@/lib/inventory-cancellation";
 
 // GET /api/workshop/[id] — get single repair order with full detail
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -288,6 +289,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       },
     });
     if (!currentRo) return NextResponse.json({ error: "Lệnh sửa chữa không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
+    if (currentRo.isDeleted || currentRo.status === "CANCELLED") {
+      return NextResponse.json({ success: true, message: "Lệnh sửa chữa đã được hủy trước đó" });
+    }
 
     await prisma.$transaction(async (tx) => {
       // 1. Handle Parts Inventory Restoration based on Requisition Status
@@ -295,50 +299,33 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         where: { repairOrderId: id },
         include: { items: true }
       });
+      const branchIdForStock = currentRo.branchId || 1;
+      const exportMovements = await tx.stockMovement.findMany({
+        where: { relatedRoId: id, type: "EXPORT" },
+      });
+      const unitCostByProduct = new Map<number, number>();
+      for (const movement of exportMovements) {
+        if (!unitCostByProduct.has(movement.productId)) {
+          unitCostByProduct.set(movement.productId, Number(movement.unitCost || 0));
+        }
+      }
+      const approvedReturnItems: ReturnSourceItem[] = [];
 
       for (const req of requisitions) {
         if (req.status === "APPROVED") {
-          // Warehouse already exported the parts. We must return them to stockCount.
-          const reqProductIds = req.items.map(ri => ri.productId);
-          const orderItems = await tx.orderItem.findMany({
-            where: {
-              repairOrderId: id,
-              productId: { in: reqProductIds }
-            }
-          });
-          await Promise.all(orderItems.map(async (item) => {
-            if (item.productId) {
-              const pb = await tx.productBranch.findUnique({
-                where: { productId_branchId: { productId: item.productId, branchId: currentRo.branchId || 1 } }
-              });
-              if (pb) {
-                await tx.productBranch.update({
-                  where: { id: pb.id },
-                  data: { stockCount: { increment: item.quantity } }
-                });
-                await tx.stockMovement.create({
-                  data: {
-                    productId: item.productId,
-                    type: "IMPORT",
-                    quantity: item.quantity,
-                    unitCost: item.unitPrice,
-                    totalCost: Number(item.quantity) * Number(item.unitPrice),
-                    reason: `Hoàn kho do hủy lệnh sửa chữa RO-${id}`,
-                    createdBy: "system",
-                  }
-                });
-              }
-            }
-          }));
+          // Warehouse already exported these requested parts. Return the requested
+          // quantity only, not duplicated OrderItem rows.
+          approvedReturnItems.push(
+            ...req.items.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitCost: unitCostByProduct.get(item.productId) || 0,
+            })),
+          );
         } else if (req.status === "PENDING") {
           // Warehouse has NOT exported parts. They are only in reservedStock.
           // Clear the reservations.
-          await Promise.all(req.items.map((item) => 
-            tx.productBranch.update({
-              where: { productId_branchId: { productId: item.productId, branchId: currentRo.branchId || 1 } },
-              data: { reservedStock: { decrement: item.quantity } }
-            })
-          ));
+          await releaseReservedStock(tx, branchIdForStock, req.items);
         }
 
         // Cancel the requisition so warehouse doesn't see it anymore
@@ -347,6 +334,14 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
           data: { status: "REJECTED" } // Mark as rejected/cancelled
         });
       }
+
+      await restoreStockOnce(tx, {
+        branchId: branchIdForStock,
+        items: approvedReturnItems,
+        reason: `Hoàn kho do hủy lệnh sửa chữa RO-${id}`,
+        relatedRoId: id,
+        createdBy: "system",
+      });
 
       // 2. Revert customer debt and spent
       if (currentRo.customerId) {
