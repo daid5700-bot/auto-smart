@@ -48,13 +48,24 @@ function InventoryContent() {
   
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const [catFilter, setCatFilter] = useState("");
   const [scope, setScope] = useState<"current" | "other">("current");
   const [statFilter, setStatFilter] = useState<"all" | "low" | "high">(
     (initFilter === "low" || initFilter === "high") ? initFilter : "all"
   );
-  const [page, setPage] = useState(1);
   const LIMIT = 20;
 
   useEffect(() => {
@@ -406,7 +417,7 @@ function InventoryContent() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm theo tên hoặc mã SKU..." className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" /></div>
+        <div className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Tìm theo tên hoặc mã SKU..." className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" /></div>
         <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="bg-card border border-border rounded-xl px-4 py-2.5 text-sm outline-none"><option value="">Tất cả nhóm</option>{categories.map((c: string) => <option key={c} value={c}>{c}</option>)}</select>
       </div>
 
