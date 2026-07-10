@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     }
 
     const signedRole = await signRole(safeUser.role);
+    const signedUserId = await signData(String(user.id));
     console.log("LOGIN ROUTE: signedRole =", signedRole);
 
     const branchIdsStr = (safeUser.role === "ADMIN" && (branches as any[] || []).length === 0)
@@ -58,6 +59,14 @@ export async function POST(req: NextRequest) {
       path: "/",
       maxAge: 86400,
       httpOnly: false, // client needs to check layout role visibility, but cannot forge it
+      sameSite: "lax",
+      secure: isProd,
+    });
+
+    response.cookies.set("user_id", signedUserId, {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: true,
       sameSite: "lax",
       secure: isProd,
     });
