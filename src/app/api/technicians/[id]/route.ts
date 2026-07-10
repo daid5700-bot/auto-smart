@@ -22,7 +22,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         code: body.code,
         name: body.name,
         phone: body.phone,
-        commissionRate: body.commissionRate,
         status: body.status,
       },
     });

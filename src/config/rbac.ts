@@ -2,7 +2,7 @@ export type UserRole = "ADMIN" | "WAREHOUSE" | "WORKSHOP" | "SALES";
 
 export type Permission =
   | "inventory.view" | "inventory.manage" | "inventory.pricing"
-  | "workshop.view" | "workshop.manage" | "workshop.commission"
+  | "workshop.view" | "workshop.manage"
   | "sales.view" | "sales.manage" | "sales.pricing"
   | "crm.view" | "crm.manage" | "crm.zns" | "crm.loyalty" | "crm.reminders" | "crm.customers"
   | "admin.dashboard" | "admin.users" | "admin.reports";
@@ -10,14 +10,14 @@ export type Permission =
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ADMIN: [
     "inventory.view","inventory.manage","inventory.pricing",
-    "workshop.view","workshop.manage","workshop.commission",
+    "workshop.view","workshop.manage",
     "sales.view","sales.manage","sales.pricing",
     "crm.view","crm.manage","crm.zns","crm.loyalty","crm.reminders","crm.customers",
     "admin.dashboard","admin.users","admin.reports",
   ],
   WAREHOUSE: ["inventory.view","inventory.manage","inventory.pricing"],
   WORKSHOP: [
-    "workshop.view","workshop.manage","workshop.commission",
+    "workshop.view","workshop.manage",
     "inventory.view",
     "crm.view","crm.manage","crm.zns","crm.loyalty","crm.reminders","crm.customers"
   ],

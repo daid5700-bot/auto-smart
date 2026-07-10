@@ -403,7 +403,7 @@ export async function createManualAdjust(data: {
 // ===== WORKSHOP LOGIC =====
 
 /**
- * Update RO status & handle commission/loyalty point triggers
+ * Update RO status & handle loyalty point triggers
  */
 export async function updateROStatus(data: {
   repairOrderId: number;

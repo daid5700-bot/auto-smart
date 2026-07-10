@@ -172,9 +172,7 @@ model Technician {
   name            String
   phone           String?
   status          String           @default("IDLE") // IDLE, WORKING
-  commissionRate  Float            @default(10)
   repairOrders    RepairOrder[]
-  performances    TechPerformance[]
   branchId        Int?
   branch          Branch?          @relation(fields: [branchId], references: [id])
   createdAt       DateTime         @default(now())
@@ -234,18 +232,6 @@ model OrderItem {
 
   @@index([repairOrderId])
   @@index([productId])
-}
-
-model TechPerformance {
-  id              Int        @id @default(autoincrement())
-  technicianId    Int
-  technician      Technician @relation(fields: [technicianId], references: [id])
-  repairOrderId   Int
-  commissionAmount Decimal
-  date            DateTime   @default(now())
-
-  @@index([technicianId])
-  @@index([repairOrderId])
 }
 
 // ========== VEHICLE SALES ==========
