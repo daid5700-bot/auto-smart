@@ -44,29 +44,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: { status: "REJECTED" }
       });
 
-      // 3. Clear OrderItems on the Repair Order (since parts request is rejected, RO no longer has parts)
       if (requisition.repairOrderId) {
-        await tx.orderItem.deleteMany({
-          where: { repairOrderId: requisition.repairOrderId }
-        });
-      }
-
-      if (requisition.repairOrderId && requisition.repairOrder) {
-        const redeemTx = await tx.loyaltyTransaction.findFirst({
-          where: {
-            relatedRoId: requisition.repairOrderId,
-            type: "REDEEM",
-            points: { lt: 0 },
-          },
-        });
-        const discount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
-        const finalTotalAmount = Math.max(0, Number(requisition.repairOrder.laborCost) - discount);
-
         await tx.repairOrder.update({
           where: { id: requisition.repairOrderId },
           data: {
-            partsCost: 0,
-            totalAmount: finalTotalAmount, // Reset total amount with discount applied
             status: "DOING" // Reset status back to doing
           }
         });

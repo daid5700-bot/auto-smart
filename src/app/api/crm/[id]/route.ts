@@ -10,27 +10,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const branchId = getActiveBranchId();
 
     if (body.type === "customer") {
-      // Release phone numbers of any old soft-deleted customers to avoid unique constraint failures on update
-      try {
-        const oldDeleted = await prisma.customer.findMany({
-          where: {
-            isDeleted: true,
-            NOT: {
-              phone: {
-                startsWith: "DELETED-",
-              },
-            },
-          },
-        });
-        for (const c of oldDeleted) {
-          await prisma.customer.update({
-            where: { id: c.id },
-            data: { phone: `DELETED-${c.id}-${c.phone}` },
-          });
-        }
-      } catch (e) {
-        console.error("Error auto-releasing customer phone:", e);
-      }
 
       const { type, ...updateData } = body;
       const currentCust = await prisma.customer.findFirst({

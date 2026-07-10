@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
       orderBy: { code: "asc" },
       include: {
         _count: { select: { repairOrders: true } },
-        performances: { select: { commissionAmount: true } },
       },
     });
 
@@ -25,7 +24,6 @@ export async function GET(req: NextRequest) {
     const enriched = technicians.map((t: any) => ({
       ...t,
       completedOrders: t._count?.repairOrders || 0,
-      totalCommission: (t.performances || []).reduce((sum: number, p: any) => sum + Number(p.commissionAmount), 0),
     }));
 
     return NextResponse.json({ 
@@ -46,7 +44,6 @@ export async function POST(req: NextRequest) {
         code: body.code,
         name: body.name,
         phone: body.phone,
-        commissionRate: body.commissionRate || 10,
         status: "IDLE",
         branchId,
       } as any,

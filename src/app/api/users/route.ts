@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
+import { verifyRole } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
+    const role = await verifyRole(req.cookies.get("user_role")?.value);
+    if (role !== "ADMIN") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -42,6 +48,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const role = await verifyRole(req.cookies.get("user_role")?.value);
+    if (role !== "ADMIN") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
     const body = await req.json();
     if (!body.email || !body.password || !body.name) {
       return NextResponse.json({ error: "Thiếu thông tin bắt buộc" }, { status: 400 });

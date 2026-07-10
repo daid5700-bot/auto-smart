@@ -42,7 +42,7 @@ export default function DocumentsPage() {
 
   const openPaymentModal = (v: any) => {
     setSelectedVehicle(v);
-    setPaymentAmount(v.paidAmount?.toString() || "0");
+    setPaymentAmount(v.debtAmount?.toString() || "0");
     setPaymentModalOpen(true);
   };
 
@@ -54,7 +54,7 @@ export default function DocumentsPage() {
       paidAmount: group.totalPaid,
       debtAmount: group.totalDebt,
     });
-    setPaymentAmount(group.totalPaid.toString());
+    setPaymentAmount(group.totalDebt.toString());
     setPaymentModalOpen(true);
   };
 
@@ -121,10 +121,12 @@ export default function DocumentsPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery]);
 
-  const parseAccessories = (jsonStr: string): Accessory[] => {
+  const parseAccessories = (val: any): Accessory[] => {
     try {
-      if (!jsonStr) return [];
-      return JSON.parse(jsonStr);
+      if (!val) return [];
+      if (typeof val === "string") return JSON.parse(val);
+      if (Array.isArray(val)) return val;
+      return [];
     } catch (e) {
       return [];
     }
@@ -642,11 +644,11 @@ export default function DocumentsPage() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-muted-foreground uppercase">
-                    Tổng số tiền khách ĐÃ TRẢ
+                    Khách trả thêm
                   </label>
                   <button 
                     type="button" 
-                    onClick={() => setPaymentAmount((Number(selectedVehicle.paidAmount || 0) + Number(selectedVehicle.debtAmount || 0)).toString())}
+                    onClick={() => setPaymentAmount(selectedVehicle.debtAmount?.toString() || "0")}
                     className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
                   >
                     Trả toàn bộ

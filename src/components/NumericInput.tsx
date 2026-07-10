@@ -16,7 +16,8 @@ export const NumericInput: React.FC<NumericInputProps> = ({
 
   const toCleanString = (val: any) => {
     if (val === undefined || val === null) return "";
-    return String(val).replace(/\D/g, "");
+    const str = String(val).split(".")[0];
+    return str.replace(/\D/g, "");
   };
 
   useEffect(() => {

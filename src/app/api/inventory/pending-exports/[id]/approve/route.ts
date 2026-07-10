@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const vehicle = await prisma.vehicle.findUnique({ where: { vin } });
     if (!vehicle) return NextResponse.json({ error: "Không tìm thấy hồ sơ xe" }, { status: 404 });
 
-    const accessories = JSON.parse(vehicle.accessoriesJson || "[]");
+    const accessories = typeof vehicle.accessoriesJson === "string" ? JSON.parse(vehicle.accessoriesJson) : (vehicle.accessoriesJson as any) || [];
     const branchId = vehicle.branchId || 1;
 
     // Approve: validate stock AND create movements + deduct — all inside one transaction to prevent race condition
@@ -92,7 +92,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             totalCost: cogsUnit * quantity,
             reason: `Duyệt lệnh xuất theo hồ sơ xe ${vin}`,
             inventoryOrderId: orderId,
-            createdBy: "Hệ thống (Bán Xe)"
+            createdBy: "Hệ thống (Bán Xe)",
+            branchId: branchId
           }
         });
 

@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { formatCurrency } from "@/lib/utils";
 import { UserCog, Plus, Loader2, Edit, Trash2, X } from "lucide-react";
 
 export default function TechniciansPage() {
@@ -14,7 +13,6 @@ export default function TechniciansPage() {
     code: "",
     name: "",
     phone: "",
-    commissionRate: 0,
     status: "IDLE",
   });
 
@@ -51,7 +49,7 @@ export default function TechniciansPage() {
 
   const handleOpenAdd = () => {
     setEditingId(null);
-    setFormData({ code: "", name: "", phone: "", commissionRate: 0, status: "IDLE" });
+    setFormData({ code: "", name: "", phone: "", status: "IDLE" });
     setModalOpen(true);
   };
 
@@ -61,7 +59,6 @@ export default function TechniciansPage() {
       code: t.code,
       name: t.name,
       phone: t.phone || "",
-      commissionRate: 0,
       status: t.status,
     });
     setModalOpen(true);

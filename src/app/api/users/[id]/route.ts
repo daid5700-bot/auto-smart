@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
+import { verifyRole } from "@/lib/auth";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const role = await verifyRole(req.cookies.get("user_role")?.value);
+    if (role !== "ADMIN") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
     const id = parseInt(params.id);
     const body = await req.json();
 
@@ -45,6 +51,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const role = await verifyRole(req.cookies.get("user_role")?.value);
+    if (role !== "ADMIN") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
     const id = parseInt(params.id);
 
     // Get target user to check safety

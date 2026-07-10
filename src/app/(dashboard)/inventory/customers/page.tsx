@@ -76,7 +76,7 @@ export default function CustomerDebtsPage() {
       const res = await fetch(`/api/inventory/orders/${editingOrder.id}/payment`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paidAmount: Number(paymentInput) }),
+        body: JSON.stringify({ amount: Number(paymentInput) }),
       });
       if (res.ok) {
         setEditingOrder(null);
@@ -294,7 +294,7 @@ export default function CustomerDebtsPage() {
                         <button
                           onClick={() => {
                             setEditingOrder(order);
-                            setPaymentInput(Number(order.paidAmount));
+                            setPaymentInput(order.debtAmount?.toString() || "0");
                           }}
                           className={`p-2 rounded-xl border ${Number(order.debtAmount) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20" : "border-border bg-card text-muted-foreground hover:bg-secondary"} transition-colors`}
                           title="Cập nhật thanh toán"
@@ -342,7 +342,7 @@ export default function CustomerDebtsPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold mb-2">Tổng số tiền khách đã trả tới thời điểm này</label>
+                  <label className="block text-sm font-bold mb-2">Khách trả thêm</label>
                   <div className="relative">
                     <NumericInput
                       required
@@ -355,10 +355,10 @@ export default function CustomerDebtsPage() {
                   <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => setPaymentInput(Number(editingOrder.totalAmount))}
+                      onClick={() => setPaymentInput(editingOrder.debtAmount?.toString() || "0")}
                       className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-all"
                     >
-                      [ Trả đủ: {formatCurrency(Number(editingOrder.totalAmount))} ]
+                      [ Trả hết nợ: {formatCurrency(Number(editingOrder.debtAmount))} ]
                     </button>
                    
                   </div>

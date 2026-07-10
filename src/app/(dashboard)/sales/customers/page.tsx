@@ -52,7 +52,7 @@ export default function SalesCustomerDebtsPage() {
   };
 
   const getVehicleContractTotal = (v: any) => {
-    const accs = JSON.parse(v.accessoriesJson || "[]");
+    const accs = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : v.accessoriesJson || [];
     const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
     return Number(v.listPrice) + Number(v.plateCost || 0) + accsCost;
   };

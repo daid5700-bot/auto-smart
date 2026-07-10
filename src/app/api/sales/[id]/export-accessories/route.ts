@@ -16,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (!vehicle) return NextResponse.json({ error: "Không tìm thấy hồ sơ xe" }, { status: 404 });
 
-    const accessories = JSON.parse(vehicle.accessoriesJson || "[]");
+    const accessories = typeof vehicle.accessoriesJson === "string" ? JSON.parse(vehicle.accessoriesJson) : (vehicle.accessoriesJson as any) || [];
     if (accessories.length === 0) {
       return NextResponse.json({ error: "Hồ sơ này không có phụ tùng/dịch vụ mua kèm" }, { status: 400 });
     }

@@ -38,9 +38,6 @@ export async function GET(req: NextRequest) {
         _count: {
           select: { repairOrders: true }
         },
-        performances: {
-          select: { commissionAmount: true },
-        },
       },
     })
   ]);
@@ -49,7 +46,6 @@ export async function GET(req: NextRequest) {
   const enrichedTechs = technicians.map((t: any) => ({
     ...t,
     completedOrders: t._count.repairOrders,
-    totalCommission: (t.performances || []).reduce((s: number, p: any) => s + Number(p.commissionAmount), 0),
   }));
 
   return NextResponse.json({ 
@@ -106,4 +102,3 @@ export async function PATCH(req: NextRequest) {
     { status: 410 } // 410 Gone — intentionally removed
   );
 }
-

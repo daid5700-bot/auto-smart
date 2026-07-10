@@ -6,6 +6,11 @@ import { verifyRole } from "@/lib/auth";
 // GET /api/branches — list all branches
 export async function GET(req: NextRequest) {
   try {
+    const role = await verifyRole(req.cookies.get("user_role")?.value);
+    if (role !== "ADMIN") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
     const branches = await prisma.branch.findMany({
       orderBy: { createdAt: "desc" },
     });
@@ -20,7 +25,7 @@ export async function POST(req: NextRequest) {
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
-      return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thực hiện thao tác này" }, { status: 403 });
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const body = await req.json();

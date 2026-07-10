@@ -96,6 +96,7 @@ export async function restoreStockOnce(
     await tx.stockMovement.create({
       data: {
         productId: item.productId,
+        branchId: params.branchId,
         type: "IMPORT",
         quantity: item.quantity,
         unitCost,

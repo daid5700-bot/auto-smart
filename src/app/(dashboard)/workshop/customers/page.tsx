@@ -303,7 +303,7 @@ export default function WorkshopCustomersPage() {
                               <button
                                 onClick={() => {
                                   setEditingOrder(order);
-                                  setPaymentInput(order.paidAmount?.toString() || "0");
+                                  setPaymentInput(order.debtAmount?.toString() || "0");
                                   setDeliverOnPayment(order.status !== "DELIVERED");
                                 }}
                                 className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors inline-flex items-center justify-center mx-auto"
@@ -361,11 +361,11 @@ export default function WorkshopCustomersPage() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-muted-foreground uppercase">
-                    Nhập số tiền đã trả mới
+                    Khách trả thêm
                   </label>
                   <button 
                     type="button" 
-                    onClick={() => setPaymentInput(editingOrder.totalAmount?.toString() || "0")}
+                    onClick={() => setPaymentInput(editingOrder.debtAmount?.toString() || "0")}
                     className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
                   >
                     Trả toàn bộ

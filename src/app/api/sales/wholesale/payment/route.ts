@@ -9,8 +9,8 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Danh sách xe không hợp lệ" }, { status: 400 });
     }
 
-    const targetPaidAmount = Number(amount);
-    if (isNaN(targetPaidAmount) || targetPaidAmount < 0) {
+    const paymentDelta = Number(amount);
+    if (isNaN(paymentDelta) || paymentDelta < 0) {
       return NextResponse.json({ error: "Số tiền không hợp lệ" }, { status: 400 });
     }
 
@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest) {
 
     // Calculate total prices for each vehicle and group total
     const vehiclePricing = vehicles.map(v => {
-      const accessories = JSON.parse(v.accessoriesJson || "[]");
+      const accessories = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : (v.accessoriesJson as any) || [];
       const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
       const totalPrice = v.listPrice.toNumber() + (v.plateCost ? v.plateCost.toNumber() : 0) + accCost;
       return {
@@ -53,26 +53,29 @@ export async function PATCH(req: NextRequest) {
     const oldGroupDebt = vehiclePricing.reduce((sum, v) => sum + v.oldDebt, 0);
     const oldGroupPaid = vehiclePricing.reduce((sum, v) => sum + v.oldPaid, 0);
 
-    const newGroupPaid = Math.min(targetPaidAmount, groupTotalPrice);
-    const newGroupDebt = groupTotalPrice - newGroupPaid;
+    const actualPaymentDelta = Math.min(paymentDelta, oldGroupDebt);
+    const newGroupPaid = oldGroupPaid + actualPaymentDelta;
+    const newGroupDebt = oldGroupDebt - actualPaymentDelta;
+    const diffPaid = actualPaymentDelta;
     const debtDelta = newGroupDebt - oldGroupDebt;
-    const diffPaid = newGroupPaid - oldGroupPaid;
 
-    // Distribute paid amount among vehicles
-    let remainingPaidToDistribute = newGroupPaid;
+    // Distribute actualPaymentDelta among vehicles that still have debt
+    let remainingPaidToDistribute = actualPaymentDelta;
 
     const updates = vehiclePricing.map(vp => {
-      const allocatedPaid = Math.min(remainingPaidToDistribute, vp.totalPrice);
-      remainingPaidToDistribute -= allocatedPaid;
-      const allocatedDebt = vp.totalPrice - allocatedPaid;
+      const amountToPay = Math.min(remainingPaidToDistribute, vp.oldDebt);
+      remainingPaidToDistribute -= amountToPay;
+
+      const newPaid = vp.oldPaid + amountToPay;
+      const newDebt = vp.oldDebt - amountToPay;
 
       // Status logic: if fully paid, transition to "SOLD", otherwise "RESERVED"
-      const status = allocatedDebt === 0 ? "SOLD" : "RESERVED";
+      const status = newDebt === 0 ? "SOLD" : "RESERVED";
 
       return {
         id: vp.id,
-        paidAmount: allocatedPaid,
-        debtAmount: allocatedDebt,
+        paidAmount: newPaid,
+        debtAmount: newDebt,
         status
       };
     });
