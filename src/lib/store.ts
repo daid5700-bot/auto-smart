@@ -24,6 +24,7 @@ interface AuthState {
   activeBranch: Branch | null;
   login: (email: string, password: string) => Promise<boolean>;
   loginAs: (role: UserRole) => Promise<void>;
+  updateUser: (user: AuthUser) => void;
   setActiveBranch: (branch: Branch) => void;
   logout: () => void;
   hydrate: () => void;
@@ -131,6 +132,13 @@ export const useAuth = create<AuthState>((set) => ({
           document.cookie = "active_branch_id=; path=/; max-age=0; SameSite=Lax";
         }
       }
+    }
+  },
+
+  updateUser: (user: AuthUser) => {
+    set({ user });
+    if (typeof window !== "undefined") {
+      localStorage.setItem("user_session", JSON.stringify(user));
     }
   },
 

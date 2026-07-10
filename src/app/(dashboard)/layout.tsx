@@ -5,18 +5,31 @@ import Link from "next/link";
 import { useAuth } from "@/lib/store";
 import { getNavForRole } from "@/config/navigation";
 import { roleName, roleColor } from "@/config/rbac";
-import { Car, ChevronLeft, ChevronRight, LogOut, Bell, Search, Menu, ChevronDown, Loader2, X, Wrench, User, Sparkles, Building2 } from "lucide-react";
+import { Car, ChevronLeft, ChevronRight, LogOut, Search, Menu, ChevronDown, Loader2, X, Wrench, User, Sparkles, Building2, KeyRound, Pencil, Eye, EyeOff } from "lucide-react";
 import { cn, formatCurrency, parseSymptoms } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isAuth, logout, hydrate, branches, activeBranch, setActiveBranch } = useAuth();
+  const { user, isAuth, logout, hydrate, branches, activeBranch, setActiveBranch, updateUser } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [displayBranches, setDisplayBranches] = useState<any[]>([]);
   const [branchesLoaded, setBranchesLoaded] = useState(false);
 
@@ -32,6 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [pendingReqCount, setPendingReqCount] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     hydrate();
@@ -73,6 +87,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [branchDropdownOpen]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    }
+    if (accountMenuOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [accountMenuOpen]);
 
   useEffect(() => {
     if (hydrated && (!isAuth || !user)) {
@@ -198,7 +222,69 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const activeSection = nav.find((s) => s.items.some((i) => currentItem?.href === i.href));
   const toggle = (t: string) => setOpenSections((p) => p.includes(t) ? p.filter((x) => x !== t) : [...p, t]);
   const isOpen = (t: string) => openSections.includes(t) || activeSection?.title === t;
-  const doLogout = () => { logout(); router.push("/login"); };
+  const doLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    logout();
+    router.push("/login");
+  };
+
+  const openProfileModal = () => {
+    setAccountMenuOpen(false);
+    setProfileName(user.name);
+    setProfileModalOpen(true);
+  };
+
+  const openPasswordModal = () => {
+    setAccountMenuOpen(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordModalOpen(true);
+  };
+
+  const handleProfileSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setProfileSaving(true);
+    try {
+      const response = await fetch("/api/me/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: profileName }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không thể cập nhật thông tin");
+      updateUser(data.user);
+      setProfileModalOpen(false);
+      toast.success("Đã cập nhật thông tin cá nhân");
+    } catch (error: any) {
+      toast.error("Cập nhật thất bại", error.message);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordSaving(true);
+    try {
+      const response = await fetch("/api/me/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không thể đổi mật khẩu");
+      setPasswordModalOpen(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Đã đổi mật khẩu thành công");
+    } catch (error: any) {
+      toast.error("Đổi mật khẩu thất bại", error.message);
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
 
   const handleResultClick = (href: string) => {
     setSearchOpen(false);
@@ -269,21 +355,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* User */}
-        <div className="border-t border-sidebar-border p-3 shrink-0">
-          <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+        <div className="relative border-t border-sidebar-border p-3 shrink-0" ref={accountMenuRef}>
+          <button
+            onClick={() => setAccountMenuOpen((open) => !open)}
+            className={cn("w-full flex items-center gap-3 rounded-xl p-1.5 hover:bg-sidebar-accent transition-colors text-left", collapsed && "justify-center")}
+            title={collapsed ? `${user.name} - Mở menu tài khoản` : undefined}
+          >
             <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${roleColor(user.role)} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
               {user.name.charAt(0)}
             </div>
             {!collapsed && (
-              <>
-                <div className="flex-1 min-w-0 animate-fade-in">
-                  <p className="text-sm font-medium truncate">{user.name}</p>
-                  <p className="text-[10px] text-primary">{roleName(user.role)}</p>
-                </div>
-                <button onClick={doLogout} className="text-muted-foreground hover:text-destructive transition-colors" title="Đăng xuất"><LogOut size={16} /></button>
-              </>
+              <div className="flex-1 min-w-0 animate-fade-in">
+                <p className="text-sm font-medium truncate">{user.name}</p>
+                <p className="text-[10px] text-primary">{roleName(user.role)}</p>
+              </div>
             )}
-          </div>
+            {!collapsed && <ChevronDown size={15} className={cn("text-muted-foreground transition-transform", accountMenuOpen && "rotate-180")} />}
+          </button>
+
+          {accountMenuOpen && (
+            <div className={cn("absolute bottom-full mb-2 w-56 rounded-xl bg-card border border-border shadow-xl p-1.5 z-30 animate-fade-in", collapsed ? "left-14" : "left-3 right-3 w-auto")}>
+              <button onClick={openProfileModal} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm hover:bg-accent transition-colors text-left">
+                <Pencil size={15} className="text-primary" /> Thông tin cá nhân
+              </button>
+              <button onClick={openPasswordModal} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm hover:bg-accent transition-colors text-left">
+                <KeyRound size={15} className="text-primary" /> Mật khẩu
+              </button>
+              <div className="my-1 border-t border-border" />
+              <button onClick={doLogout} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-colors text-left">
+                <LogOut size={15} /> Đăng xuất
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Collapse */}
@@ -355,13 +458,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="text-xs">⌘</span>K
               </kbd>
             </div>
-            <button className="relative w-9 h-9 rounded-lg bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
-              <Bell size={16} />
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-destructive text-[10px] text-white flex items-center justify-center font-bold">3</span>
-            </button>
-            <button onClick={doLogout} className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
-              {user.name.charAt(0)}
-            </button>
           </div>
         </header>
 
@@ -493,6 +589,73 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span>Mẹo: Nhấn phím <kbd className="bg-card px-1 py-0.5 rounded border">Esc</kbd> để đóng nhanh</span>
               <span>Dữ liệu tìm kiếm thời gian thực</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {profileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={(event) => event.target === event.currentTarget && setProfileModalOpen(false)}>
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div>
+                <h3 className="text-lg font-bold">Thông tin cá nhân</h3>
+                <p className="text-xs text-muted-foreground mt-1">Cập nhật tên hiển thị của bạn</p>
+              </div>
+              <button onClick={() => setProfileModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleProfileSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Họ và tên</label>
+                <input required value={profileName} onChange={(event) => setProfileName(event.target.value)} className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Email</label>
+                <input value={user.email} disabled className="w-full px-3 py-2.5 bg-muted/50 border border-border rounded-xl text-sm text-muted-foreground" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Vai trò</label>
+                <input value={roleName(user.role)} disabled className="w-full px-3 py-2.5 bg-muted/50 border border-border rounded-xl text-sm text-muted-foreground" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setProfileModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-secondary/40">Hủy</button>
+                <button type="submit" disabled={profileSaving} className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60">{profileSaving ? "Đang lưu..." : "Lưu thay đổi"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {passwordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={(event) => event.target === event.currentTarget && setPasswordModalOpen(false)}>
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div>
+                <h3 className="text-lg font-bold">Đổi mật khẩu</h3>
+                <p className="text-xs text-muted-foreground mt-1">Mật khẩu mới cần có ít nhất 6 ký tự</p>
+              </div>
+              <button onClick={() => setPasswordModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+            </div>
+            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+              {[
+                ["Mật khẩu hiện tại", currentPassword, setCurrentPassword, showCurrentPassword, setShowCurrentPassword],
+                ["Mật khẩu mới", newPassword, setNewPassword, showNewPassword, setShowNewPassword],
+                ["Xác nhận mật khẩu mới", confirmPassword, setConfirmPassword, showConfirmPassword, setShowConfirmPassword],
+              ].map(([label, value, setter, visible, setVisible]) => (
+                <div key={label as string}>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">{label as string}</label>
+                  <div className="relative">
+                    <input required type={visible ? "text" : "password"} value={value as string} onChange={(event) => (setter as React.Dispatch<React.SetStateAction<string>>)(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                    <button type="button" onClick={() => (setVisible as React.Dispatch<React.SetStateAction<boolean>>)(!visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setPasswordModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-secondary/40">Hủy</button>
+                <button type="submit" disabled={passwordSaving} className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60">{passwordSaving ? "Đang lưu..." : "Đổi mật khẩu"}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
