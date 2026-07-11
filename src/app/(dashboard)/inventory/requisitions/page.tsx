@@ -3,15 +3,17 @@ import { useEffect, useState, useMemo } from "react";
 import { ClipboardList, Check, X, Eye, AlertCircle, Loader2, Calendar, Car, User, Settings, Package, Wrench } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate, fetchWithDedup } from "@/lib/utils";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function UnifiedRequisitionsApprovalPage() {
+  const modal = useModal();
   const [requisitions, setRequisitions] = useState<any[]>([]);
   const [vehicleOrders, setVehicleOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sourceTab, setSourceTab] = useState<"WORKSHOP" | "VEHICLE">("WORKSHOP");
   const [activeTab, setActiveTab] = useState<"PENDING" | "HISTORY">("PENDING");
   const [processingId, setProcessingId] = useState<number | null>(null);
-  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -35,34 +37,62 @@ export default function UnifiedRequisitionsApprovalPage() {
 
   // Workshop approval handlers
   const handleWorkshopApprove = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn duyệt xuất kho cho yêu cầu sửa chữa này?")) return;
+    const confirmed = await modal.confirm({
+      title: "Phê duyệt yêu cầu xuất kho",
+      message: "Bạn có chắc chắn muốn duyệt xuất kho cho yêu cầu sửa chữa này?",
+      type: "success",
+      confirmText: "Duyệt ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     setProcessingId(id);
-    setMessage(null);
     try {
       const res = await fetch(`/api/workshop/requisitions/${id}/approve`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gặp lỗi khi duyệt yêu cầu.");
-      setMessage({ text: "Đã duyệt xuất phụ tùng thành công. Kho đã trừ hàng.", type: "success" });
+      await modal.alert({
+        title: "Thành công",
+        message: "Đã duyệt xuất phụ tùng thành công. Kho đã trừ hàng.",
+        type: "success",
+      });
       fetchData();
     } catch (e: any) {
-      setMessage({ text: e.message, type: "error" });
+      await modal.alert({
+        title: "Thất bại",
+        message: e.message || "Gặp lỗi khi duyệt yêu cầu.",
+        type: "error",
+      });
     } finally {
       setProcessingId(null);
     }
   };
 
   const handleWorkshopReject = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn từ chối yêu cầu xuất kho này?")) return;
+    const confirmed = await modal.confirm({
+      title: "Từ chối yêu cầu xuất kho",
+      message: "Bạn có chắc chắn muốn từ chối yêu cầu xuất kho này?",
+      type: "danger",
+      confirmText: "Từ chối",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     setProcessingId(id);
-    setMessage(null);
     try {
       const res = await fetch(`/api/workshop/requisitions/${id}/reject`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gặp lỗi khi từ chối.");
-      setMessage({ text: "Đã từ chối yêu cầu xuất kho sửa chữa.", type: "success" });
+      await modal.alert({
+        title: "Thành công",
+        message: "Đã từ chối yêu cầu xuất kho sửa chữa.",
+        type: "success",
+      });
       fetchData();
     } catch (e: any) {
-      setMessage({ text: e.message, type: "error" });
+      await modal.alert({
+        title: "Thất bại",
+        message: e.message || "Gặp lỗi khi từ chối.",
+        type: "error",
+      });
     } finally {
       setProcessingId(null);
     }
@@ -70,11 +100,17 @@ export default function UnifiedRequisitionsApprovalPage() {
 
   // Vehicle accessories approval handlers (handles both paid and gifts grouped together)
   const handleVehicleGroupApprove = async (card: any) => {
-    if (!confirm("Bạn có chắc chắn muốn duyệt xuất kho cho phụ kiện kèm xe này? Tồn kho sẽ trừ ngay.")) return;
+    const confirmed = await modal.confirm({
+      title: "Duyệt xuất kho phụ kiện",
+      message: "Bạn có chắc chắn muốn duyệt xuất kho cho phụ kiện kèm xe này? Tồn kho sẽ trừ ngay.",
+      type: "success",
+      confirmText: "Duyệt ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     const processId = card.paidOrderId || card.giftRequisitionId;
     if (!processId) return;
     setProcessingId(processId);
-    setMessage(null);
     try {
       if (card.paidOrderId) {
         const res = await fetch(`/api/inventory/pending-exports/${card.paidOrderId}/approve`, { method: "POST" });
@@ -86,10 +122,18 @@ export default function UnifiedRequisitionsApprovalPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Gặp lỗi khi duyệt quà tặng phụ tùng.");
       }
-      setMessage({ text: "Đã duyệt xuất phụ kiện kèm xe thành công.", type: "success" });
+      await modal.alert({
+        title: "Thành công",
+        message: "Đã duyệt xuất phụ kiện kèm xe thành công.",
+        type: "success",
+      });
       fetchData();
     } catch (e: any) {
-      setMessage({ text: e.message, type: "error" });
+      await modal.alert({
+        title: "Thất bại",
+        message: e.message || "Gặp lỗi khi duyệt phụ kiện.",
+        type: "error",
+      });
     } finally {
       setProcessingId(null);
     }
@@ -101,7 +145,6 @@ export default function UnifiedRequisitionsApprovalPage() {
     const processId = card.paidOrderId || card.giftRequisitionId;
     if (!processId) return;
     setProcessingId(processId);
-    setMessage(null);
     try {
       if (card.paidOrderId) {
         const res = await fetch(`/api/inventory/pending-exports/${card.paidOrderId}/approve`, {
@@ -117,10 +160,18 @@ export default function UnifiedRequisitionsApprovalPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Gặp lỗi khi từ chối quà tặng.");
       }
-      setMessage({ text: "Đã từ chối yêu cầu xuất phụ kiện kèm xe.", type: "success" });
+      await modal.alert({
+        title: "Thành công",
+        message: "Đã từ chối yêu cầu xuất phụ kiện kèm xe.",
+        type: "success",
+      });
       fetchData();
     } catch (e: any) {
-      setMessage({ text: e.message, type: "error" });
+      await modal.alert({
+        title: "Thất bại",
+        message: e.message || "Gặp lỗi khi từ chối.",
+        type: "error",
+      });
     } finally {
       setProcessingId(null);
     }
@@ -389,18 +440,8 @@ export default function UnifiedRequisitionsApprovalPage() {
         </div>
       </div>
 
-      {message && (
-        <div
-          className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs max-w-3xl animate-fade-in ${
-            message.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-              : "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400"
-          }`}
-        >
-          <AlertCircle size={15} />
-          <span>{message.text}</span>
-        </div>
-      )}
+
+
 
       {displayList.length === 0 ? (
         <div className="glass-card rounded-2xl p-10 text-center space-y-2">

@@ -4,8 +4,11 @@ import { useState, useEffect } from "react";
 import { Users, Search, MapPin, Phone, User, DollarSign, Receipt, Eye, X, Edit3 } from "lucide-react";
 import { handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function CustomerDebtsPage() {
+  const modal = useModal();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -81,16 +84,29 @@ export default function CustomerDebtsPage() {
       if (res.ok) {
         setEditingOrder(null);
         setPaymentInput("");
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã cập nhật thanh toán nợ thành công!",
+          type: "success",
+        });
         // Tải lại chi tiết đơn hàng của khách đó
         openCustomerModal(selectedCustomer);
         // Tải lại danh sách khách hàng để cập nhật số tổng
         fetchCustomers(page);
       } else {
-        alert("Có lỗi xảy ra khi cập nhật thanh toán");
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Có lỗi xảy ra khi cập nhật thanh toán",
+          type: "error",
+        });
       }
-    } catch (error) {
-      console.error(error);
-      alert("Lỗi mạng");
+    } catch (error: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: error.message,
+        type: "error",
+      });
     } finally {
       setSubmittingPayment(false);
     }

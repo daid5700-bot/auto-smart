@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Loader2, Gift, ArrowDownCircle, ArrowUpCircle, Search } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { redeemPointsDb } from "@/app/actions";
+import { useModal } from "@/components/ModalProvider";
+
 
 // FIX #5: NumericInput — hiển thị số thô khi đang focus để không phá vỡ IME tiếng Việt
 const NumericInput = ({ value, onChange, className, ...props }: any) => {
@@ -29,10 +31,14 @@ const NumericInput = ({ value, onChange, className, ...props }: any) => {
 };
 
 export default function LoyaltyPage() {
+  const modal = useModal();
   const [customers, setCustomers] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Form State
   const [customerId, setCustomerId] = useState("");
@@ -40,16 +46,11 @@ export default function LoyaltyPage() {
   const [description, setDescription] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  const fetchData = async () => {
+  const fetchCustomers = async () => {
     try {
-      const [resCust, resTx] = await Promise.all([
-        fetch("/api/crm?tab=customers&allBranches=true"),
-        fetch("/api/crm?tab=loyalty&allBranches=true")
-      ]);
-      const dataCust = await resCust.json();
-      const dataTx = await resTx.json();
-      setCustomers(dataCust.customers || []);
-      setTransactions(dataTx.transactions || []);
+      const res = await fetch("/api/crm?tab=customers&limit=200&allBranches=true");
+      const data = await res.json();
+      setCustomers(data.customers || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -57,12 +58,46 @@ export default function LoyaltyPage() {
     }
   };
 
+  const fetchTransactions = async (pageVal = 1, searchVal = "") => {
+    try {
+      const res = await fetch(`/api/crm?tab=loyalty&page=${pageVal}&limit=10&search=${encodeURIComponent(searchVal)}`);
+      const data = await res.json();
+      setTransactions(data.transactions || []);
+      if (data.pagination) {
+        setTotalPages(data.pagination.totalPages || 1);
+        setTotalCount(data.pagination.total || 0);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
-    fetchData();
+    fetchCustomers();
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchTransactions(page, searchQuery);
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, searchQuery]);
 
   const handleRedeem = async (e: React.FormEvent) => {
     e.preventDefault();
+    const confirmed = await modal.confirm({
+      title: "Xác nhận quy đổi điểm",
+      message: `Bạn có chắc chắn muốn quy đổi ${pointsToRedeem} điểm cho khách hàng này?`,
+      type: "warning",
+      confirmText: "Quy đổi",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       setLoading(true);
       const discount = await redeemPointsDb({
@@ -70,13 +105,24 @@ export default function LoyaltyPage() {
         points: Number(pointsToRedeem) || 0,
         description: description.trim() || undefined,
       });
-      setSuccessMsg(`Quy đổi điểm thành công! Khách hàng được giảm giá ${formatCurrency(discount)} trên hóa đơn.`);
+      const successMessage = `Quy đổi điểm thành công! Khách hàng được giảm giá ${formatCurrency(discount)} trên hóa đơn.`;
+      setSuccessMsg(successMessage);
       setCustomerId("");
       setPointsToRedeem(10);
       setDescription("");
-      await fetchData();
+      await modal.alert({
+        title: "Thành công",
+        message: successMessage,
+        type: "success",
+      });
+      await fetchCustomers();
+      await fetchTransactions(page, searchQuery);
     } catch (err: any) {
-      alert("Lỗi quy đổi điểm: " + err.message);
+      await modal.alert({
+        title: "Thất bại",
+        message: err.message || "Gặp lỗi khi quy đổi điểm",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -86,15 +132,7 @@ export default function LoyaltyPage() {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
-  const filteredTransactions = transactions.filter((tx) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      tx.customer?.name?.toLowerCase().includes(q) ||
-      tx.customer?.phone?.includes(q) ||
-      tx.description?.toLowerCase().includes(q)
-    );
-  });
+  const filteredTransactions = transactions;
 
   return (
     <div className="space-y-6 stagger">
@@ -226,6 +264,62 @@ export default function LoyaltyPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 bg-card border-t border-border">
+            <div className="text-xs text-muted-foreground font-semibold">
+              Hiển thị {(page - 1) * 10 + 1}–{Math.min(page * 10, totalCount)} / {totalCount} giao dịch
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { setPage(1); }}
+                disabled={page === 1}
+                className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                «
+              </button>
+              <button
+                onClick={() => { setPage(p => Math.max(1, p - 1)); }}
+                disabled={page === 1}
+                className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ‹
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
+                if (p > totalPages) return null;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => { setPage(p); }}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border ${
+                      p === page
+                        ? "border-primary bg-primary text-white"
+                        : "border-border hover:bg-secondary/40"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => { setPage(p => Math.min(totalPages, p + 1)); }}
+                disabled={page === totalPages}
+                className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ›
+              </button>
+              <button
+                onClick={() => { setPage(totalPages); }}
+                disabled={page === totalPages}
+                className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                »
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

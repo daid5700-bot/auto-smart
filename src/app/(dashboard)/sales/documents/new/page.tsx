@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
+import { useModal } from "@/components/ModalProvider";
+
 
 interface Accessory {
   id: number;
@@ -19,6 +21,8 @@ interface Accessory {
 
 export default function NewDocumentPage() {
   const router = useRouter();
+  const modal = useModal();
+
   
   // Custom dropdown states
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -231,15 +235,27 @@ export default function NewDocumentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName || !customerPhone) {
-      alert("Vui lòng nhập đầy đủ Tên khách hàng và Số điện thoại!");
+      await modal.alert({
+        title: "Thiếu thông tin",
+        message: "Vui lòng nhập đầy đủ Tên khách hàng và Số điện thoại!",
+        type: "warning",
+      });
       return;
     }
     if (saleMode === "RETAIL" && !selectedVehicleId) {
-      alert("Vui lòng chọn một xe từ kho hệ thống!");
+      await modal.alert({
+        title: "Thiếu thông tin",
+        message: "Vui lòng chọn một xe từ kho hệ thống!",
+        type: "warning",
+      });
       return;
     }
     if (saleMode === "WHOLESALE" && wholesaleVehicles.length === 0) {
-      alert("Vui lòng chọn ít nhất một xe để bán buôn!");
+      await modal.alert({
+        title: "Thiếu thông tin",
+        message: "Vui lòng chọn ít nhất một xe để bán buôn!",
+        type: "warning",
+      });
       return;
     }
     setIsSubmitting(true);
@@ -286,15 +302,28 @@ export default function NewDocumentPage() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã tạo mới hồ sơ bán hàng thành công!",
+          type: "success",
+        });
         router.push("/sales/documents");
         router.refresh();
       } else {
         const err = await res.json();
-        alert(err.error || "Gặp lỗi khi lưu hồ sơ");
+        await modal.alert({
+          title: "Thất bại",
+          message: err.error || "Gặp lỗi khi lưu hồ sơ",
+          type: "error",
+        });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Lỗi kết nối máy chủ");
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message || "Lỗi kết nối máy chủ",
+        type: "error",
+      });
     } finally {
       setIsSubmitting(false);
     }

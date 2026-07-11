@@ -2,8 +2,11 @@
 import { useEffect, useState } from "react";
 import { Building2, Loader2, Plus, Edit, Trash2, X, MapPin, Phone } from "lucide-react";
 import { useAuth } from "@/lib/store";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function BranchesPage() {
+  const modal = useModal();
   const { user } = useAuth();
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +39,14 @@ export default function BranchesPage() {
   }, []);
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa cơ sở/chi nhánh "${name}"?`)) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa chi nhánh",
+      message: `Bạn có chắc chắn muốn xóa cơ sở/chi nhánh "${name}" không?`,
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       setLoading(true);
       const res = await fetch(`/api/branches/${id}`, { method: "DELETE" });
@@ -44,9 +54,18 @@ export default function BranchesPage() {
       if (!res.ok) {
         throw new Error(data.error || "Lỗi khi xóa chi nhánh");
       }
+      await modal.alert({
+        title: "Thành công",
+        message: `Đã xóa cơ sở/chi nhánh "${name}" thành công!`,
+        type: "success",
+      });
       await fetchData();
     } catch (e: any) {
-      alert(e.message);
+      await modal.alert({
+        title: "Thất bại",
+        message: e.message,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -77,7 +96,11 @@ export default function BranchesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      alert("Tên cơ sở không được để trống!");
+      await modal.alert({
+        title: "Cảnh báo",
+        message: "Tên cơ sở không được để trống!",
+        type: "warning",
+      });
       return;
     }
     try {
@@ -97,9 +120,18 @@ export default function BranchesPage() {
       }
 
       setModalOpen(false);
+      await modal.alert({
+        title: "Thành công",
+        message: editingId ? "Cập nhật thông tin cơ sở thành công!" : "Tạo cơ sở mới thành công!",
+        type: "success",
+      });
       await fetchData();
     } catch (err: any) {
-      alert(err.message);
+      await modal.alert({
+        title: "Thất bại",
+        message: err.message,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }

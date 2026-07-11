@@ -3,10 +3,13 @@ import { useEffect, useState } from "react";
 import { formatCurrency, statusText, statusBadge, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Car, Plus, Search, Grid3X3, List, Eye, Edit, Trash2, X, Loader2, Upload } from "lucide-react";
+import { useModal } from "@/components/ModalProvider";
+
 
 const COLOR_DOT: Record<string, string> = { "Đen": "bg-gray-800", "Trắng": "bg-white border border-border", "Bạc": "bg-gray-400", "Đỏ": "bg-red-500", "Xanh": "bg-blue-500" };
 
 export default function SalesPage() {
+  const modal = useModal();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -67,6 +70,9 @@ export default function SalesPage() {
   }, []);
 
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -79,24 +85,59 @@ export default function SalesPage() {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (statusF) params.set("status", statusF);
+    params.set("page", String(page));
+    params.set("limit", "12");
     fetchWithDedup(`/api/sales?${params}`)
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        if (d.pagination) {
+          setTotalPages(d.pagination.totalPages || 1);
+          setTotalCount(d.pagination.total || 0);
+        }
+      })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    fetchData();
+    setPage(1);
   }, [debouncedSearch, statusF]);
 
+  useEffect(() => {
+    fetchData();
+  }, [debouncedSearch, statusF, page]);
+
   const handleDelete = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa xe này?")) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa xe",
+      message: "Bạn có chắc chắn muốn xóa xe này khỏi kho không?",
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/sales/${id}`, { method: "DELETE" });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã xóa xe khỏi hệ thống thành công!",
+          type: "success",
+        });
         fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Lỗi",
+          message: errorData.error || "Gặp lỗi khi xóa xe",
+          type: "error",
+        });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     }
   };
 
@@ -162,10 +203,18 @@ export default function SalesPage() {
       if (resData.url) {
         setFormData((prev) => ({ ...prev, image: resData.url }));
       } else {
-        alert("Upload thất bại: " + (resData.error || "Lỗi không xác định"));
+        await modal.alert({
+          title: "Lỗi tải ảnh",
+          message: resData.error || "Lỗi không xác định khi upload",
+          type: "error",
+        });
       }
     } catch (err: any) {
-      alert("Lỗi upload: " + err.message);
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: "Lỗi upload: " + err.message,
+        type: "error",
+      });
     } finally {
       setUploading(false);
     }
@@ -195,13 +244,26 @@ export default function SalesPage() {
 
       if (res.ok) {
         setModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: editingId ? "Đã cập nhật thông tin xe thành công!" : "Đã thêm xe mới vào kho thành công!",
+          type: "success",
+        });
         fetchData();
       } else {
         const errorData = await res.json().catch(() => ({}));
-        alert("Lỗi khi lưu thông tin xe: " + (errorData.error || "Lỗi không xác định từ hệ thống"));
+        await modal.alert({
+          title: "Lỗi lưu thông tin",
+          message: errorData.error || "Lỗi không xác định từ hệ thống",
+          type: "error",
+        });
       }
     } catch (err: any) {
-      alert("Lỗi kết nối: " + err.message);
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: err.message,
+        type: "error",
+      });
     }
   };
 
@@ -510,6 +572,62 @@ export default function SalesPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl mt-4">
+          <div className="text-xs text-muted-foreground font-semibold">
+            Hiển thị {(page - 1) * 12 + 1}–{Math.min(page * 12, totalCount)} / {totalCount} xe
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { setPage(1); setLoading(true); }}
+              disabled={page === 1}
+              className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              «
+            </button>
+            <button
+              onClick={() => { setPage(p => Math.max(1, p - 1)); setLoading(true); }}
+              disabled={page === 1}
+              className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ‹
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
+              if (p > totalPages) return null;
+              return (
+                <button
+                  key={p}
+                  onClick={() => { setPage(p); setLoading(true); }}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold border ${
+                    p === page
+                      ? "border-primary bg-primary text-white"
+                      : "border-border hover:bg-secondary/40"
+                  }`}
+                >
+                  {p}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => { setPage(p => Math.min(totalPages, p + 1)); setLoading(true); }}
+              disabled={page === totalPages}
+              className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ›
+            </button>
+            <button
+              onClick={() => { setPage(totalPages); setLoading(true); }}
+              disabled={page === totalPages}
+              className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              »
+            </button>
+          </div>
         </div>
       )}
       </div>
