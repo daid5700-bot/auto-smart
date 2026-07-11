@@ -107,7 +107,7 @@ export default function HistoryPage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Tìm kiếm biển số, dòng xe, tên khách, số điện thoại..."
+          placeholder="Tìm kiếm biển số, dòng xe, tên khách, SĐT hoặc ID..."
           className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
         />
       </div>

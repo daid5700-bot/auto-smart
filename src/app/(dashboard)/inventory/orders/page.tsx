@@ -101,7 +101,7 @@ export default function InventoryOrdersPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
             type="text"
-            placeholder="Tìm theo mã đơn, tên hoặc SĐT khách..."
+            placeholder="Tìm theo mã đơn, tên, SĐT khách hoặc ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"

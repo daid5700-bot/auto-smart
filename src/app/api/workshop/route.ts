@@ -39,6 +39,9 @@ export async function GET(req: NextRequest) {
       { customer: { name: { contains: search, mode: "insensitive" } } },
       { customer: { phone: { contains: search } } },
     ];
+    if (/^\d+$/.test(search.trim())) {
+      whereClause.OR.push({ id: parseInt(search.trim(), 10) });
+    }
   }
 
   // Run independent queries in parallel for speed

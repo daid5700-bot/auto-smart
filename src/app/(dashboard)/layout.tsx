@@ -149,7 +149,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         })
         .catch(console.error)
         .finally(() => setSearching(false));
-    }, 300);
+    }, 400);
 
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
@@ -475,7 +475,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 ref={searchInputRef}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm khách hàng, biển số xe, tên xe bán... (Nhập từ 2 ký tự)"
+                placeholder="Tìm khách hàng, biển số, tên xe, hoặc ID... (Nhập từ 2 ký tự)"
                 className="flex-1 bg-transparent border-none outline-none text-base placeholder:text-muted-foreground"
               />
               {searching ? (

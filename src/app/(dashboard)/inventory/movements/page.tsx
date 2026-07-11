@@ -112,11 +112,13 @@ export default function MovementsPage() {
   }, []);
 
   const filteredProducts = useMemo(() => {
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.toLowerCase().trim();
     if (!query) return products.slice(0, 50);
-    return products.filter(p => 
+    const isNumeric = /^\d+$/.test(query);
+    return products.filter(p =>
       (p.name || "").toLowerCase().includes(query) ||
-      (p.sku || "").toLowerCase().includes(query)
+      (p.sku || "").toLowerCase().includes(query) ||
+      (isNumeric && p.id === parseInt(query, 10))
     ).slice(0, 50);
   }, [products, searchQuery]);
 

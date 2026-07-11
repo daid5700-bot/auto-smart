@@ -10,9 +10,18 @@ export default function WorkshopCustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Modal states
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
@@ -28,7 +37,7 @@ export default function WorkshopCustomersPage() {
   const fetchCustomers = async (p = 1) => {
     try {
       setLoading(true);
-      const data = await fetchWithDedup(`/api/workshop/customers?page=${p}&limit=20&search=${encodeURIComponent(search)}`);
+      const data = await fetchWithDedup(`/api/workshop/customers?page=${p}&limit=20&search=${encodeURIComponent(debouncedSearch)}`);
       setCustomers(data.customers || []);
       if (data.pagination) setTotalPages(data.pagination.totalPages);
     } catch (e) {
@@ -40,13 +49,7 @@ export default function WorkshopCustomersPage() {
 
   useEffect(() => {
     fetchCustomers(page);
-  }, [page]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-    fetchCustomers(1);
-  };
+  }, [page, debouncedSearch]);
 
   const openCustomerModal = async (customer: any) => {
     setCustomerOrders([]);
@@ -123,20 +126,17 @@ export default function WorkshopCustomersPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSearch} className="flex gap-3 max-w-md">
+      <div className="flex gap-3 max-w-md">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo tên khách, số điện thoại..."
+            placeholder="Tìm theo tên, SĐT hoặc ID khách..."
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
-        <button type="submit" className="px-5 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:opacity-90 transition-opacity">
-          Tìm kiếm
-        </button>
-      </form>
+      </div>
 
       <div className="glass-card rounded-2xl overflow-hidden border border-border/40">
         <div className="overflow-x-auto">

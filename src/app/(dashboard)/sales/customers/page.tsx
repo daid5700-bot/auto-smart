@@ -12,10 +12,19 @@ export default function SalesCustomerDebtsPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [saleType, setSaleType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
   
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Modal states
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
@@ -30,7 +39,7 @@ export default function SalesCustomerDebtsPage() {
   const fetchCustomers = async (p = 1) => {
     try {
       setLoading(true);
-      const data = await fetchWithDedup(`/api/sales/customers?page=${p}&limit=20&saleType=${saleType}&search=${encodeURIComponent(search)}`);
+      const data = await fetchWithDedup(`/api/sales/customers?page=${p}&limit=20&saleType=${saleType}&search=${encodeURIComponent(debouncedSearch)}`);
       setCustomers(data.customers || []);
       if (data.pagination) setTotalPages(data.pagination.totalPages);
     } catch (e) {
@@ -42,13 +51,7 @@ export default function SalesCustomerDebtsPage() {
 
   useEffect(() => {
     fetchCustomers(page);
-  }, [page, saleType]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-    fetchCustomers(1);
-  };
+  }, [page, saleType, debouncedSearch]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(val);
@@ -133,16 +136,16 @@ export default function SalesCustomerDebtsPage() {
       </div>
 
       <div className="flex items-center justify-between mb-4">
-        <form onSubmit={handleSearch} className="relative w-full max-w-sm">
+        <div className="relative w-full max-w-sm">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
             type="text"
-            placeholder="Tìm theo tên, SĐT khách hàng..."
+            placeholder="Tìm theo tên, SĐT hoặc ID khách hàng..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all shadow-sm"
           />
-        </form>
+        </div>
         <div className="flex rounded-xl border border-border bg-card p-1 text-xs font-bold">
           <button
             type="button"

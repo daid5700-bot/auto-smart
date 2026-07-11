@@ -453,7 +453,7 @@ function InventoryContent() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Tìm theo tên hoặc mã SKU..." className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" /></div>
+        <div className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Tìm theo tên, mã SKU hoặc ID..." className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" /></div>
         <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="bg-card border border-border rounded-xl px-4 py-2.5 text-sm outline-none"><option value="">Tất cả nhóm</option>{categories.map((c: string) => <option key={c} value={c}>{c}</option>)}</select>
       </div>
 
@@ -470,7 +470,6 @@ function InventoryContent() {
             <tr>
               <th>Mã SKU</th>
               <th>Tên phụ tùng</th>
-              {(scope === "other" || user?.role === "ADMIN") && <th>Cơ sở</th>}
               <th>Nhóm</th>
               <th>ĐVT</th>
               <th>Tồn kho</th>
@@ -496,10 +495,9 @@ function InventoryContent() {
                       {isSlowMoving && <span className="bg-amber-600 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-sm">Tồn lâu ngày</span>}
                     </div>
                   </td>
-                  {(scope === "other" || user?.role === "ADMIN") && <td className="font-semibold text-primary">{p.branch?.name || "Hệ thống"}</td>}
                   <td><span className="badge badge-primary">{p.category}</span></td>
                   <td className="text-muted-foreground">{p.unit}{p.conversionUnit && <span className="text-xs block">1 {p.conversionUnit} = {p.conversionFactor} {p.unit}</span>}</td>
-                  <td><span className={`font-semibold ${p.stockCount <= p.stockMin ? "text-destructive" : ""}`}>{formatNumber(p.stockCount)}</span><span className="text-xs text-muted-foreground ml-1">/{p.stockMin}-{p.stockMax}</span></td>
+                  <td><span className={`font-semibold ${p.stockCount <= p.stockMin ? "text-destructive" : ""}`}>{formatNumber(p.stockCount)}</span></td>
                   <td>{retail ? formatCurrency(Number(retail.amount)) : "—"}</td>
                   <td>{wholesale ? formatCurrency(Number(wholesale.amount)) : "—"}</td>
                   <td>{insurance ? formatCurrency(Number(insurance.amount)) : "—"}</td>

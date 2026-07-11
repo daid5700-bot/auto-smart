@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
         { customer: { name: { contains: search, mode: "insensitive" } } },
         { customer: { phone: { contains: search, mode: "insensitive" } } },
       ];
+      if (/^\d+$/.test(search.trim())) {
+        where.OR.push({ id: parseInt(search.trim(), 10) });
+      }
     }
 
     const total = await prisma.inventoryOrder.count({ where });

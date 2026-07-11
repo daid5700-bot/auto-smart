@@ -54,6 +54,9 @@ export async function GET(req: NextRequest) {
       { name: { contains: search, mode: "insensitive" } },
       { sku: { contains: search, mode: "insensitive" } },
     ];
+    if (/^\d+$/.test(search.trim())) {
+      where.OR.push({ id: parseInt(search.trim(), 10) });
+    }
   }
   if (category) where.category = category;
 
