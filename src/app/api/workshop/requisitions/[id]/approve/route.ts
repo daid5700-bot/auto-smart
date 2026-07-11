@@ -70,17 +70,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const currentReserved = Number(freshPb?.reservedStock || 0);
         const currentMac = Number(freshPb?.movingAvgCost || 0);
 
-        if (currentStock < item.quantity) {
-          throw new Error(`Phụ tùng [${product.sku}] ${product.name} không đủ tồn kho (Cần ${item.quantity}, hiện có ${currentStock})`);
+        const itemQty = Number(item.quantity);
+        if (currentStock < itemQty) {
+          throw new Error(`Phụ tùng [${product.sku}] ${product.name} không đủ tồn kho (Cần ${itemQty}, hiện có ${currentStock})`);
         }
 
         // Decrement product stock AND decrement the reservedStock since it's now fulfilled
         // Use Math.max guard to prevent reservedStock going negative due to data inconsistency
-        const safeReservedDecrement = Math.min(item.quantity, currentReserved);
+        const safeReservedDecrement = Math.min(itemQty, currentReserved);
         await tx.productBranch.update({
           where: { id: productBranch.id },
           data: { 
-            stockCount: { decrement: item.quantity },
+            stockCount: { decrement: itemQty },
             reservedStock: { decrement: safeReservedDecrement }
           }
         });
@@ -97,46 +98,38 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           const selectedPrice = product.prices?.find((p: any) => p.type === priceType);
           unitPrice = selectedPrice ? Number(selectedPrice.amount) : Number(product.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
         }
-        const totalPrice = unitPrice * item.quantity;
+        const totalPrice = unitPrice * itemQty;
 
         // Nếu là đơn sửa chữa thì ghi nhận vào hóa đơn
         if (requisition.repairOrderId) {
-          const existingOrderItem = await tx.orderItem.findFirst({
+          await tx.orderItem.upsert({
             where: {
-              repairOrderId: requisition.repairOrderId,
-              productId: product.id,
-            }
-          });
-          if (!existingOrderItem) {
-            await tx.orderItem.create({
-              data: {
+              repairOrderId_productId: {
                 repairOrderId: requisition.repairOrderId,
                 productId: product.id,
-                quantity: item.quantity,
-                unitPrice,
-                totalPrice,
               }
-            });
-          } else {
-            const newQuantity = Number(existingOrderItem.quantity) + item.quantity;
-            await tx.orderItem.update({
-              where: { id: existingOrderItem.id },
-              data: {
-                quantity: newQuantity,
-                unitPrice,
-                totalPrice: unitPrice * newQuantity,
-              }
-            });
-          }
+            },
+            create: {
+              repairOrderId: requisition.repairOrderId,
+              productId: product.id,
+              quantity: itemQty,
+              unitPrice,
+              totalPrice,
+            },
+            update: {
+              quantity: { increment: itemQty },
+              totalPrice: { increment: totalPrice },
+            }
+          });
 
           // Create StockMovement (EXPORT)
           await tx.stockMovement.create({
             data: {
               productId: product.id,
               type: "EXPORT",
-              quantity: item.quantity,
+              quantity: itemQty,
               unitCost: currentMac || unitPrice,
-              totalCost: (currentMac || unitPrice) * item.quantity,
+              totalCost: (currentMac || unitPrice) * itemQty,
               reason: `Xuất kho duyệt phụ tùng cho RO #${requisition.repairOrderId}`,
               relatedRoId: requisition.repairOrderId,
               createdBy: "Thủ kho",
@@ -149,9 +142,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             data: {
               productId: product.id,
               type: "EXPORT_GIFT",
-              quantity: item.quantity,
+              quantity: itemQty,
               unitCost: currentMac || unitPrice,
-              totalCost: (currentMac || unitPrice) * item.quantity,
+              totalCost: (currentMac || unitPrice) * itemQty,
               reason: `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${requisition.vehicle?.vin || requisition.vehicleId}`,
               createdBy: "Thủ kho",
               branchId: requisition.branchId,

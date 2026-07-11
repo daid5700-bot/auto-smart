@@ -39,6 +39,27 @@ if (process.env.NODE_ENV !== "production") {
       .catch((err) => console.error("Runtime requisition vehicle migration failed:", err));
 
 
+    (async () => {
+      // Missing foreign keys for InventoryOrder and StockMovement to Vehicle
+      await prisma.$executeRawUnsafe('ALTER TABLE "InventoryOrder" ADD COLUMN IF NOT EXISTS "vehicleId" INTEGER;');
+      await prisma.$executeRawUnsafe('ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "vehicleId" INTEGER;');
+      
+      // pg_trgm for full-text search performance
+      await prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pg_trgm;').catch(() => console.log('pg_trgm extension might already exist or requires permissions'));
+      await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS customer_name_gin_idx ON "Customer" USING gin ("name" gin_trgm_ops);').catch(console.error);
+      await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS customer_phone_gin_idx ON "Customer" USING gin ("phone" gin_trgm_ops);').catch(console.error);
+      await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS vehicle_vin_gin_idx ON "Vehicle" USING gin ("vin" gin_trgm_ops);').catch(console.error);
+      await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS ro_plate_gin_idx ON "RepairOrder" USING gin ("plateNumber" gin_trgm_ops);').catch(console.error);
+
+      // Partial Indexes for soft-deleted tables
+      await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS customer_active_idx ON "Customer"("isDeleted") WHERE "isDeleted" = false;').catch(console.error);
+      await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS ro_active_idx ON "RepairOrder"("isDeleted") WHERE "isDeleted" = false;').catch(console.error);
+      await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS product_active_idx ON "Product"("isDeleted") WHERE "isDeleted" = false;').catch(console.error);
+    })()
+      .then(() => console.log("Runtime migration: GIN indexes and missing columns checked/created."))
+      .catch((err) => console.error("Runtime migration for GIN failed:", err));
+
+
     prisma.$executeRawUnsafe('UPDATE "User" SET role = \'SALES\' WHERE role::text = \'CRM\';')
       .then((count) => {
         if (count > 0) {

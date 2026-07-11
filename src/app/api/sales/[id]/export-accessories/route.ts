@@ -23,7 +23,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Check if already requested (PENDING or PAID)
     const existingOrder = await prisma.inventoryOrder.findFirst({
-      where: { reason: `Xuất phụ kiện bán kèm xe VIN: ${vehicle.vin}` }
+      where: {
+        vehicleId: vehicle.id,
+        type: "EXPORT_RETAIL",
+        createdBy: "Hệ thống (Bán Xe)"
+      }
     });
     if (existingOrder) {
       if (existingOrder.status === "PENDING") {
@@ -71,6 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         debtAmount: 0,
         status: "PENDING", // Chờ kho duyệt
         reason: `Xuất phụ kiện bán kèm xe VIN: ${vehicle.vin}`,
+        vehicleId: vehicle.id,
         branchId: vehicle.branchId || branchId,
         createdBy: "Hệ thống (Bán Xe)",
       }

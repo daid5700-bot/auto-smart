@@ -113,24 +113,34 @@ export async function GET(req: NextRequest) {
   ]);
 
   const vins = vehicles.map(v => v.vin).filter(Boolean) as string[];
+  const vehicleIds = vehicles.map(v => v.id);
   const exportedOrders = await prisma.inventoryOrder.findMany({
     where: {
-      reason: { in: vins.map((vin: string) => `Xuất phụ kiện bán kèm xe VIN: ${vin}`) },
+      OR: [
+        { vehicleId: { in: vehicleIds } },
+        { reason: { in: vins.map((vin: string) => `Xuất phụ kiện bán kèm xe VIN: ${vin}`) } }
+      ],
       createdBy: "Hệ thống (Bán Xe)"
     },
-    select: { reason: true, status: true }
+    select: { vehicleId: true, reason: true, status: true }
   });
 
-  const exportStatusByVin = new Map<string, string>();
+  const exportStatusById = new Map<number, string>();
   exportedOrders.forEach(o => {
-    if (!o.reason) return;
-    const match = o.reason.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
-    if (match) {
-      const vin = match[1].trim();
+    let vId = o.vehicleId;
+    if (!vId && o.reason) {
+      const match = o.reason.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
+      if (match) {
+        const vin = match[1].trim();
+        const v = vehicles.find(vh => vh.vin === vin);
+        if (v) vId = v.id;
+      }
+    }
+    if (vId) {
       // PAID > PENDING > CANCELLED priority
-      const current = exportStatusByVin.get(vin);
+      const current = exportStatusById.get(vId);
       if (!current || current === "CANCELLED" || (current === "PENDING" && o.status === "PAID")) {
-        exportStatusByVin.set(vin, o.status);
+        exportStatusById.set(vId, o.status);
       }
     }
   });
@@ -139,8 +149,8 @@ export async function GET(req: NextRequest) {
 
   const vehiclesWithExportStatus = vehicles.map(v => ({
     ...v,
-    accessoriesExported: exportStatusByVin.get(v.vin) === "PAID",
-    accessoriesExportStatus: exportStatusByVin.get(v.vin) || "NONE", // NONE | PENDING | PAID | CANCELLED
+    accessoriesExportStatus: exportStatusById.get(v.id) || "NONE",
+    accessoriesExported: exportStatusById.get(v.id) === "PAID"
   }));
 
   const counts = {

@@ -21,19 +21,20 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       include: {
         customer: { select: { id: true, name: true, phone: true } },
-        branch: { select: { id: true, code: true, name: true } }
+        branch: { select: { id: true, code: true, name: true } },
+        vehicle: { select: { id: true, vin: true, model: true, variant: true, color: true, year: true, accessoriesJson: true, branchId: true } }
       }
     });
 
-    // Enrich with vehicle info from VIN embedded in reason in batch to avoid N+1 query crashes
-    // 1. Gather all unique VINs
+    // Enrich with vehicle info from VIN embedded in reason for backward compatibility
     const vinMatches = orders.map(order => {
+      if (order.vehicle) return null; // Already fetched via relation
       const match = order.reason?.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
       return match ? match[1].trim() : null;
     });
     const uniqueVins = Array.from(new Set(vinMatches.filter(Boolean))) as string[];
 
-    // 2. Fetch all vehicles in one batch query
+    // Fetch old vehicles
     const vehiclesList = uniqueVins.length > 0
       ? await prisma.vehicle.findMany({
           where: { vin: { in: uniqueVins } },
@@ -46,9 +47,12 @@ export async function GET(req: NextRequest) {
       vehiclesMap.set(v.vin.toUpperCase(), v);
     }
 
+    const allVehicles = orders.map((o, idx) => o.vehicle || (vinMatches[idx] ? vehiclesMap.get(vinMatches[idx]!.toUpperCase()) : null)).filter(Boolean);
+
     // 3. Gather all productIds and branchIds to batch query product branch stocks
     const productBranchPairs: { productId: number; branchId: number }[] = [];
-    for (const v of vehiclesList) {
+    for (const v of allVehicles) {
+      if (!v) continue;
       try {
         const rawAcc = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : (v.accessoriesJson as any) || [];
         for (const a of rawAcc) {
@@ -81,13 +85,13 @@ export async function GET(req: NextRequest) {
     // Map: key = `${branchId}_${productId}`, value = stockCount
     const stockMap = new Map<string, number>();
     for (const pb of pbs) {
-      stockMap.set(`${pb.branchId}_${pb.productId}`, pb.stockCount);
+      stockMap.set(`${pb.branchId}_${pb.productId}`, Number(pb.stockCount));
     }
 
     // 4. Construct enriched response synchronously
     const enriched = orders.map((order, idx) => {
       const vin = vinMatches[idx];
-      const vehicle = vin ? (vehiclesMap.get(vin.toUpperCase()) || null) : null;
+      const vehicle = order.vehicle || (vin ? (vehiclesMap.get(vin.toUpperCase()) || null) : null);
       let accessories = [];
       if (vehicle) {
         try {

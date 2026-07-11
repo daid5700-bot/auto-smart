@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   try {
@@ -52,45 +53,58 @@ export async function GET(req: NextRequest) {
       if (endDate) exportWhere.createdAt.lte = endDate;
     }
 
+    const branchCondition = branchId ? Prisma.sql`AND pb."branchId" = ${branchId}` : Prisma.empty;
+    const branchMovementCond = branchId ? Prisma.sql`AND m."branchId" = ${branchId}` : Prisma.empty;
+    const dateMovementCond = startDate || endDate ? Prisma.sql`
+      ${startDate ? Prisma.sql`AND m."createdAt" >= ${startDate}` : Prisma.empty}
+      ${endDate ? Prisma.sql`AND m."createdAt" <= ${endDate}` : Prisma.empty}
+    ` : Prisma.empty;
+
     // Run all database calls concurrently in a single Promise.all block
     const [
-      [totalProducts, lowStockCount],
-      rawProducts,
+      totalProducts,
+      productsStatsRaw,
+      lowStockItemsRaw,
       recentMovements,
       exports,
-      giftRequisitions
+      exportCount,
+      giftRequisitions,
+      exportStatsRaw
     ] = await Promise.all([
-      Promise.all([
-        prisma.product.count({
-          where: {
-            status: "ACTIVE",
-            ...(branchId ? { productBranches: { some: { branchId } } } : {}),
-          },
-        }),
-        prisma.product.count({
-          where: {
-            status: "ACTIVE",
-            productBranches: {
-               some: {
-                  ...(branchId ? { branchId } : {}),
-                  stockCount: { lte: prisma.productBranch.fields.stockMin }
-               }
-            }
-          },
-        }),
-      ]),
-      prisma.product.findMany({
+      prisma.product.count({
         where: {
           status: "ACTIVE",
           ...(branchId ? { productBranches: { some: { branchId } } } : {}),
         },
-        include: {
-          prices: true,
-          productBranches: {
-            where: branchId ? { branchId } : undefined
-          }
-        },
       }),
+      prisma.$queryRaw<any[]>`
+        SELECT
+          p.category,
+          COUNT(p.id)::int as count,
+          SUM(pb."stockCount")::float as stock,
+          SUM(pb."stockCount" * COALESCE(pr.amount, 0))::float as value
+        FROM "Product" p
+        JOIN "ProductBranch" pb ON p.id = pb."productId"
+        LEFT JOIN "Price" pr ON pr."productId" = p.id AND pr.type = 'RETAIL'
+        WHERE p.status = 'ACTIVE' ${branchCondition}
+        GROUP BY p.category
+      `,
+      prisma.$queryRaw<any[]>`
+        SELECT
+          p.id,
+          p.sku,
+          p.name,
+          pb."stockCount" as "stockCount",
+          pb."stockMin" as "stockMin",
+          p.unit,
+          COALESCE(pr.amount, 0)::float as price
+        FROM "Product" p
+        JOIN "ProductBranch" pb ON p.id = pb."productId"
+        LEFT JOIN "Price" pr ON pr."productId" = p.id AND pr.type = 'RETAIL'
+        WHERE p.status = 'ACTIVE' AND pb."stockCount" <= pb."stockMin" ${branchCondition}
+        ORDER BY pb."stockCount" ASC
+        LIMIT 10
+      `,
       prisma.stockMovement.findMany({
         where: movementWhere,
         take: 10,
@@ -103,13 +117,16 @@ export async function GET(req: NextRequest) {
       }),
       prisma.stockMovement.findMany({
         where: exportWhere,
+        take: 30, // Limit for UI to avoid memory bloat
+        orderBy: { id: "desc" },
         include: {
           product: {
-            include: {
-              prices: true,
-            },
+            include: { prices: true },
           },
         },
+      }),
+      prisma.stockMovement.count({
+        where: exportWhere,
       }),
       prisma.partsRequisition.findMany({
         where: {
@@ -123,110 +140,99 @@ export async function GET(req: NextRequest) {
             }
           } : {})
         },
+        take: 30, // Limit for UI
         include: {
           vehicle: {
-            include: {
-              customer: true
-            }
+            include: { customer: true }
           },
           items: {
-            include: {
-              product: {
-                include: {
-                  prices: true
-                }
-              }
-            }
+            include: { product: { include: { prices: true } } }
           }
         },
         orderBy: { id: "desc" }
-      })
+      }),
+      prisma.$queryRaw<any[]>`
+        WITH RetailPrices AS (
+          SELECT "productId", amount FROM "Price" WHERE type = 'RETAIL'
+        )
+        SELECT
+          m.type,
+          SUM(m.quantity)::float as quantity,
+          SUM(
+            CASE
+              WHEN m.type = 'EXPORT_GIFT' THEN m.quantity * COALESCE(NULLIF(m."unitCost", 0), p.amount, 0)
+              ELSE 
+                CASE 
+                  WHEN m."totalCost" > 0 THEN m."totalCost"
+                  ELSE m.quantity * COALESCE(NULLIF(m."unitCost", 0), p.amount, 0)
+                END
+            END
+          )::float as amount
+        FROM "StockMovement" m
+        LEFT JOIN RetailPrices p ON m."productId" = p."productId"
+        WHERE m.type IN ('EXPORT', 'EXPORT_GIFT')
+          ${branchMovementCond}
+          ${dateMovementCond}
+        GROUP BY m.type
+      `
     ]);
-
-    const products = rawProducts.map(p => {
-       const pb = p.productBranches?.[0];
-       return {
-         ...p,
-         stockCount: pb?.stockCount || 0,
-         stockMin: pb?.stockMin || 0,
-         stockMax: pb?.stockMax || 100,
-       };
-    });
 
     let totalStock = 0;
     let totalValuation = 0;
+    const categories = productsStatsRaw.map(row => {
+      totalStock += Number(row.stock || 0);
+      totalValuation += Number(row.value || 0);
+      return {
+        name: row.category || "General",
+        count: Number(row.count || 0),
+        stock: Number(row.stock || 0),
+        value: Number(row.value || 0),
+      };
+    }).sort((a, b) => b.value - a.value);
 
-    products.forEach((prod) => {
-      totalStock += prod.stockCount;
-      const retailPrice = prod.prices.find((p) => p.type === "RETAIL")?.amount || 0;
-      totalValuation += prod.stockCount * Number(retailPrice);
-    });
+    const lowStockCount = await prisma.$queryRaw<[{count: number}]>`
+      SELECT COUNT(*)::int as count 
+      FROM "Product" p 
+      JOIN "ProductBranch" pb ON p.id = pb."productId"
+      WHERE p.status = 'ACTIVE' AND pb."stockCount" <= pb."stockMin" ${branchCondition}
+    `.then(res => res[0]?.count || 0);
 
-    // 3. Category distribution
-    const categoryStats = new Map<string, { count: number; stock: number; value: number }>();
-    products.forEach((prod) => {
-      const cat = prod.category || "General";
-      const retailPrice = prod.prices.find((p) => p.type === "RETAIL")?.amount || 0;
-      const val = prod.stockCount * Number(retailPrice);
-      
-      const current = categoryStats.get(cat) || { count: 0, stock: 0, value: 0 };
-      categoryStats.set(cat, {
-        count: current.count + 1,
-        stock: current.stock + prod.stockCount,
-        value: current.value + val,
-      });
-    });
-
-    const categories = Array.from(categoryStats.entries()).map(([name, stats]) => ({
-      name,
-      ...stats,
-    })).sort((a, b) => b.value - a.value);
-
-    // 4. Low stock items
-    const lowStockItems = products
-      .filter((p) => p.stockCount <= p.stockMin)
-      .slice(0, 10)
-      .map((p) => {
-        const retailPrice = p.prices.find((pr) => pr.type === "RETAIL")?.amount || 0;
-        return {
-          id: p.id,
-          sku: p.sku,
-          name: p.name,
-          stockCount: p.stockCount,
-          stockMin: p.stockMin,
-          unit: p.unit,
-          price: Number(retailPrice),
-        };
-      });
+    const lowStockItems = lowStockItemsRaw.map(row => ({
+      id: row.id,
+      sku: row.sku,
+      name: row.name,
+      stockCount: Number(row.stockCount || 0),
+      stockMin: Number(row.stockMin || 0),
+      unit: row.unit,
+      price: Number(row.price || 0),
+    }));
 
     let totalSoldQty = 0;
     let totalSoldAmount = 0;
     let totalGiftQty = 0;
     let totalGiftAmount = 0;
 
+    exportStatsRaw.forEach(stat => {
+      if (stat.type === "EXPORT_GIFT") {
+        totalGiftQty += Number(stat.quantity || 0);
+        totalGiftAmount += Number(stat.amount || 0);
+      } else {
+        totalSoldQty += Number(stat.quantity || 0);
+        totalSoldAmount += Number(stat.amount || 0);
+      }
+    });
+
     const serializedExports = exports.map((m) => {
       const retailPrice = m.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
       const actualPrice = Number(m.unitCost) > 0 ? Number(m.unitCost) : Number(retailPrice);
       
-      if (m.type === "EXPORT_GIFT") {
-        totalGiftQty += m.quantity;
-        totalGiftAmount += m.quantity * actualPrice;
-      } else {
-        totalSoldQty += m.quantity;
-        if (Number(m.totalCost) > 0) {
-          totalSoldAmount += Number(m.totalCost);
-        } else {
-          totalSoldAmount += m.quantity * actualPrice;
-        }
-      }
-
       return {
         id: m.id,
         productId: m.productId,
         type: m.type,
-        quantity: m.quantity,
+        quantity: Number(m.quantity),
         unitCost: Number(m.unitCost),
-        totalCost: Number(m.totalCost) > 0 ? Number(m.totalCost) : actualPrice * m.quantity,
+        totalCost: Number(m.totalCost) > 0 ? Number(m.totalCost) : actualPrice * Number(m.quantity),
         reason: m.reason,
         relatedRoId: m.relatedRoId,
         createdBy: m.createdBy,
@@ -283,6 +289,7 @@ export async function GET(req: NextRequest) {
       totalGiftQty,
       totalGiftAmount,
       exports: serializedExports,
+      exportCount,
       giftRequisitions: serializedGifts,
     });
   } catch (error) {
