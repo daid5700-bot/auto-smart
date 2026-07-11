@@ -17,7 +17,7 @@
     --secondary: 214 32% 94%;
     --secondary-foreground: 0 0% 0%;
     --muted: 214 32% 96%;
-    --muted-foreground: 0 0% 20%;
+    --muted-foreground: 0 0% 0%;
     --accent: 214 32% 94%;
     --accent-foreground: 0 0% 0%;
     --destructive: 0 84% 60%;
@@ -30,7 +30,7 @@
     --ring: 217 91% 56%;
     --radius: 0.2rem;
     --sidebar-bg: 215 28% 97%;
-    --sidebar-fg: 0 0% 10%;
+    --sidebar-fg: 0 0% 0%;
     --sidebar-primary: 217 91% 56%;
     --sidebar-accent: 214 32% 92%;
     --sidebar-border: 214 32% 88%;
@@ -39,22 +39,16 @@
   * { @apply border-border; }
   body { @apply bg-background text-foreground font-sans antialiased; }
 
-  /* Ghi đè toàn bộ các class màu xám và nhạt của Tailwind thành màu đen và xám đậm */
-  .text-muted-foreground {
-    color: hsl(0 0% 20%) !important;
-  }
-  .text-gray-300, .text-slate-300, .text-zinc-300, .text-neutral-300 {
-    color: #4b5563 !important; /* Xám đậm trung bình */
-  }
-  .text-gray-400, .text-slate-400, .text-zinc-400, .text-neutral-400 {
-    color: #374151 !important; /* Xám rất đậm */
-  }
-  .text-gray-500, .text-slate-500, .text-zinc-500, .text-neutral-500 {
-    color: #1f2937 !important; /* Gần như đen */
-  }
+  /* Ghi đè toàn bộ các class màu xám và nhạt của Tailwind thành màu đen hoàn toàn */
+  .text-muted-foreground,
+  .text-gray-300, .text-slate-300, .text-zinc-300, .text-neutral-300,
+  .text-gray-400, .text-slate-400, .text-zinc-400, .text-neutral-400,
+  .text-gray-500, .text-slate-500, .text-zinc-500, .text-neutral-500,
   .text-gray-600, .text-slate-600, .text-zinc-600, .text-neutral-600,
-  .text-gray-700, .text-slate-700, .text-zinc-700, .text-neutral-700 {
-    color: #000000 !important; /* Đen hoàn toàn */
+  .text-gray-700, .text-slate-700, .text-zinc-700, .text-neutral-700,
+  .text-gray-800, .text-slate-800, .text-zinc-800, .text-neutral-800,
+  .text-gray-900, .text-slate-900, .text-zinc-900, .text-neutral-900 {
+    color: #000000 !important;
   }
 
   /* Làm đậm màu chữ có sắc xanh lá (Success/Green/Emerald/Teal) */
