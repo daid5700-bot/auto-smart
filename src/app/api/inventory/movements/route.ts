@@ -32,6 +32,13 @@ export async function GET(req: NextRequest) {
         { inventoryOrder: { customer: { phone: { contains: search } } } },
         { inventoryOrder: { code: { contains: search, mode: "insensitive" } } }
       ];
+      if (/^\d+$/.test(search.trim())) {
+        const numId = parseInt(search.trim(), 10);
+        where.OR.push(
+          { id: numId },
+          { inventoryOrderId: numId }
+        );
+      }
     }
 
     const total = await prisma.stockMovement.count({ where });

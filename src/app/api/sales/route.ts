@@ -62,6 +62,9 @@ export async function GET(req: NextRequest) {
       { model: { contains: search, mode: "insensitive" } },
       { vin: { contains: search, mode: "insensitive" } },
     ];
+    if (/^\d+$/.test(search.trim())) {
+      where.OR.push({ id: parseInt(search.trim(), 10) });
+    }
   }
   if (status) {
     if (status.includes(",")) {

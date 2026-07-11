@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
           { name: { contains: search, mode: "insensitive" } },
           { phone: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
+          ...(/^\d+$/.test(search.trim()) ? [{ id: parseInt(search.trim(), 10) }] : []),
         ],
       } : {}),
     } as any;
@@ -219,6 +220,7 @@ export async function GET(req: NextRequest) {
           { content: { contains: search, mode: "insensitive" } },
           { messageType: { contains: search, mode: "insensitive" } },
           { customer: { name: { contains: search, mode: "insensitive" } } },
+          ...(/^\d+$/.test(search.trim()) ? [{ id: parseInt(search.trim(), 10) }] : []),
         ],
       } : {}),
     } as any;
@@ -246,6 +248,7 @@ export async function GET(req: NextRequest) {
           { description: { contains: search, mode: "insensitive" } },
           { customer: { name: { contains: search, mode: "insensitive" } } },
           { customer: { phone: { contains: search, mode: "insensitive" } } },
+          ...(/^\d+$/.test(search.trim()) ? [{ id: parseInt(search.trim(), 10) }] : []),
         ],
       } : {}),
     } as any;

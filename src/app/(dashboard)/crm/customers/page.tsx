@@ -239,7 +239,7 @@ export default function CustomersPage() {
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo họ tên, số điện thoại, biển số xe..."
+            placeholder="Tìm theo họ tên, số điện thoại, biển số xe hoặc ID..."
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>

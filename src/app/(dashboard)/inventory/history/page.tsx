@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Loader2, DollarSign, X, Edit3, Eye, Search } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
 
-
-export default function InventoryHistoryPage() {
+function InventoryHistoryContent() {
   const modal = useModal();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") || "ALL";
+
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -17,7 +20,7 @@ export default function InventoryHistoryPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("ALL");
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -190,7 +193,7 @@ export default function InventoryHistoryPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
             type="text"
-            placeholder="Tìm theo khách hàng, SĐT, ghi chú..."
+            placeholder="Tìm theo khách hàng, SĐT, ghi chú hoặc ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"
@@ -568,5 +571,13 @@ export default function InventoryHistoryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function InventoryHistoryPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+      <InventoryHistoryContent />
+    </Suspense>
   );
 }
