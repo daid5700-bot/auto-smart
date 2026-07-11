@@ -170,7 +170,7 @@ export default function SalesStatsPage() {
         <div className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
           <div className="px-5 py-3.5 border-b border-border bg-secondary/10 flex items-center justify-between">
             <div className="flex items-center gap-2"><Package size={15} className="text-muted-foreground"/><h4 className="font-bold text-sm">Chi tiết phiếu xuất kho phụ tùng</h4></div>
-            <span className="text-xs bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full font-bold">{invData?.exports?.length||0} phiếu</span>
+            <span className="text-xs bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full font-bold">{invData?.exportCount||0} phiếu</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">

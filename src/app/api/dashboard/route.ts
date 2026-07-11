@@ -5,7 +5,7 @@ import { getActiveBranchId } from "@/lib/branch";
 
 // --- In-memory cache (L1) — 60-second TTL per branchId & date range ---
 const dashboardCache = new Map<string, { data: any; expiresAt: number }>();
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const CACHE_TTL_MS = 300 * 1000; // 5 minutes
 
 // GET /api/dashboard — aggregate stats with optional date filtering
 export async function GET(req: NextRequest) {

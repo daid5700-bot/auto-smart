@@ -21,13 +21,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "Lệnh này không phải lệnh xuất phụ kiện bán xe" }, { status: 400 });
     }
 
-    // Parse accessories from the order reason (VIN embedded in reason)
-    // Get vehicle to re-read accessories
-    const vinMatch = order.reason?.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
-    if (!vinMatch) return NextResponse.json({ error: "Không xác định được xe liên quan" }, { status: 400 });
-    const vin = vinMatch[1].trim();
+    let vehicle = null;
+    if (order.vehicleId) {
+      vehicle = await prisma.vehicle.findUnique({ where: { id: order.vehicleId } });
+    } else {
+      // Fallback for older orders without vehicleId
+      const vinMatch = order.reason?.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
+      if (!vinMatch) return NextResponse.json({ error: "Không xác định được xe liên quan" }, { status: 400 });
+      const vin = vinMatch[1].trim();
+      vehicle = await prisma.vehicle.findUnique({ where: { vin } });
+    }
 
-    const vehicle = await prisma.vehicle.findUnique({ where: { vin } });
     if (!vehicle) return NextResponse.json({ error: "Không tìm thấy hồ sơ xe" }, { status: 404 });
 
     const accessories = typeof vehicle.accessoriesJson === "string" ? JSON.parse(vehicle.accessoriesJson) : (vehicle.accessoriesJson as any) || [];
@@ -62,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (!pb) {
           throw new Error(`Sản phẩm ID ${productId} chưa cấu hình kho chi nhánh`);
         }
-        if (pb.stockCount < Number(acc.quantity)) {
+        if (Number(pb.stockCount) < Number(acc.quantity)) {
           throw new Error(
             `[${pb.product.sku}] ${pb.product.name}: không đủ tồn (cần ${acc.quantity}, còn ${pb.stockCount})`
           );
@@ -90,8 +94,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             quantity,
             unitCost: cogsUnit,
             totalCost: cogsUnit * quantity,
-            reason: `Duyệt lệnh xuất theo hồ sơ xe ${vin}`,
+            reason: `Duyệt lệnh xuất theo hồ sơ xe ${vehicle.vin}`,
             inventoryOrderId: orderId,
+            vehicleId: vehicle.id,
             createdBy: "Hệ thống (Bán Xe)",
             branchId: branchId
           }

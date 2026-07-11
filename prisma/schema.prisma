@@ -97,11 +97,11 @@ model ProductBranch {
   product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   branchId         Int
   branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  stockCount       Float     @default(0)
-  reservedStock    Float     @default(0)
-  stockMin         Float     @default(0)
-  stockMax         Float     @default(100)
-  movingAvgCost    Decimal   @default(0)
+  stockCount       Decimal     @default(0)
+  reservedStock    Decimal     @default(0)
+  stockMin         Decimal     @default(0)
+  stockMax         Decimal     @default(100)
+  movingAvgCost    Decimal     @default(0)
   lastImportDate   DateTime?
 
   @@unique([productId, branchId])
@@ -124,13 +124,15 @@ model StockMovement {
   productId     Int
   product       Product  @relation(fields: [productId], references: [id])
   type          String   // IMPORT, EXPORT
-  quantity      Float
+  quantity      Decimal
   unitCost      Decimal  @default(0)
   totalCost     Decimal  @default(0)
   reason        String?
   relatedRoId   Int?
   inventoryOrderId Int?
   inventoryOrder InventoryOrder? @relation(fields: [inventoryOrderId], references: [id], onDelete: Cascade)
+  vehicleId     Int?
+  vehicle       Vehicle? @relation(fields: [vehicleId], references: [id])
   branchId      Int?
   branch        Branch?  @relation(fields: [branchId], references: [id])
   createdBy     String
@@ -153,6 +155,8 @@ model InventoryOrder {
   debtAmount    Decimal         @default(0)
   status        String          @default("PAID") // PAID, DEBT, CANCELLED
   reason        String?
+  vehicleId     Int?
+  vehicle       Vehicle?        @relation(fields: [vehicleId], references: [id])
   movements     StockMovement[]
   branchId      Int?
   branch        Branch?         @relation(fields: [branchId], references: [id])
@@ -226,12 +230,13 @@ model OrderItem {
   repairOrder   RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
   productId     Int
   product       Product     @relation(fields: [productId], references: [id])
-  quantity      Float
+  quantity      Decimal
   unitPrice     Decimal
   totalPrice    Decimal
 
   @@index([repairOrderId])
   @@index([productId])
+  @@unique([repairOrderId, productId])
 }
 
 // ========== VEHICLE SALES ==========
@@ -265,6 +270,8 @@ model Vehicle {
   branchId        Int?
   branch          Branch?   @relation(fields: [branchId], references: [id])
   partsRequisitions PartsRequisition[]
+  inventoryOrders InventoryOrder[]
+  stockMovements  StockMovement[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -384,7 +391,7 @@ model PartsRequisitionItem {
   requisition   PartsRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
   productId     Int
   product       Product          @relation(fields: [productId], references: [id])
-  quantity      Float
+  quantity      Decimal
 
   @@index([requisitionId])
   @@index([productId])

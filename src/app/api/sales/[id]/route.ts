@@ -71,8 +71,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     const existingOrder = await prisma.inventoryOrder.findFirst({
       where: {
-        reason: `Xuất phụ kiện bán kèm xe VIN: ${vehicle.vin}`,
-        createdBy: "Hệ thống (Bán Xe)"
+        vehicleId: vehicle.id,
+        createdBy: "Hệ thống (Bán Xe)",
+        type: "EXPORT_RETAIL"
       }
     });
 
@@ -261,8 +262,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (accessories.length > 0) {
         const existingOrder = await tx.inventoryOrder.findFirst({
           where: {
-            reason: `Xuất phụ kiện bán kèm xe VIN: ${v.vin}`,
-            createdBy: "Hệ thống (Bán Xe)"
+            vehicleId: v.id,
+            createdBy: "Hệ thống (Bán Xe)",
+            type: "EXPORT_RETAIL"
           }
         });
 
@@ -281,6 +283,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               debtAmount: 0,
               status: "PENDING",
               reason: `Xuất phụ kiện bán kèm xe VIN: ${v.vin}`,
+              vehicleId: v.id,
               branchId: v.branchId || branchId,
               createdBy: "Hệ thống (Bán Xe)",
             }
@@ -303,8 +306,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         // If they updated the vehicle and removed all accessories, cancel the pending order if any
         const existingOrder = await tx.inventoryOrder.findFirst({
           where: {
-            reason: `Xuất phụ kiện bán kèm xe VIN: ${v.vin}`,
-            createdBy: "Hệ thống (Bán Xe)"
+            vehicleId: v.id,
+            createdBy: "Hệ thống (Bán Xe)",
+            type: "EXPORT_RETAIL"
           }
         });
         if (existingOrder && existingOrder.status === "PENDING") {
@@ -451,8 +455,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       // Cancel or return any accessory export orders for this VIN.
       const exportOrders = await tx.inventoryOrder.findMany({
         where: {
-          reason: `Xuất phụ kiện bán kèm xe VIN: ${currentVehicle.vin}`,
+          vehicleId: currentVehicle.id,
           createdBy: "Hệ thống (Bán Xe)",
+          type: "EXPORT_RETAIL",
           status: { in: ["PENDING", "PAID"] },
         },
         include: { movements: true },
@@ -468,7 +473,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
               .filter((movement) => movement.type === "EXPORT")
               .map((movement) => ({
                 productId: movement.productId,
-                quantity: movement.quantity,
+                quantity: Number(movement.quantity),
                 unitCost: Number(movement.unitCost || 0),
               })),
             reason: `Hoàn kho phụ kiện do hủy hồ sơ xe VIN ${currentVehicle.vin}`,
@@ -513,12 +518,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
       for (const requisition of giftRequisitions) {
         if (requisition.status === "PENDING") {
-          await releaseReservedStock(tx, requisition.branchId, requisition.items);
+          await releaseReservedStock(tx, requisition.branchId, requisition.items.map(i => ({...i, quantity: Number(i.quantity)})));
         } else if (requisition.status === "APPROVED") {
           approvedGiftItems.push(
             ...requisition.items.map((item) => ({
               productId: item.productId,
-              quantity: item.quantity,
+              quantity: Number(item.quantity),
               unitCost: giftUnitCostByProduct.get(item.productId) || 0,
             })),
           );

@@ -217,8 +217,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             },
           });
 
-          // Send Zalo ZNS Live in Background (Asynchronous, Fire-and-Forget)
-          Promise.resolve().then(async () => {
+          // Send Zalo ZNS Live (Awaited to ensure Vercel doesn't kill the container)
+          await (async () => {
             try {
               const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
               const updatedCustomer = await prisma.customer.findUnique({
@@ -318,14 +318,14 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
           approvedReturnItems.push(
             ...req.items.map((item) => ({
               productId: item.productId,
-              quantity: item.quantity,
+              quantity: Number(item.quantity),
               unitCost: unitCostByProduct.get(item.productId) || 0,
             })),
           );
         } else if (req.status === "PENDING") {
           // Warehouse has NOT exported parts. They are only in reservedStock.
           // Clear the reservations.
-          await releaseReservedStock(tx, branchIdForStock, req.items);
+          await releaseReservedStock(tx, branchIdForStock, req.items.map(i => ({...i, quantity: Number(i.quantity)})));
         }
 
         // Cancel the requisition so warehouse doesn't see it anymore

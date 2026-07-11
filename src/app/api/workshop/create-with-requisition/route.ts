@@ -40,8 +40,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Thiếu biển số xe" }, { status: 400 });
     }
 
-    // Create the Repair Order and Requisition inside a transaction
-    const result = await prisma.$transaction(async (tx) => {
       // 1. Calculate parts total cost
       let calculatedPartsCost = 0;
       for (const item of items) {
@@ -70,51 +68,55 @@ export async function POST(req: NextRequest) {
       const actualPointsToRedeem = Math.ceil(pointsDiscount / 1000);
       const finalTotalAmount = Math.max(0, rawTotal - totalDiscountAmount - pointsDiscount);
 
-      // 2. Find or create/update customer
-      let customer = await tx.customer.findUnique({
-        where: { phone },
+    // 2. Find or create/update customer (OUTSIDE transaction to avoid deadlocks)
+    let customer = await prisma.customer.findUnique({
+      where: { phone },
+    });
+
+    let finalCustomerId: number;
+    if (customer) {
+      let updatedPlates = [...customer.vehiclePlates];
+      if (plateNumber && !updatedPlates.includes(plateNumber)) {
+        updatedPlates.push(plateNumber);
+      }
+
+      customer = await prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          name: customerName,
+          vehiclePlates: updatedPlates,
+          ...(birthday ? { birthday: new Date(birthday) } : {}),
+        },
       });
+      finalCustomerId = customer.id;
+    } else {
+      if (actualPointsToRedeem > 0) {
+        throw new Error("Khách hàng mới chưa có điểm tích lũy để quy đổi.");
+      }
+      const newCustomer = await prisma.customer.create({
+        data: {
+          name: customerName,
+          phone,
+          vehiclePlates: plateNumber ? [plateNumber] : [],
+          branchId,
+          ...(birthday ? { birthday: new Date(birthday) } : {}),
+        },
+      });
+      finalCustomerId = newCustomer.id;
+    }
 
-      let finalCustomerId: number;
-      if (customer) {
-        let updatedPlates = [...customer.vehiclePlates];
-        if (plateNumber && !updatedPlates.includes(plateNumber)) {
-          updatedPlates.push(plateNumber);
+    // Create the Repair Order and Requisition inside a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Deduct loyalty points inside transaction if requested
+      if (actualPointsToRedeem > 0) {
+        const currentCust = await tx.customer.findUnique({ where: { id: finalCustomerId } });
+        if (!currentCust || currentCust.loyaltyPoints < actualPointsToRedeem) {
+          throw new Error(`Khách hàng chỉ có ${currentCust?.loyaltyPoints || 0} điểm, không đủ để quy đổi ${actualPointsToRedeem} điểm.`);
         }
-
-        // Deduct loyalty points if requested
-        let updatedPoints = customer.loyaltyPoints;
-        if (actualPointsToRedeem > 0) {
-          if (customer.loyaltyPoints < actualPointsToRedeem) {
-            throw new Error(`Khách hàng chỉ có ${customer.loyaltyPoints} điểm, không đủ để quy đổi ${actualPointsToRedeem} điểm.`);
-          }
-          updatedPoints = customer.loyaltyPoints - actualPointsToRedeem;
-        }
-
-        customer = await tx.customer.update({
-          where: { id: customer.id },
-          data: {
-            name: customerName,
-            vehiclePlates: updatedPlates,
-            loyaltyPoints: updatedPoints,
-            ...(birthday ? { birthday: new Date(birthday) } : {}),
-          },
+        await tx.customer.update({
+          where: { id: finalCustomerId },
+          data: { loyaltyPoints: { decrement: actualPointsToRedeem } }
         });
-        finalCustomerId = customer.id;
-      } else {
-        if (actualPointsToRedeem > 0) {
-          throw new Error("Khách hàng mới chưa có điểm tích lũy để quy đổi.");
-        }
-        const newCustomer = await tx.customer.create({
-          data: {
-            name: customerName,
-            phone,
-            vehiclePlates: plateNumber ? [plateNumber] : [],
-            branchId,
-            ...(birthday ? { birthday: new Date(birthday) } : {}),
-          },
-        });
-        finalCustomerId = newCustomer.id;
       }
 
       // Determine initial RO status: if there are parts, set to "WAITING_PARTS", otherwise "DOING"

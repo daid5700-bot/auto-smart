@@ -153,7 +153,7 @@ export async function GET(req: NextRequest) {
       return {
         name: product?.name ?? "Không xác định",
         sku: product?.sku ?? "",
-        qty: Math.round(g._sum.quantity ?? 0),
+        qty: Math.round(Number(g._sum.quantity ?? 0)),
         revenue: Number(g._sum.totalPrice ?? 0),
       };
     });

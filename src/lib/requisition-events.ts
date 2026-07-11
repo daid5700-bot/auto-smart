@@ -45,6 +45,8 @@ export async function getPendingRequisitionCount(branchId: number) {
     select: {
       id: true,
       reason: true,
+      vehicleId: true,
+      vehicle: { select: { vin: true } }
     },
   });
 
@@ -59,8 +61,13 @@ export async function getPendingRequisitionCount(branchId: number) {
   let noVinCount = 0;
 
   for (const order of pendingVehicleOrders) {
-    const vinMatch = order.reason?.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
-    const vin = vinMatch ? vinMatch[1].trim() : null;
+    let vin = null;
+    if (order.vehicle) {
+      vin = order.vehicle.vin;
+    } else {
+      const vinMatch = order.reason?.match(/Xuất phụ kiện bán kèm xe VIN:\s*(.+)$/);
+      vin = vinMatch ? vinMatch[1].trim() : null;
+    }
     if (vin) {
       uniqueVins.add(vin);
     } else {
