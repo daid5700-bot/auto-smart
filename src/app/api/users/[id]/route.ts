@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { verifyRole } from "@/lib/auth";
+import { revokeSession } from "@/lib/guard";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -71,6 +72,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     // Safely update associations
     await prisma.repairOrder.updateMany({ where: { createdById: id }, data: { createdById: null } });
     await prisma.lead.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } });
+
+    // Thu hồi session ngay lập tức — cookie cũ của user này sẽ bị từ chối
+    revokeSession(id);
 
     await prisma.user.delete({ where: { id } });
     return NextResponse.json({ success: true, message: "Xóa người dùng thành công" });

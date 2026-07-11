@@ -6,10 +6,6 @@ import { getActiveBranchId } from "@/lib/branch";
 export async function GET(req: NextRequest) {
   try {
     const branchId = getActiveBranchId();
-    console.log("[DEBUG] /api/technicians: branchId from cookies =", branchId);
-    
-    const dbCount = await prisma.technician.count();
-    console.log("[DEBUG] /api/technicians: total technicians in DB =", dbCount);
 
     const technicians = await prisma.technician.findMany({
       where: (branchId ? { branchId } : {}) as any,
@@ -18,8 +14,6 @@ export async function GET(req: NextRequest) {
         _count: { select: { repairOrders: true } },
       },
     });
-
-    console.log(`[DEBUG] /api/technicians: found ${technicians.length} technicians for branchId ${branchId}`);
 
     const enriched = technicians.map((t: any) => ({
       ...t,
@@ -30,7 +24,6 @@ export async function GET(req: NextRequest) {
       technicians: enriched,
     });
   } catch (error: any) {
-    console.error("[DEBUG] /api/technicians error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

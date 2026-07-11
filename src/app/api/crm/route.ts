@@ -2,9 +2,13 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { requireAuth } from "@/lib/guard";
 
 // GET /api/crm — leads, customers, zns logs
 export async function GET(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   const tab = req.nextUrl.searchParams.get("tab") || "leads";
   const allBranches = req.nextUrl.searchParams.get("allBranches") === "true";
   const branchId = allBranches ? null : getActiveBranchId();
@@ -288,6 +292,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/crm — create lead or customer
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await req.json();
     const branchId = getActiveBranchId();

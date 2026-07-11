@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { verifyRole } from "@/lib/auth";
 
 // Allowed file types: extension whitelist + MIME type whitelist
 const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
@@ -25,7 +26,13 @@ function detectMimeFromBuffer(buffer: Buffer): string | null {
   return null;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // Xác thực session — bất kỳ role đăng nhập hợp lệ nào đều được upload
+  const role = await verifyRole(request.cookies.get("user_role")?.value);
+  if (!role) {
+    return NextResponse.json({ error: "Vui lòng đăng nhập để tải ảnh lên." }, { status: 401 });
+  }
+
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;

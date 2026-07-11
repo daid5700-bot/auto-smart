@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
+import { requireAuth } from "@/lib/guard";
 
 // Helper to find or upsert a Customer
 async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null) {
@@ -40,6 +41,9 @@ async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: st
 
 // GET /api/sales — list vehicles
 export async function GET(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   const { searchParams } = req.nextUrl;
   const search = searchParams.get("search") || "";
   const status = searchParams.get("status") || "";
@@ -171,9 +175,11 @@ export async function GET(req: NextRequest) {
 }
 // POST /api/sales — add vehicle with linked customer
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await req.json();
-    console.log("POST /api/sales body:", body);
     const branchId = body.branchId !== undefined ? (body.branchId ? Number(body.branchId) : null) : getActiveBranchId();
 
 

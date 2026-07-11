@@ -340,7 +340,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <div className="flex items-center justify-between w-full min-w-0">
                           <span className="truncate">{item.title}</span>
                           {isRequisition && pendingReqCount > 0 && (
-                            <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-white rounded-md shrink-0">
+                            <span className="ml-2 min-w-[20px] h-5 px-1 flex items-center justify-center text-[10px] font-medium bg-destructive text-white rounded-full shrink-0 animate-pulse">
                               {pendingReqCount}
                             </span>
                           )}

@@ -2,9 +2,13 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { requireAuth } from "@/lib/guard";
 
 // GET /api/workshop — list repair orders + technicians
 export async function GET(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   const branchId = getActiveBranchId();
   const { searchParams } = req.nextUrl;
   
@@ -82,6 +86,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/workshop — create repair order
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await req.json();
     const branchId = getActiveBranchId();
