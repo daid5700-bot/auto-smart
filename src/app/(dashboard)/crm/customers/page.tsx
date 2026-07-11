@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Users, Loader2, Search, Filter, Award, CalendarClock, Car, Plus, Edit, Trash2, X } from "lucide-react";
+import { useModal } from "@/components/ModalProvider";
+
 
 const SRC: Record<string, string> = {
   FACEBOOK: "Facebook",
@@ -11,6 +13,7 @@ const SRC: Record<string, string> = {
 };
 
 export default function CustomersPage() {
+  const modal = useModal();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -66,15 +69,38 @@ export default function CustomersPage() {
   }, [loading, loadingMore, page, totalPages, searchTerm]);
 
   const handleDeleteCustomer = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa Khách hàng này? Việc xóa sẽ giải phóng thông tin xe của họ và dọn dẹp các lịch sử giao dịch liên quan.")) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa Khách hàng",
+      message: "Bạn có chắc chắn muốn xóa Khách hàng này? Việc xóa sẽ giải phóng thông tin xe của họ và dọn dẹp các lịch sử giao dịch liên quan.",
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       setLoading(true);
       const res = await fetch(`/api/crm/${id}?type=customer`, { method: "DELETE" });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã xóa khách hàng thành công!",
+          type: "success",
+        });
         await fetchData(1, false);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi xóa khách hàng",
+          type: "error",
+        });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -132,7 +158,19 @@ export default function CustomersPage() {
 
       if (res.ok) {
         setModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: editingId ? "Đã cập nhật thông tin khách hàng thành công!" : "Đã thêm khách hàng mới thành công!",
+          type: "success",
+        });
         await fetchData(1, false);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi lưu thông tin khách hàng",
+          type: "error",
+        });
       }
     } catch (err) {
       console.error(err);

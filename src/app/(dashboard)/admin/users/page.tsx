@@ -2,8 +2,11 @@
 import { useEffect, useState } from "react";
 import { Users, Loader2, ShieldAlert, Plus, Edit, Trash2, X, Key } from "lucide-react";
 import { roleName, roleColor, UserRole } from "@/config/rbac";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function UsersPage() {
+  const modal = useModal();
   const [users, setUsers] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,10 +51,21 @@ export default function UsersPage() {
 
   const handleDelete = async (id: number, email: string) => {
     if (email === "admin@autosmart.vn") {
-      alert("Không thể xóa tài khoản Quản trị viên tối cao (admin@autosmart.vn)!");
+      await modal.alert({
+        title: "Không được phép",
+        message: "Không thể xóa tài khoản Quản trị viên tối cao (admin@autosmart.vn)!",
+        type: "error",
+      });
       return;
     }
-    if (!confirm(`Bạn có chắc chắn muốn xóa nhân viên "${email}" khỏi hệ thống?`)) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa tài khoản",
+      message: `Bạn có chắc chắn muốn xóa nhân viên "${email}" khỏi hệ thống không?`,
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       setLoading(true);
       const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
@@ -59,9 +73,18 @@ export default function UsersPage() {
       if (!res.ok) {
         throw new Error(data.error || "Lỗi xóa người dùng");
       }
+      await modal.alert({
+        title: "Đã xóa",
+        message: `Đã xóa tài khoản ${email} thành công!`,
+        type: "success",
+      });
       await fetchData();
     } catch (e: any) {
-      alert(e.message);
+      await modal.alert({
+        title: "Lỗi",
+        message: e.message,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -120,9 +143,18 @@ export default function UsersPage() {
       }
 
       setModalOpen(false);
+      await modal.alert({
+        title: "Thành công",
+        message: editingId ? "Cập nhật tài khoản nhân viên thành công!" : "Tạo tài khoản nhân viên mới thành công!",
+        type: "success",
+      });
       await fetchData();
     } catch (err: any) {
-      alert(err.message);
+      await modal.alert({
+        title: "Thất bại",
+        message: err.message,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }

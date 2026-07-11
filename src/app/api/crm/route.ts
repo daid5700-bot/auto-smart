@@ -210,28 +210,61 @@ export async function GET(req: NextRequest) {
 
 
   if (tab === "zns") {
-    const znsLogs = await prisma.znsLog.findMany({
-      where: (branchId ? { branchId } : {}) as any,
-      orderBy: { sentAt: "desc" },
-      include: { customer: true },
-    });
-    return NextResponse.json({ znsLogs });
+    const search = req.nextUrl.searchParams.get("search") || "";
+    const baseWhere = {
+      ...(branchId ? { branchId } : {}),
+      ...(search ? {
+        OR: [
+          { phone: { contains: search, mode: "insensitive" } },
+          { content: { contains: search, mode: "insensitive" } },
+          { messageType: { contains: search, mode: "insensitive" } },
+          { customer: { name: { contains: search, mode: "insensitive" } } },
+        ],
+      } : {}),
+    } as any;
+
+    const [znsLogs, total] = await Promise.all([
+      prisma.znsLog.findMany({
+        where: baseWhere,
+        orderBy: { sentAt: "desc" },
+        skip,
+        take: limit,
+        include: { customer: true },
+      }),
+      prisma.znsLog.count({ where: baseWhere })
+    ]);
+    return NextResponse.json({ znsLogs, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }
 
   if (tab === "loyalty") {
-    const transactions = await prisma.loyaltyTransaction.findMany({
-      where: {
-        type: "REDEEM",
-        ...(branchId ? { branchId } : {}),
-      } as any,
-      include: {
-        customer: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-    return NextResponse.json({ transactions });
+    const search = req.nextUrl.searchParams.get("search") || "";
+    const baseWhere = {
+      type: "REDEEM",
+      ...(branchId ? { branchId } : {}),
+      ...(search ? {
+        OR: [
+          { description: { contains: search, mode: "insensitive" } },
+          { customer: { name: { contains: search, mode: "insensitive" } } },
+          { customer: { phone: { contains: search, mode: "insensitive" } } },
+        ],
+      } : {}),
+    } as any;
+
+    const [transactions, total] = await Promise.all([
+      prisma.loyaltyTransaction.findMany({
+        where: baseWhere,
+        include: {
+          customer: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.loyaltyTransaction.count({ where: baseWhere })
+    ]);
+    return NextResponse.json({ transactions, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }
 
   // stats — FIX: also filter isDeleted customers

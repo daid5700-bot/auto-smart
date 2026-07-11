@@ -5,8 +5,11 @@ import Link from "next/link";
 import { Loader2, Plus, Search, DollarSign, FileText, X } from "lucide-react";
 import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function InventoryOrdersPage() {
+  const modal = useModal();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,13 +57,26 @@ export default function InventoryOrdersPage() {
       });
       if (res.ok) {
         setPaymentModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã cập nhật thanh toán nợ cho đơn kho thành công!",
+          type: "success",
+        });
         fetchOrders();
       } else {
-        const err = await res.json();
-        alert("Lỗi: " + err.error);
+        const err = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: err.error || "Gặp lỗi khi cập nhật thanh toán",
+          type: "error",
+        });
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: error.message,
+        type: "error",
+      });
     } finally {
       setSubmittingPayment(false);
     }

@@ -1,8 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { UserCog, Plus, Loader2, Edit, Trash2, X } from "lucide-react";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function TechniciansPage() {
+  const modal = useModal();
   const [techs, setTechs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -33,15 +36,38 @@ export default function TechniciansPage() {
   }, []);
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa KTV này?")) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa KTV",
+      message: "Bạn có chắc chắn muốn xóa Kỹ thuật viên này không?",
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       setLoading(true);
       const res = await fetch(`/api/technicians/${id}`, { method: "DELETE" });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã xóa KTV thành công!",
+          type: "success",
+        });
         await fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi xóa KTV",
+          type: "error",
+        });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -77,7 +103,19 @@ export default function TechniciansPage() {
       });
       if (res.ok) {
         setModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: editingId ? "Đã cập nhật thông tin KTV thành công!" : "Đã thêm KTV mới thành công!",
+          type: "success",
+        });
         await fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi lưu thông tin KTV",
+          type: "error",
+        });
       }
     } catch (err) {
       console.error(err);

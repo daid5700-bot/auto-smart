@@ -7,6 +7,7 @@ import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useAuth } from "@/lib/store";
 import { Portal } from "@/components/Portal";
+import { useModal } from "@/components/ModalProvider";
 
 interface RequisitionItemInput {
   productId: string;
@@ -22,6 +23,7 @@ interface ServiceInput {
 export default function NewRepairOrderPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const modal = useModal();
 
   // Data sources
   const [customers, setCustomers] = useState<any[]>([]);
@@ -337,9 +339,19 @@ export default function NewRepairOrderPage() {
         throw new Error(result.error || "Gặp lỗi khi lưu lệnh sửa chữa.");
       }
 
+      await modal.alert({
+        title: "Thành công",
+        message: "Đã tạo lệnh sửa chữa mới thành công!",
+        type: "success",
+      });
       router.push("/workshop");
     } catch (e: any) {
       setErrorMsg(e.message);
+      await modal.alert({
+        title: "Thất bại",
+        message: e.message || "Gặp lỗi khi tạo lệnh sửa chữa.",
+        type: "error",
+      });
     } finally {
       setSubmitting(false);
     }

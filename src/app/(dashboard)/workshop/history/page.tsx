@@ -3,16 +3,28 @@ import { useEffect, useState } from "react";
 import { formatCurrency, formatDate, statusText, statusBadge, parseSymptoms } from "@/lib/utils";
 import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "@/lib/toast";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function HistoryPage() {
+  const modal = useModal();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [submittingDelivery, setSubmittingDelivery] = useState<string | null>(null);
 
   const handleDeliverOrder = async (orderId: string) => {
-    if (!confirm("Xác nhận bàn giao xe cho khách?")) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận bàn giao xe",
+      message: "Bạn có chắc chắn muốn bàn giao xe này cho khách hàng không?",
+      type: "success",
+      confirmText: "Xác nhận bàn giao",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       setSubmittingDelivery(orderId);
       const res = await fetch(`/api/workshop/${orderId}`, {
@@ -38,11 +50,15 @@ export default function HistoryPage() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (pageVal = 1, searchVal = "") => {
     try {
-      const res = await fetch("/api/workshop");
+      const url = `/api/workshop?page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}`;
+      const res = await fetch(url);
       const data = await res.json();
       setOrders(data.repairOrders || []);
+      if (data.pagination) {
+        setTotalPages(data.pagination.totalPages || 1);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -51,15 +67,18 @@ export default function HistoryPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    setPage(1);
+  }, [search]);
 
-  const filteredOrders = orders.filter((o) =>
-    o.plateNumber.toLowerCase().includes(search.toLowerCase()) ||
-    o.vehicleModel?.toLowerCase().includes(search.toLowerCase()) ||
-    o.customer?.name.toLowerCase().includes(search.toLowerCase()) ||
-    o.customer?.phone.includes(search)
-  );
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchData(page, search);
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, search]);
+
+  const filteredOrders = orders;
 
   const formatRoCode = (id: number, dateStr: string) => {
     const d = new Date(dateStr);
@@ -187,6 +206,31 @@ export default function HistoryPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {!loading && totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 bg-card border-t border-border/40">
+            <div className="text-xs text-muted-foreground font-semibold">
+              Trang {page} / {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-xs font-bold rounded-lg border border-border disabled:opacity-50 transition-colors"
+              >
+                Trước
+              </button>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-xs font-bold rounded-lg border border-border disabled:opacity-50 transition-colors"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DETAILED REPAIR ORDER MODAL */}

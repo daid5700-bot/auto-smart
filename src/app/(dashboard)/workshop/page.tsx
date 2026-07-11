@@ -7,6 +7,8 @@ import { Wrench, Plus, CheckCircle2, AlertTriangle, Eye, Edit, Trash2, X, Loader
 import { createPartsRequisition } from "@/app/actions";
 import { useAuth } from "@/lib/store";
 import { ModalPortal } from "@/components/modal-portal";
+import { useModal } from "@/components/ModalProvider";
+
 
 const RO_COLS = [
   { status: "WAITING_PARTS", label: "Chờ phụ tùng", border: "border-t-rose-500/50" },
@@ -15,6 +17,7 @@ const RO_COLS = [
 ];
 
 export default function WorkshopPage() {
+  const modal = useModal();
   const { user } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
@@ -153,12 +156,20 @@ export default function WorkshopPage() {
 
   const handleSaveRequisition = async () => {
     if (!reqFormData.repairOrderId) {
-      alert("Vui lòng chọn Lệnh sửa chữa (RO)!");
+      await modal.alert({
+        title: "Thiếu thông tin",
+        message: "Vui lòng chọn Lệnh sửa chữa (RO)!",
+        type: "warning",
+      });
       return;
     }
     
     if (reqFormData.items.some((i) => !i.productId)) {
-      alert("Vui lòng chọn phụ tùng cho tất cả các dòng!");
+      await modal.alert({
+        title: "Thiếu thông tin",
+        message: "Vui lòng chọn phụ tùng cho tất cả các dòng!",
+        type: "warning",
+      });
       return;
     }
 
@@ -167,7 +178,7 @@ export default function WorkshopPage() {
       const payload = {
         repairOrderId: parseInt(reqFormData.repairOrderId),
         reason: reqFormData.reason,
-        createdBy: user?.name || "Cố vấn dịch vụ",
+        createdBy: user?.name || "Cố văn dịch vụ",
         items: reqFormData.items.map((i) => ({
           productId: parseInt(i.productId),
           quantity: Number(i.quantity) || 0,
@@ -180,21 +191,34 @@ export default function WorkshopPage() {
       
       if (res.success) {
         setReqModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: "Lập phiếu yêu cầu xin phụ tùng thành công!",
+          type: "success",
+        });
         setView("requisitions");
         fetchRequisitions();
         fetchData();
       } else {
-        alert("Lập phiếu thất bại!");
+        await modal.alert({
+          title: "Thất bại",
+          message: "Lập phiếu thất bại!",
+          type: "error",
+        });
       }
     } catch (err: any) {
-      alert("Lỗi: " + err.message);
+      await modal.alert({
+        title: "Lỗi",
+        message: "Lỗi: " + err.message,
+        type: "error",
+      });
     } finally {
       setReqLoading(false);
     }
   };
 
   const fetchData = () => {
-    fetch("/api/workshop")
+    fetch("/api/workshop?activeOnly=true")
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const text = await r.text();
@@ -211,14 +235,37 @@ export default function WorkshopPage() {
   }, []);
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa lệnh sửa chữa này?")) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa lệnh sửa chữa",
+      message: "Bạn có chắc chắn muốn xóa lệnh sửa chữa này không?",
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/workshop/${id}`, { method: "DELETE" });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã xóa lệnh sửa chữa thành công!",
+          type: "success",
+        });
         fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi xóa lệnh sửa chữa",
+          type: "error",
+        });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     }
   };
 
@@ -283,14 +330,54 @@ export default function WorkshopPage() {
 
       if (res.ok) {
         setModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: editingId ? "Đã cập nhật thông tin lệnh sửa chữa thành công!" : "Đã tạo lệnh sửa chữa mới thành công!",
+          type: "success",
+        });
         fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi lưu thông tin lệnh sửa chữa",
+          type: "error",
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: err.message || "Gặp lỗi kết nối với máy chủ",
+        type: "error",
+      });
     }
   };
 
   const handleUpdateStatus = async (roId: number, targetStatus: string) => {
+    const statusNames: Record<string, string> = {
+      PENDING: "Chờ sửa",
+      DIAGNOSING: "Đang chẩn đoán",
+      WAITING_PARTS: "Chờ phụ tùng",
+      DOING: "Đang sửa",
+      DONE: "Hoàn thành",
+      DELIVERED: "Đã giao xe",
+    };
+    const statusLabel = statusNames[targetStatus] || targetStatus;
+
+    const confirmed = await modal.confirm({
+      title: "Xác nhận cập nhật trạng thái",
+      message: targetStatus === "DELIVERED"
+        ? "Bạn có chắc chắn muốn bàn giao xe này cho khách hàng? Lệnh sửa chữa sẽ được hoàn tất và lưu trữ vào lịch sử."
+        : `Bạn có chắc chắn muốn chuyển trạng thái lệnh sửa chữa sang "${statusLabel}" không?`,
+      type: targetStatus === "DELIVERED" ? "success" : "info",
+    });
+
+    if (!confirmed) {
+      fetchData();
+      return;
+    }
+
     try {
       setLoading(true);
       const res = await fetch(`/api/workshop/${roId}`, {
@@ -299,13 +386,30 @@ export default function WorkshopPage() {
         body: JSON.stringify({ status: targetStatus }),
       });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: targetStatus === "DELIVERED"
+            ? "Bàn giao xe và hoàn tất dịch vụ thành công!"
+            : `Đã cập nhật trạng thái sang "${statusLabel}" thành công!`,
+          type: "success",
+        });
         fetchData();
       } else {
         const err = await res.json();
-        alert(err.error || "Không thể cập nhật trạng thái");
+        await modal.alert({
+          title: "Thất bại",
+          message: err.error || "Không thể cập nhật trạng thái",
+          type: "error",
+        });
+        fetchData();
       }
     } catch (err: any) {
-      alert("Lỗi kết nối: " + err.message);
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: "Lỗi kết nối: " + err.message,
+        type: "error",
+      });
+      fetchData();
     } finally {
       setLoading(false);
     }
@@ -596,6 +700,7 @@ export default function WorkshopPage() {
                     <option value="DOING">Đang sửa (Doing)</option>
                     <option value="WAITING_PARTS">Chờ phụ tùng (Waiting Parts)</option>
                     <option value="DONE">Hoàn thành (Done)</option>
+                    <option value="DELIVERED">Đã giao xe (Delivered)</option>
                   </select>
                 </div>
               </div>

@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
+import { useModal } from "@/components/ModalProvider";
+
 
 interface Accessory {
   id: number;
@@ -19,6 +21,7 @@ interface Accessory {
 
 export default function EditDocumentPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const modal = useModal();
   const vehicleId = params.id;
 
   // Custom dropdown states
@@ -162,12 +165,20 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
 
         setRawNotes(vehicle.notes || "");
       } else {
-        alert("Không tìm thấy hồ sơ xe này");
+        await modal.alert({
+          title: "Thất bại",
+          message: "Không tìm thấy hồ sơ xe này",
+          type: "error",
+        });
         router.push("/sales/documents");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Lỗi khi nạp dữ liệu");
+      await modal.alert({
+        title: "Lỗi",
+        message: e.message || "Lỗi khi nạp dữ liệu",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -250,7 +261,11 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vin || !model || !customerName || !customerPhone) {
-      alert("Vui lòng nhập đầy đủ Số khung, Dòng xe, Tên khách hàng và Số điện thoại!");
+      await modal.alert({
+        title: "Thiếu thông tin",
+        message: "Vui lòng nhập đầy đủ Số khung, Dòng xe, Tên khách hàng và Số điện thoại!",
+        type: "warning",
+      });
       return;
     }
 
@@ -283,15 +298,28 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
       });
 
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã cập nhật hồ sơ bán hàng thành công!",
+          type: "success",
+        });
         router.push("/sales/documents");
         router.refresh();
       } else {
         const errorData = await res.json();
-        alert(errorData.error || "Gặp lỗi khi cập nhật hồ sơ");
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi cập nhật hồ sơ",
+          type: "error",
+        });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Lỗi kết nối máy chủ");
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message || "Lỗi kết nối máy chủ",
+        type: "error",
+      });
     } finally {
       setIsSubmitting(false);
     }

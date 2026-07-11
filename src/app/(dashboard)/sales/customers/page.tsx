@@ -4,8 +4,11 @@ import { useState, useEffect } from "react";
 import { Users, Search, Phone, User, DollarSign, Receipt, Eye, X, Edit3, Car } from "lucide-react";
 import { fetchWithDedup, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function SalesCustomerDebtsPage() {
+  const modal = useModal();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -86,16 +89,30 @@ export default function SalesCustomerDebtsPage() {
       if (res.ok) {
         setEditingOrder(null);
         setPaymentInput("");
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã cập nhật thanh toán công nợ xe thành công!",
+          type: "success",
+        });
         // Reload details for this customer
         openCustomerModal(selectedCustomer);
         // Reload customer list
         fetchCustomers(page);
       } else {
-        alert("Có lỗi xảy ra khi cập nhật thanh toán");
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Có lỗi xảy ra khi cập nhật thanh toán",
+          type: "error",
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Lỗi mạng");
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: error.message || "Lỗi mạng",
+        type: "error",
+      });
     } finally {
       setSubmittingPayment(false);
     }

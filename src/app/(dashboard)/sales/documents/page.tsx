@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { fetchWithDedup, formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
+import { useModal } from "@/components/ModalProvider";
+
 
 interface Accessory {
   id: number;
@@ -18,6 +20,7 @@ interface Accessory {
 }
 
 export default function DocumentsPage() {
+  const modal = useModal();
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -79,13 +82,26 @@ export default function DocumentsPage() {
       });
       if (res.ok) {
         setPaymentModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã cập nhật thanh toán thành công!",
+          type: "success",
+        });
         fetchData(1, false);
       } else {
-        const err = await res.json();
-        alert("Lỗi: " + err.error);
+        const err = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: err.error || "Gặp lỗi khi cập nhật thanh toán",
+          type: "error",
+        });
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: error.message,
+        type: "error",
+      });
     } finally {
       setSubmittingPayment(false);
     }
@@ -133,52 +149,117 @@ export default function DocumentsPage() {
   };
 
   const handleExportAccessories = async (id: number) => {
-    if (!confirm("Hệ thống sẽ gửi yêu cầu xuất kho phụ kiện cho nhân viên kho phê duyệt. Bạn có chắc chắn?")) return;
+    const confirmed = await modal.confirm({
+      title: "Yêu cầu xuất kho phụ kiện",
+      message: "Hệ thống sẽ gửi yêu cầu xuất kho phụ kiện cho nhân viên kho phê duyệt. Bạn có chắc chắn?",
+      type: "warning",
+      confirmText: "Gửi yêu cầu",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/sales/${id}/export-accessories`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message + " (Mã phiếu: " + data.orderCode + ")");
+        await modal.alert({
+          title: "Thành công",
+          message: data.message + " (Mã phiếu: " + data.orderCode + ")",
+          type: "success",
+        });
         fetchData(1, false);
         setSelectedVehicle((prev: any) => prev ? { ...prev, accessoriesExported: false, accessoriesExportStatus: "PENDING" } : prev);
       } else {
-        alert("Lỗi: " + data.error);
+        await modal.alert({
+          title: "Thất bại",
+          message: data.error || "Gặp lỗi khi gửi yêu cầu",
+          type: "error",
+        });
       }
-    } catch (e) {
-      alert("Đã xảy ra lỗi kết nối");
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa hồ sơ xe này không?")) return;
+    const confirmed = await modal.confirm({
+      title: "Xóa hồ sơ xe",
+      message: "Bạn có chắc chắn muốn xóa hồ sơ xe này không?",
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       setLoading(true);
       const res = await fetch(`/api/sales/${id}`, { method: "DELETE" });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã xóa hồ sơ xe thành công!",
+          type: "success",
+        });
         await fetchData(1, false);
       } else {
-        alert("Lỗi khi xóa hồ sơ");
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Lỗi khi xóa hồ sơ",
+          type: "error",
+        });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteGroup = async (vehicles: any[]) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa toàn bộ hồ sơ bán buôn này gồm ${vehicles.length} xe không?`)) return;
+    const confirmed = await modal.confirm({
+      title: "Xóa hồ sơ bán buôn",
+      message: `Bạn có chắc chắn muốn xóa toàn bộ hồ sơ bán buôn này gồm ${vehicles.length} xe không?`,
+      type: "danger",
+      confirmText: "Xóa toàn bộ",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       setLoading(true);
+      let successCount = 0;
       for (const v of vehicles) {
         const res = await fetch(`/api/sales/${v.id}`, { method: "DELETE" });
         if (!res.ok) {
-          alert(`Lỗi khi xóa hồ sơ xe ${v.model}`);
+          await modal.alert({
+            title: "Thất bại",
+            message: `Lỗi khi xóa hồ sơ xe ${v.model}`,
+            type: "error",
+          });
+        } else {
+          successCount++;
         }
       }
+      if (successCount > 0) {
+        await modal.alert({
+          title: "Thành công",
+          message: `Đã xóa ${successCount}/${vehicles.length} hồ sơ xe thành công!`,
+          type: "success",
+        });
+      }
       await fetchData(1, false);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }

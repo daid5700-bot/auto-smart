@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { formatCurrency, formatDate, statusText, statusBadge } from "@/lib/utils";
 import { Users, UserPlus, MessageSquare, Loader2, Edit, Trash2, X } from "lucide-react";
+import { useModal } from "@/components/ModalProvider";
+
 
 const SRC: Record<string, string> = { FACEBOOK: "Facebook", WEBSITE: "Website", WALKIN: "Vãng lai", REFERRAL: "Giới thiệu" };
 const ZNS_TYPE: Record<string, string> = { THANK_YOU: "Cảm ơn", BIRTHDAY: "Sinh nhật", MAINTENANCE: "Nhắc bảo dưỡng", PROMOTION: "Khuyến mãi" };
@@ -13,6 +15,7 @@ const LEAD_COLS = [
 ];
 
 export default function CRMPage() {
+  const modal = useModal();
   const [tab, setTab] = useState<"leads" | "customers" | "zns">("leads");
   const [stats, setStats] = useState<any>(null);
   const [tabData, setTabData] = useState<any>(null);
@@ -68,28 +71,74 @@ export default function CRMPage() {
   useEffect(() => { fetchTabData(); }, [tab]);
 
   const handleDeleteLead = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa Lead này?")) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa Lead",
+      message: "Bạn có chắc chắn muốn xóa Lead này không?",
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/crm/${id}`, { method: "DELETE" });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã xóa Lead thành công!",
+          type: "success",
+        });
         fetchTabData();
         fetchStats();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Lỗi khi xóa Lead",
+          type: "error",
+        });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     }
   };
 
   const handleDeleteCustomer = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa Khách hàng này? Việc xóa sẽ giải phóng thông tin xe của họ và dọn dẹp các lịch sử giao dịch liên quan.")) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa Khách hàng",
+      message: "Bạn có chắc chắn muốn xóa Khách hàng này? Việc xóa sẽ giải phóng thông tin xe của họ và dọn dẹp các lịch sử giao dịch liên quan.",
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/crm/${id}?type=customer`, { method: "DELETE" });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã xóa khách hàng thành công!",
+          type: "success",
+        });
         fetchTabData();
         fetchStats();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Lỗi khi xóa khách hàng",
+          type: "error",
+        });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     }
   };
 
@@ -157,11 +206,29 @@ export default function CRMPage() {
 
       if (res.ok) {
         setModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: editingId 
+            ? (formData.type === "customer" ? "Cập nhật thông tin khách hàng thành công!" : "Cập nhật thông tin Lead thành công!")
+            : (formData.type === "customer" ? "Thêm mới khách hàng thành công!" : "Thêm mới Lead thành công!"),
+          type: "success",
+        });
         fetchTabData();
         fetchStats();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi lưu thông tin",
+          type: "error",
+        });
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: err.message,
+        type: "error",
+      });
     }
   };
 

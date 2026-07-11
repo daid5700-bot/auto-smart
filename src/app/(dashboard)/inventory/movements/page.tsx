@@ -9,6 +9,8 @@ import {
   SlidersHorizontal, Search, X, Plus, Trash2, Save, DollarSign
 } from "lucide-react";
 import { createManualImport, createDirectExport } from "@/app/actions";
+import { useModal } from "@/components/ModalProvider";
+
 
 type TabType = "IMPORT" | "EXPORT";
 
@@ -24,6 +26,7 @@ interface MovementItem {
 
 
 export default function MovementsPage() {
+  const modal = useModal();
   const { user } = useAuth();
   
   const [activeTab, setActiveTab] = useState<TabType>("IMPORT");
@@ -197,8 +200,22 @@ export default function MovementsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const invalidItem = items.find(i => !i.productId);
-    if (invalidItem) return alert("Vui lòng chọn phụ tùng cho tất cả các dòng!");
-    if (items.length === 0) return alert("Vui lòng thêm ít nhất 1 dòng!");
+    if (invalidItem) {
+      await modal.alert({
+        title: "Thiếu thông tin",
+        message: "Vui lòng chọn phụ tùng cho tất cả các dòng!",
+        type: "warning",
+      });
+      return;
+    }
+    if (items.length === 0) {
+      await modal.alert({
+        title: "Thiếu thông tin",
+        message: "Vui lòng thêm ít nhất 1 dòng!",
+        type: "warning",
+      });
+      return;
+    }
 
     setSubmitLoading(true);
     try {
@@ -246,9 +263,17 @@ export default function MovementsPage() {
         setAddress("");
       }
       await fetchData();
-      alert("Thao tác thành công!");
+      await modal.alert({
+        title: "Thành công",
+        message: "Thao tác xuất nhập kho thành công!",
+        type: "success",
+      });
     } catch (err: any) {
-      alert("Lỗi: " + err.message);
+      await modal.alert({
+        title: "Thất bại",
+        message: err.message || "Gặp lỗi khi lưu phiếu kho",
+        type: "error",
+      });
     } finally {
       setSubmitLoading(false);
     }

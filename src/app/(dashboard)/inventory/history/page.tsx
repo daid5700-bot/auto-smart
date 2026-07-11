@@ -4,8 +4,11 @@ import { useEffect, useState, useMemo } from "react";
 import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Loader2, DollarSign, X, Edit3, Eye, Search } from "lucide-react";
+import { useModal } from "@/components/ModalProvider";
+
 
 export default function InventoryHistoryPage() {
+  const modal = useModal();
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -118,13 +121,26 @@ export default function InventoryHistoryPage() {
       });
       if (res.ok) {
         setPaymentModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã cập nhật thanh toán nợ cho đơn hàng thành công!",
+          type: "success",
+        });
         fetchMovements(currentPage);
       } else {
-        const err = await res.json();
-        alert("Lỗi: " + err.error);
+        const err = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: err.error || "Gặp lỗi khi cập nhật thanh toán",
+          type: "error",
+        });
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: error.message,
+        type: "error",
+      });
     } finally {
       setSubmittingPayment(false);
     }

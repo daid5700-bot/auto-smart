@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { formatCurrency, formatNumber, statusText, statusBadge, checkSlowMoving, exportToCsv } from "@/lib/utils";
 import { Package, Search, Plus, AlertTriangle, TrendingUp, TrendingDown, ChevronRight, Edit, Trash2, Eye, Loader2, X, Download } from "lucide-react";
 import { useAuth } from "@/lib/store";
+import { useModal } from "@/components/ModalProvider";
+
 
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -40,6 +42,7 @@ const NumericInput = ({ value, onChange, className, ...props }: any) => {
 };
 
 function InventoryContent() {
+  const modal = useModal();
   const { user } = useAuth();
   const userRole = user?.role;
   const searchParams = useSearchParams();
@@ -133,14 +136,37 @@ function InventoryContent() {
   }, [search, catFilter, scope, statFilter, userRole, page]);
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa phụ tùng này?")) return;
+    const confirmed = await modal.confirm({
+      title: "Xác nhận xóa phụ tùng",
+      message: "Bạn có chắc chắn muốn xóa phụ tùng này ra khỏi kho không?",
+      type: "danger",
+      confirmText: "Xóa ngay",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/inventory/${id}`, { method: "DELETE" });
       if (res.ok) {
+        await modal.alert({
+          title: "Thành công",
+          message: "Đã xóa phụ tùng thành công!",
+          type: "success",
+        });
         fetchData(true);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        await modal.alert({
+          title: "Thất bại",
+          message: errorData.error || "Gặp lỗi khi xóa phụ tùng",
+          type: "error",
+        });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      await modal.alert({
+        title: "Lỗi kết nối",
+        message: e.message,
+        type: "error",
+      });
     }
   };
 
@@ -220,10 +246,20 @@ function InventoryContent() {
       if (res.ok) {
         setFormMessage({ type: "success", text: editingId ? "Cập nhật phụ tùng thành công." : "Thêm phụ tùng thành công." });
         setModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: editingId ? "Đã cập nhật phụ tùng thành công!" : "Đã thêm phụ tùng thành công!",
+          type: "success",
+        });
         fetchData(true);
       } else {
         const result = await res.json().catch(() => null);
         setFormMessage({ type: "error", text: result?.error || "Không thể lưu phụ tùng." });
+        await modal.alert({
+          title: "Thất bại",
+          message: result?.error || "Không thể lưu phụ tùng.",
+          type: "error",
+        });
       }
     } catch (err: any) {
       console.error(err);

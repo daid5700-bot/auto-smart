@@ -17,6 +17,8 @@ import {
   Info
 } from "lucide-react";
 import { sendCustomZnsAction } from "@/app/actions";
+import { useModal } from "@/components/ModalProvider";
+
 
 const DEFAULT_TEMPLATES = [
   {
@@ -57,6 +59,7 @@ interface ReminderItem {
 }
 
 export default function RemindersPage() {
+  const modal = useModal();
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -214,16 +217,28 @@ export default function RemindersPage() {
       });
 
       if (res.success) {
-        alert("Gửi tin nhắn ZNS thành công!");
         setModalOpen(false);
+        await modal.alert({
+          title: "Thành công",
+          message: "Gửi tin nhắn ZNS thành công!",
+          type: "success",
+        });
         fetchData();
       } else {
-        alert("Lỗi khi gửi tin ZNS: " + res.error);
+        await modal.alert({
+          title: "Thất bại",
+          message: "Lỗi khi gửi tin ZNS: " + res.error,
+          type: "error",
+        });
         console.error("Lỗi khi gửi tin ZNS: ", res.error);
       }
     } catch (e: any) {
       console.error(e);
-      alert("Lỗi hệ thống khi gửi tin ZNS: " + e.message);
+      await modal.alert({
+        title: "Lỗi hệ thống",
+        message: "Lỗi hệ thống khi gửi tin ZNS: " + e.message,
+        type: "error",
+      });
     } finally {
       setSendingZns(false);
     }

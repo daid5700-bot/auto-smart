@@ -8,28 +8,50 @@ export async function GET(req: NextRequest) {
   const branchId = getActiveBranchId();
   const { searchParams } = req.nextUrl;
   
+  const customerId = searchParams.get("customerId");
+  
   // Pagination params
+  const defaultLimit = customerId ? "1000" : "100";
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
-  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50")));
+  const limit = Math.min(1000, Math.max(1, parseInt(searchParams.get("limit") || defaultLimit)));
   const skip = (page - 1) * limit;
+
+  const activeOnly = searchParams.get("activeOnly") === "true";
+  const search = searchParams.get("search") || "";
+
+  const whereClause: any = {
+    isDeleted: false,
+    ...(branchId ? { branchId } : {}),
+  };
+
+  if (customerId) {
+    whereClause.customerId = parseInt(customerId);
+  }
+
+  if (activeOnly) {
+    whereClause.status = { not: "DELIVERED" };
+  }
+
+  if (search) {
+    whereClause.OR = [
+      { plateNumber: { contains: search, mode: "insensitive" } },
+      { vehicleModel: { contains: search, mode: "insensitive" } },
+      { customer: { name: { contains: search, mode: "insensitive" } } },
+      { customer: { phone: { contains: search } } },
+    ];
+  }
 
   // Run independent queries in parallel for speed
   const [repairOrders, totalROs, technicians] = await Promise.all([
     prisma.repairOrder.findMany({
-      where: {
-        isDeleted: false,
-        ...(branchId ? { branchId } : {}),
-      },
+      where: whereClause,
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
       include: { customer: true, technician: true, items: { include: { product: true } } },
     }),
     prisma.repairOrder.count({
-      where: {
-        isDeleted: false,
-        ...(branchId ? { branchId } : {}),
-      },
+      where: whereClause,
     }),
     prisma.technician.findMany({
       where: branchId ? { branchId } : {},

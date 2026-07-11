@@ -14,12 +14,19 @@ export default function ZnsPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [logsSearch, setLogsSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const fetchData = async () => {
+  const fetchData = async (pageVal = 1, searchVal = "") => {
     try {
-      const res = await fetch("/api/crm?tab=zns");
+      const res = await fetch(`/api/crm?tab=zns&page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}`);
       const data = await res.json();
       setLogs(data.znsLogs || []);
+      if (data.pagination) {
+        setTotalPages(data.pagination.totalPages || 1);
+        setTotalCount(data.pagination.total || 0);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -28,8 +35,16 @@ export default function ZnsPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    setPage(1);
+  }, [logsSearch]);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchData(page, logsSearch);
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, logsSearch]);
 
   const znsLabel = (type: string) => {
     switch (type) {
@@ -73,13 +88,7 @@ export default function ZnsPage() {
     }
   };
 
-  // Filter logs
-  const filteredLogs = logs.filter(l => 
-    l.customer?.name.toLowerCase().includes(logsSearch.toLowerCase()) ||
-    l.phone.includes(logsSearch) ||
-    l.content.toLowerCase().includes(logsSearch.toLowerCase()) ||
-    znsLabel(l.messageType).toLowerCase().includes(logsSearch.toLowerCase())
-  );
+  const filteredLogs = logs;
 
   if (loading && logs.length === 0) {
     return (
@@ -151,6 +160,62 @@ export default function ZnsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl mt-4">
+            <div className="text-xs text-muted-foreground font-semibold">
+              Hiển thị {(page - 1) * 20 + 1}–{Math.min(page * 20, totalCount)} / {totalCount} tin nhắn
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { setPage(1); setLoading(true); }}
+                disabled={page === 1}
+                className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                «
+              </button>
+              <button
+                onClick={() => { setPage(p => Math.max(1, p - 1)); setLoading(true); }}
+                disabled={page === 1}
+                className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ‹
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
+                if (p > totalPages) return null;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => { setPage(p); setLoading(true); }}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border ${
+                      p === page
+                        ? "border-primary bg-primary text-white"
+                        : "border-border hover:bg-secondary/40"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => { setPage(p => Math.min(totalPages, p + 1)); setLoading(true); }}
+                disabled={page === totalPages}
+                className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ›
+              </button>
+              <button
+                onClick={() => { setPage(totalPages); setLoading(true); }}
+                disabled={page === totalPages}
+                className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                »
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
