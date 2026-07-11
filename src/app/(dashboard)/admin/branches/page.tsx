@@ -202,9 +202,19 @@ export default function BranchesPage() {
                   </td>
                   <td>
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white shrink-0">
-                        <Building2 size={16} />
-                      </div>
+                      {b.name.toLowerCase().includes("vinfast") ? (
+                        <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
+                          <img src="/vinfast.png" alt="Vinfast Logo" className="w-full h-full object-contain" />
+                        </div>
+                      ) : b.name.toLowerCase().includes("yamaha") ? (
+                        <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
+                          <img src="/yamaha.png" alt="Yamaha Logo" className="w-full h-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white shrink-0">
+                          <Building2 size={16} />
+                        </div>
+                      )}
                       <span className="font-bold text-foreground text-base">{b.name}</span>
                     </div>
                   </td>
