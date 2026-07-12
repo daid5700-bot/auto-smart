@@ -387,10 +387,6 @@ export default function NewRepairOrderPage() {
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground bg-secondary/20 p-3 rounded-xl border border-border/40 max-w-3xl">
-        Sau khi lưu, lệnh sẽ ở trạng thái <span className="font-bold text-primary">CHỜ PHỤ TÙNG</span> (nếu có yêu cầu phụ tùng) hoặc <span className="font-bold text-success">CHỜ SỬA (PENDING)</span> (nếu không có). Kho sẽ trực tiếp xuất phụ tùng và ghi nhận lịch sử trừ kho tương ứng.
-      </p>
-
       {errorMsg && (
         <div className="flex items-center gap-2.5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs max-w-3xl animate-fade-in">
           <AlertCircle size={15} />

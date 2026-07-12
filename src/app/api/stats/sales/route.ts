@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getActiveBranchId } from "@/lib/branch";
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,7 +26,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const whereSold: any = { status: "SOLD" };
+    const branchId = getActiveBranchId();
+    const whereSold: any = { 
+      status: "SOLD",
+      ...(branchId ? { branchId } : {})
+    };
     if (startDate || endDate) {
       whereSold.updatedAt = {};
       if (startDate) whereSold.updatedAt.gte = startDate;

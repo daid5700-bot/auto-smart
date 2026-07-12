@@ -122,7 +122,6 @@ export default function WorkshopCustomersPage() {
       <div className="flex items-center justify-between pb-5 border-b border-border flex-wrap gap-4">
         <div>
           <h2 className="text-3xl font-extrabold tracking-tight">Khách hàng sửa chữa (Công nợ)</h2>
-          <p className="text-sm text-muted-foreground">Xem chi tiết doanh số, công nợ sửa xe và cập nhật thanh toán bàn giao.</p>
         </div>
       </div>
 
