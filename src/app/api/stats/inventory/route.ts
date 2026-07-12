@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
 
     const exportWhere: any = {
       type: { in: ["EXPORT", "EXPORT_GIFT"] },
+      vehicleId: { not: null },
     };
     if (branchId) {
       exportWhere.product = { productBranches: { some: { branchId } } };
@@ -171,6 +172,7 @@ export async function GET(req: NextRequest) {
         FROM "StockMovement" m
         LEFT JOIN RetailPrices p ON m."productId" = p."productId"
         WHERE m.type IN ('EXPORT', 'EXPORT_GIFT')
+          AND m."vehicleId" IS NOT NULL
           ${branchMovementCond}
           ${dateMovementCond}
         GROUP BY m.type
