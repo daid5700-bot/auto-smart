@@ -32,35 +32,24 @@ export async function GET(req: NextRequest) {
       if (endDate) whereSold.updatedAt.lte = endDate;
     }
 
-    const [
-      soldVehicles,
-      soldValueResult,
-      soldList
-    ] = await Promise.all([
-      prisma.vehicle.count({ where: whereSold }),
-      prisma.vehicle.aggregate({
-        _sum: { 
-          listPrice: true,
-          plateCost: true,
-        },
-        where: whereSold
-      }),
-      prisma.vehicle.findMany({
-        where: whereSold,
-        orderBy: { updatedAt: "desc" },
-        include: {
-          customer: {
-            select: { name: true, phone: true }
-          }
+    const soldList = await prisma.vehicle.findMany({
+      where: whereSold,
+      orderBy: { updatedAt: "desc" },
+      include: {
+        customer: {
+          select: { name: true, phone: true }
         }
-      })
-    ]);
+      }
+    });
 
-    const soldValueRaw = soldValueResult._sum.listPrice ? Number(soldValueResult._sum.listPrice.toString()) : 0;
-    const totalPlateCostRaw = soldValueResult._sum.plateCost ? Number(soldValueResult._sum.plateCost.toString()) : 0;
+    const soldVehicles = soldList.length;
+    let soldValueRaw = 0;
+    let totalPlateCostRaw = 0;
     let totalAccessoriesCostRaw = 0;
 
     soldList.forEach(v => {
+      soldValueRaw += Number(v.listPrice || 0);
+      totalPlateCostRaw += Number(v.plateCost || 0);
       try {
         const accs = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : (v.accessoriesJson as any) || [];
         accs.forEach((a: any) => {
@@ -95,12 +84,7 @@ export async function GET(req: NextRequest) {
     });
     const topModels = Array.from(modelMap.values()).sort((a, b) => b.value - a.value);
 
-    // Fetch all SOLD vehicles to calculate real monthly sales trend
-    const soldVehiclesData = await prisma.vehicle.findMany({
-      where: whereSold,
-      select: { updatedAt: true },
-    });
-
+    // Reuse soldList for monthly sales trend
     const monthlySalesMap = new Map<string, number>();
     
     // Initialize last 12 months with 0
@@ -115,7 +99,7 @@ export async function GET(req: NextRequest) {
     }
 
     const now = new Date();
-    soldVehiclesData.forEach(car => {
+    soldList.forEach(car => {
       const d = new Date(car.updatedAt);
       const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
       

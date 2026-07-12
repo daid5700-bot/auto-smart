@@ -39,6 +39,65 @@ async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: st
   }
 }
 
+// Helper to expand unaccented Vietnamese search terms
+function expandVietnameseKeyword(keyword: string): string[] {
+  const lower = keyword.toLowerCase();
+  const variants = new Set<string>([keyword, lower]);
+
+  // If the word does not contain any transformable characters, return early
+  if (!/[aadeiouydăâêôơưđ]/.test(lower)) {
+    return Array.from(variants);
+  }
+
+  // Character replacement groups for Vietnamese accents and casing
+  const charGroups: Record<string, string[]> = {
+    'a': ['a', 'á', 'à', 'ả', 'ã', 'ạ', 'ă', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ', 'â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'A', 'Á', 'À', 'Ả', 'Ã', 'Ạ', 'Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ', 'Ặ', 'Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ'],
+    'e': ['e', 'é', 'è', 'ẻ', 'ẽ', 'ẹ', 'ê', 'ế', 'ề', 'ể', 'ễ', 'ệ', 'E', 'É', 'È', 'Ẻ', 'Ẽ', 'Ẹ', 'Ê', 'Ế', 'Ề', 'Ể', 'Ễ', 'Ệ'],
+    'i': ['i', 'í', 'ì', 'ỉ', 'ĩ', 'ị', 'I', 'Í', 'Ì', 'Ỉ', 'Ĩ', 'Ị'],
+    'o': ['o', 'ó', 'ò', 'ỏ', 'õ', 'ọ', 'ô', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ', 'ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'O', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ', 'Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ', 'Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ'],
+    'u': ['u', 'ú', 'ù', 'ủ', 'ũ', 'ụ', 'ư', 'ứ', 'ừ', 'ử', 'ữ', 'ự', 'U', 'Ú', 'Ù', 'Ủ', 'Ũ', 'Ụ', 'Ư', 'Ứ', 'Ừ', 'Ử', 'Ữ', 'Ự'],
+    'y': ['y', 'ý', 'ỳ', 'ỷ', 'ỹ', 'ỵ', 'Y', 'Ý', 'Ỳ', 'Ỷ', 'Ỹ', 'Ỵ'],
+    'd': ['d', 'đ', 'D', 'Đ'],
+    'đ': ['d', 'đ', 'D', 'Đ'],
+    'ă': ['a', 'á', 'à', 'ả', 'ã', 'ạ', 'ă', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ', 'â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'A', 'Á', 'À', 'Ả', 'Ã', 'Ạ', 'Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ', 'Ặ', 'Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ'],
+    'â': ['a', 'á', 'à', 'ả', 'ã', 'ạ', 'ă', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ', 'â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'A', 'Á', 'À', 'Ả', 'Ã', 'Ạ', 'Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ', 'Ặ', 'Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ'],
+    'ê': ['e', 'é', 'è', 'ẻ', 'ẽ', 'ẹ', 'ê', 'ế', 'ề', 'ể', 'ễ', 'ệ', 'E', 'É', 'È', 'Ẻ', 'Ẽ', 'Ẹ', 'Ê', 'Ế', 'Ề', 'Ể', 'Ễ', 'Ệ'],
+    'ô': ['o', 'ó', 'ò', 'ỏ', 'õ', 'ọ', 'ô', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ', 'ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'O', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ', 'Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ', 'Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ'],
+    'ơ': ['o', 'ó', 'ò', 'ỏ', 'õ', 'ọ', 'ô', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ', 'ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'O', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ', 'Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ', 'Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ'],
+    'ư': ['u', 'ú', 'ù', 'ủ', 'ũ', 'ụ', 'ư', 'ứ', 'ừ', 'ử', 'ữ', 'ự', 'U', 'Ú', 'Ù', 'Ủ', 'Ũ', 'Ụ', 'Ư', 'Ứ', 'Ừ', 'Ử', 'Ữ', 'Ự'],
+  };
+
+  const baseChars = lower.split('');
+  let results = [lower];
+
+  for (let i = 0; i < baseChars.length; i++) {
+    const char = baseChars[i];
+    const group = charGroups[char];
+    if (group) {
+      const nextResults: string[] = [];
+      results.forEach(r => {
+        group.forEach(gChar => {
+          nextResults.push(r.substring(0, i) + gChar + r.substring(i + 1));
+        });
+      });
+      // Safety cap to avoid combinatorial explosion in database queries
+      if (nextResults.length <= 150) {
+        results = nextResults;
+      } else {
+        break;
+      }
+    }
+  }
+
+  results.forEach(r => variants.add(r));
+
+  const capitalized = keyword.charAt(0).toUpperCase() + keyword.slice(1);
+  variants.add(capitalized);
+  variants.add(keyword.toUpperCase());
+
+  return Array.from(variants);
+}
+
 // GET /api/sales — list vehicles
 export async function GET(req: NextRequest) {
   const guard = await requireAuth(req);
@@ -66,13 +125,19 @@ export async function GET(req: NextRequest) {
     const keywords = trimmed.split(/\s+/).filter(Boolean);
     if (keywords.length > 0) {
       where.AND = keywords.map(keyword => {
-        const keywordOr: any[] = [
-          { model: { contains: keyword, mode: "insensitive" } },
-          { color: { contains: keyword, mode: "insensitive" } },
-          { vin: { contains: keyword, mode: "insensitive" } },
-          { variant: { contains: keyword, mode: "insensitive" } },
-          { engineNumber: { contains: keyword, mode: "insensitive" } },
-        ];
+        const expanded = expandVietnameseKeyword(keyword);
+        const keywordOr: any[] = [];
+        
+        expanded.forEach(kw => {
+          keywordOr.push(
+            { model: { contains: kw, mode: "insensitive" } },
+            { color: { contains: kw, mode: "insensitive" } },
+            { vin: { contains: kw, mode: "insensitive" } },
+            { variant: { contains: kw, mode: "insensitive" } },
+            { engineNumber: { contains: kw, mode: "insensitive" } }
+          );
+        });
+
         if (/^\d+$/.test(keyword)) {
           keywordOr.push({ id: parseInt(keyword, 10) });
         }
@@ -91,7 +156,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Run heavy queries in parallel
-  const [vehicles, total, countAvailable, countReserved, countIncoming, countSold, remainingStats] = await Promise.all([
+  const [vehicles, total, statusGroups] = await Promise.all([
     prisma.vehicle.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -110,14 +175,11 @@ export async function GET(req: NextRequest) {
       }
     }),
     prisma.vehicle.count({ where }),
-    prisma.vehicle.count({ where: { status: "AVAILABLE", ...(branchId ? { branchId } : {}) } }),
-    prisma.vehicle.count({ where: { status: "RESERVED", ...(branchId ? { branchId } : {}) } }),
-    prisma.vehicle.count({ where: { status: "INCOMING", ...(branchId ? { branchId } : {}) } }),
-    prisma.vehicle.count({ where: { status: "SOLD", ...(branchId ? { branchId } : {}) } }),
-    prisma.vehicle.aggregate({
-      where: {
-        status: { in: ["AVAILABLE", "RESERVED", "INCOMING"] },
-        ...(branchId ? { branchId } : {})
+    prisma.vehicle.groupBy({
+      by: ["status"],
+      where: branchId ? { branchId } : {},
+      _count: {
+        id: true
       },
       _sum: {
         listPrice: true,
@@ -159,13 +221,40 @@ export async function GET(req: NextRequest) {
     }
   });
 
-
-
   const vehiclesWithExportStatus = vehicles.map(v => ({
     ...v,
     accessoriesExportStatus: exportStatusById.get(v.id) || "NONE",
     accessoriesExported: exportStatusById.get(v.id) === "PAID"
   }));
+
+  let countAvailable = 0;
+  let countReserved = 0;
+  let countIncoming = 0;
+  let countSold = 0;
+  let remainingListValue = 0;
+  let remainingImportValue = 0;
+
+  statusGroups.forEach(group => {
+    const count = group._count.id || 0;
+    const listPriceSum = Number(group._sum.listPrice || 0);
+    const importPriceSum = Number(group._sum.importPrice || 0);
+
+    if (group.status === "AVAILABLE") {
+      countAvailable = count;
+      remainingListValue += listPriceSum;
+      remainingImportValue += importPriceSum;
+    } else if (group.status === "RESERVED") {
+      countReserved = count;
+      remainingListValue += listPriceSum;
+      remainingImportValue += importPriceSum;
+    } else if (group.status === "INCOMING") {
+      countIncoming = count;
+      remainingListValue += listPriceSum;
+      remainingImportValue += importPriceSum;
+    } else if (group.status === "SOLD") {
+      countSold = count;
+    }
+  });
 
   const counts = {
     AVAILABLE: countAvailable,
@@ -173,8 +262,8 @@ export async function GET(req: NextRequest) {
     INCOMING: countIncoming,
     SOLD: countSold,
     remainingCount: countAvailable + countReserved + countIncoming,
-    remainingListValue: Number(remainingStats._sum.listPrice || 0),
-    remainingImportValue: Number(remainingStats._sum.importPrice || 0),
+    remainingListValue,
+    remainingImportValue,
   };
 
   return NextResponse.json({
