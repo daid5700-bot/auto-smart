@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { fetchWithDedup, formatCurrency, formatDate } from "@/lib/utils";
 import { Car, DollarSign, CheckCircle, TrendingUp, TrendingDown, Banknote, ShieldCheck, Loader2, RefreshCw, X, Tag, Package, Boxes, BarChart2, Clock } from "lucide-react";
 
@@ -134,7 +135,12 @@ export default function SalesStatsPage() {
                   return (
                     <tr key={item.id} className="hover:bg-secondary/10 transition-colors">
                       <td className="p-3 text-center text-muted-foreground font-semibold">{idx+1}</td>
-                      <td className="p-3 font-bold">{item.model}{item.variant&&<span className="text-[10px] text-muted-foreground block font-normal">{item.variant} · {item.color||"N/A"}</span>}</td>
+                      <td className="p-3">
+                        <Link href={`/sales/documents?id=${item.id}`} className="hover:text-primary hover:underline font-bold block text-foreground">
+                          {item.model}
+                        </Link>
+                        {item.variant&&<span className="text-[10px] text-muted-foreground block font-normal">{item.variant} · {item.color||"N/A"}</span>}
+                      </td>
                       <td className="p-3 font-mono text-muted-foreground">{item.vin?.slice(-6)||"N/A"}</td>
                       <td className="p-3">{item.customer?<div><span className="font-semibold block">{item.customer.name}</span><span className="text-[10px] text-muted-foreground">{item.customer.phone}</span></div>:<span className="text-muted-foreground italic">Vãng lai</span>}</td>
                       <td className="p-3 text-right font-medium">{formatCurrency(Number(item.listPrice)||0)}</td>
@@ -183,7 +189,15 @@ export default function SalesStatsPage() {
                 {invData?.exports?.slice(0,30).map((item: any, idx: number) => (
                   <tr key={item.id} className="hover:bg-secondary/10 transition-colors">
                     <td className="p-3 text-center text-muted-foreground font-semibold">{idx+1}</td>
-                    <td className="p-3 font-bold">{item.product?.name}</td>
+                    <td className="p-3">
+                      {item.vehicleId ? (
+                        <Link href={`/sales/documents?id=${item.vehicleId}`} className="hover:text-primary hover:underline font-bold block text-foreground">
+                          {item.product?.name}
+                        </Link>
+                      ) : (
+                        <span className="font-bold text-foreground">{item.product?.name}</span>
+                      )}
+                    </td>
                     <td className="p-3 font-mono text-muted-foreground">{item.product?.sku}</td>
                     <td className="p-3 text-right">{item.quantity} {item.product?.unit}</td>
                     <td className="p-3 text-right text-muted-foreground">{formatCurrency(item.product?.price||0)}</td>

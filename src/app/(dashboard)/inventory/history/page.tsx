@@ -11,12 +11,15 @@ function InventoryHistoryContent() {
   const modal = useModal();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "ALL";
+  const initialMovementId = searchParams.get("movementId") ? parseInt(searchParams.get("movementId")!) : null;
 
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
+  const [tabCounts, setTabCounts] = useState({ all: 0, import: 0, export: 0 });
+  const [autoOpenMovementId, setAutoOpenMovementId] = useState<number | null>(initialMovementId);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -50,7 +53,9 @@ function InventoryHistoryContent() {
 
     movements.forEach(m => {
       let key = "";
-      if (m.inventoryOrder) {
+      if (m.vehicleId) {
+        key = `VEHICLE-${m.vehicleId}`;
+      } else if (m.inventoryOrder) {
         key = `ORDER-${m.inventoryOrder.id}`;
       } else {
         const dateVal = new Date(m.createdAt).getTime();
@@ -69,6 +74,14 @@ function InventoryHistoryContent() {
           totalAmount: 0,
           inventoryOrder: m.inventoryOrder || null
         };
+      }
+      
+      // Merge properties if this movement has inventoryOrder info
+      if (m.inventoryOrder && !groups[key].inventoryOrder) {
+        groups[key].inventoryOrder = m.inventoryOrder;
+        groups[key].type = "EXPORT";
+        groups[key].createdBy = m.createdBy;
+        groups[key].reason = m.reason || groups[key].reason;
       }
       
       groups[key].items.push(m);
@@ -93,24 +106,41 @@ function InventoryHistoryContent() {
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages || 1);
       }
+      // Always update counts from server (they're scoped to branch+search, not tab)
+      if (data.counts) {
+        setTabCounts(data.counts);
+      }
+      return data.movements || [];
     } catch (e) {
       console.error("Lỗi tải lịch sử kho:", e);
+      return [];
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMovements(currentPage);
+    fetchMovements(currentPage).then((movements) => {
+      if (autoOpenMovementId && movements.length > 0) {
+        const grouped = groupMovementsIntoReceipts(movements);
+        const target = grouped.find((r: any) =>
+          r.items.some((item: any) => item.id === autoOpenMovementId)
+        );
+        if (target) {
+          setSelectedReceipt(target);
+          setAutoOpenMovementId(null);
+        }
+      }
+    });
   }, [currentPage, debouncedSearch, activeTab]);
 
   const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
 
   const filteredReceipts = groupedReceipts;
 
-  const importCount = groupedReceipts.filter(r => r.type === "IMPORT").length;
-  const exportCount = groupedReceipts.filter(r => r.type === "EXPORT" || r.type === "EXPORT_GIFT").length;
-  const allCount = groupedReceipts.length;
+  const importCount = tabCounts.import;
+  const exportCount = tabCounts.export;
+  const allCount = tabCounts.all;
 
   const submitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,11 +290,14 @@ function InventoryHistoryContent() {
                         <div className="text-[10px]">{new Date(r.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-[10px] font-bold px-2 py-1 uppercase rounded-md ${
-                          r.type === "IMPORT" ? "bg-primary/10 text-primary" :
-                          r.type === "EXPORT" ? "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200" :
-                          r.type === "EXPORT_GIFT" ? "bg-emerald-500/10 text-emerald-600" :
-                          "bg-amber-500/10 text-amber-500"
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 uppercase rounded-md border ${
+                          r.type === "IMPORT"
+                            ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400"
+                            : r.type === "EXPORT"
+                            ? "bg-orange-500/10 text-orange-600 border-orange-500/20 dark:text-orange-400"
+                            : r.type === "EXPORT_GIFT"
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400"
+                            : "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400"
                         }`}>
                           {r.type === "IMPORT" ? "Nhập kho" : 
                            r.type === "EXPORT" ? "Xuất kho" : 
@@ -318,27 +351,65 @@ function InventoryHistoryContent() {
         </div>
 
         {/* Pagination controls */}
-        {(currentPage > 1 || history.length === 50) && (
+        {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
-            <div className="text-xs text-muted-foreground">
-              Trang <span className="font-semibold text-foreground">{currentPage}</span>
-            </div>
-            <div className="flex gap-1 items-center">
+            <p className="text-xs text-muted-foreground">
+              {(() => {
+                const currentCount = activeTab === "IMPORT" ? tabCounts.import : activeTab === "EXPORT" ? tabCounts.export : tabCounts.all;
+                const from = (currentPage - 1) * 50 + 1;
+                const to = Math.min(currentPage * 50, currentCount);
+                return <>Hiển thị {from}–{to} / {currentCount} giao dịch</>;
+              })()}
+            </p>
+            <div className="flex items-center gap-1">
               <button
                 type="button"
+                onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-bold hover:bg-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Trước
+                «
               </button>
               <button
                 type="button"
-                disabled={history.length < 50}
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-bold hover:bg-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Sau
+                ‹
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const p = Math.max(1, Math.min(currentPage - 2, totalPages - 4)) + i;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setCurrentPage(p)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border ${
+                      p === currentPage
+                        ? "border-primary bg-primary text-white"
+                        : "border-border hover:bg-secondary/40"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ›
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                »
               </button>
             </div>
           </div>
@@ -466,7 +537,16 @@ function InventoryHistoryContent() {
                     <span className="text-xs text-zinc-500 font-bold uppercase mr-4">
                       {selectedReceipt.type === "EXPORT_GIFT" ? "Tổng giá vốn quà tặng:" : "Tổng cộng:"}
                     </span>
-                    <span className="text-lg font-black text-zinc-950">{formatCurrency(selectedReceipt.items.reduce((sum: number, it: any) => sum + Number(it.totalCost || 0), 0))}</span>
+                    <span className="text-lg font-black text-zinc-950">
+                      {formatCurrency(
+                        selectedReceipt.items.reduce((sum: number, it: any) => {
+                          if (it.type === "EXPORT_GIFT" && selectedReceipt.type !== "EXPORT_GIFT") {
+                            return sum;
+                          }
+                          return sum + Number(it.totalCost || 0);
+                        }, 0)
+                      )}
+                    </span>
                   </div>
                 </div>
               )}

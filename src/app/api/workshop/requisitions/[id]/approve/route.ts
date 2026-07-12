@@ -146,6 +146,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               unitCost: currentMac || unitPrice,
               totalCost: (currentMac || unitPrice) * itemQty,
               reason: `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${requisition.vehicle?.vin || requisition.vehicleId}`,
+              vehicleId: requisition.vehicleId,
               createdBy: "Thủ kho",
               branchId: requisition.branchId,
             }

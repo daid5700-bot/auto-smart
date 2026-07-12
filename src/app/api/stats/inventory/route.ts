@@ -4,8 +4,63 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { Prisma } from "@prisma/client";
 
+async function runSelfHealingMigration() {
+  try {
+    // 1. Fix EXPORT_GIFT movements with null vehicleId using reason field
+    const giftMovements = await prisma.stockMovement.findMany({
+      where: {
+        type: "EXPORT_GIFT",
+        vehicleId: null
+      }
+    });
+
+    for (const m of giftMovements) {
+      if (!m.reason) continue;
+      const vinMatch = m.reason.match(/VIN\s*#?\s*([A-Za-z0-9-]+)/i);
+      if (vinMatch) {
+        const vin = vinMatch[1].trim();
+        const vehicle = await prisma.vehicle.findUnique({
+          where: { vin }
+        });
+        if (vehicle) {
+          await prisma.stockMovement.update({
+            where: { id: m.id },
+            data: { vehicleId: vehicle.id }
+          });
+        }
+      }
+    }
+
+    // 2. Fix EXPORT movements with null vehicleId using InventoryOrder
+    const orderMovements = await prisma.stockMovement.findMany({
+      where: {
+        type: "EXPORT",
+        vehicleId: null,
+        inventoryOrderId: { not: null }
+      },
+      include: {
+        inventoryOrder: true
+      }
+    });
+
+    for (const m of orderMovements) {
+      if (m.inventoryOrder && m.inventoryOrder.vehicleId) {
+        await prisma.stockMovement.update({
+          where: { id: m.id },
+          data: { vehicleId: m.inventoryOrder.vehicleId }
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Self-healing migration failed:", err);
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
+    // Run self-healing migration in background to fix any loose historical movements
+    await runSelfHealingMigration();
+
     const { searchParams } = req.nextUrl;
     const startDateStr = searchParams.get("startDate");
     const endDateStr = searchParams.get("endDate");
@@ -31,9 +86,7 @@ export async function GET(req: NextRequest) {
 
     // Declare filters for query parallelization
     const movementWhere: any = {
-      product: {
-        ...(branchId ? { productBranches: { some: { branchId } } } : {}),
-      },
+      ...(branchId ? { branchId } : {}),
     };
     if (startDate || endDate) {
       movementWhere.createdAt = {};
@@ -44,10 +97,8 @@ export async function GET(req: NextRequest) {
     const exportWhere: any = {
       type: { in: ["EXPORT", "EXPORT_GIFT"] },
       vehicleId: { not: null },
+      ...(branchId ? { branchId } : {}),
     };
-    if (branchId) {
-      exportWhere.product = { productBranches: { some: { branchId } } };
-    }
     if (startDate || endDate) {
       exportWhere.createdAt = {};
       if (startDate) exportWhere.createdAt.gte = startDate;
@@ -237,6 +288,7 @@ export async function GET(req: NextRequest) {
         totalCost: Number(m.totalCost) > 0 ? Number(m.totalCost) : actualPrice * Number(m.quantity),
         reason: m.reason,
         relatedRoId: m.relatedRoId,
+        vehicleId: m.vehicleId,
         createdBy: m.createdBy,
         createdAt: m.createdAt,
         product: {

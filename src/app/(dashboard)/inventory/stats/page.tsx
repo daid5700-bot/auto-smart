@@ -435,7 +435,14 @@ export default function InventoryStatsPage() {
                     )}
                   </td>
                   <td className="text-center"><span className="font-mono text-xs">{mov.product?.sku}</span></td>
-                  <td className="font-medium text-xs max-w-sm truncate text-center">{mov.product?.name}</td>
+                  <td className="font-medium text-xs max-w-sm truncate text-center">
+                    <Link
+                      href={`/inventory/history?movementId=${mov.id}&tab=${mov.type === "IMPORT" ? "IMPORT" : "EXPORT"}`}
+                      className="hover:text-primary hover:underline font-medium block text-foreground"
+                    >
+                      {mov.product?.name}
+                    </Link>
+                  </td>
                   <td className="text-center font-bold">{mov.quantity}</td>
                   <td className="text-center"><span className="text-muted-foreground text-xs">{mov.product?.unit}</span></td>
                   <td className="text-center font-medium text-muted-foreground">{formatCurrency(Number(mov.unitCost))}</td>

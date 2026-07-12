@@ -209,25 +209,21 @@ export default function HistoryPage() {
 
         {/* Pagination */}
         {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-between p-4 bg-card border-t border-border/40">
-            <div className="text-xs text-muted-foreground font-semibold">
-              Trang {page} / {totalPages}
-            </div>
-            <div className="flex gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-xs font-bold rounded-lg border border-border disabled:opacity-50 transition-colors"
-              >
-                Trước
-              </button>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-                className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-xs font-bold rounded-lg border border-border disabled:opacity-50 transition-colors"
-              >
-                Sau
-              </button>
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
+            <p className="text-xs text-muted-foreground">
+              Trang <span className="font-semibold text-foreground">{page}</span> / <span className="font-semibold text-foreground">{totalPages}</span>
+            </p>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed">«</button>
+              <button onClick={() => setPage(p => Math.max(p - 1, 1))} disabled={page === 1} className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed">‹</button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
+                return (
+                  <button key={p} onClick={() => setPage(p)} className={`px-3 py-1 rounded-lg text-xs font-semibold border ${p === page ? "border-primary bg-primary text-white" : "border-border hover:bg-secondary/40"}`}>{p}</button>
+                );
+              })}
+              <button onClick={() => setPage(p => Math.min(p + 1, totalPages))} disabled={page === totalPages} className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed">›</button>
+              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed">»</button>
             </div>
           </div>
         )}

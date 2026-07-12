@@ -128,6 +128,25 @@ export default function DocumentsPage() {
   }, [saleTypeFilter, searchQuery]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("id");
+    if (idParam) {
+      const vehicleId = parseInt(idParam, 10);
+      if (!isNaN(vehicleId)) {
+        fetch(`/api/sales/${vehicleId}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && !data.error) {
+              setSelectedVehicle(data);
+              setDetailModalOpen(true);
+            }
+          })
+          .catch((err) => console.error("Error loading deep-linked vehicle:", err));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     const onScroll = () => {
       if (loading || loadingMore || page >= totalPages) return;
       const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 360;

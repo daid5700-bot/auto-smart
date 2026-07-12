@@ -41,48 +41,58 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const total = await prisma.stockMovement.count({ where });
+    // Base filter for tab counts (branch + search, no type filter)
+    const branchFilter = branchId ? { branchId } : {};
+    const searchFilter = search && where.OR ? { OR: where.OR } : {};
+    const baseFilter = { ...branchFilter, ...searchFilter };
 
-    const movements = await prisma.stockMovement.findMany({
-      where,
-      select: {
-        id: true,
-        type: true,
-        quantity: true,
-        unitCost: true,
-        totalCost: true,
-        reason: true,
-        createdBy: true,
-        createdAt: true,
-        product: {
-          select: {
-            id: true,
-            sku: true,
-            name: true,
-            unit: true,
-          }
-        },
-        inventoryOrder: {
-          select: {
-            id: true,
-            code: true,
-            totalAmount: true,
-            paidAmount: true,
-            debtAmount: true,
-            customer: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
+    const [total, totalAll, totalImport, totalExport, movements] = await Promise.all([
+      prisma.stockMovement.count({ where }),
+      prisma.stockMovement.count({ where: baseFilter }),
+      prisma.stockMovement.count({ where: { ...baseFilter, type: "IMPORT" } }),
+      prisma.stockMovement.count({ where: { ...baseFilter, type: { in: ["EXPORT", "EXPORT_GIFT"] } } }),
+      prisma.stockMovement.findMany({
+        where,
+        select: {
+          id: true,
+          type: true,
+          quantity: true,
+          unitCost: true,
+          totalCost: true,
+          reason: true,
+          vehicleId: true,
+          createdBy: true,
+          createdAt: true,
+          product: {
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+              unit: true,
+            }
+          },
+          inventoryOrder: {
+            select: {
+              id: true,
+              code: true,
+              totalAmount: true,
+              paidAmount: true,
+              debtAmount: true,
+              customer: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                }
               }
             }
           }
-        }
-      },
-      orderBy: { createdAt: "desc" },
-      skip: limit > 0 ? (page - 1) * limit : undefined,
-      take: limit > 0 ? limit : undefined,
-    });
+        },
+        orderBy: { createdAt: "desc" },
+        skip: limit > 0 ? (page - 1) * limit : undefined,
+        take: limit > 0 ? limit : undefined,
+      })
+    ]);
 
     return NextResponse.json({
       movements,
@@ -91,6 +101,11 @@ export async function GET(req: NextRequest) {
         page,
         limit,
         totalPages: limit > 0 ? Math.ceil(total / limit) : 1
+      },
+      counts: {
+        all: totalAll,
+        import: totalImport,
+        export: totalExport,
       }
     });
   } catch (error: any) {
