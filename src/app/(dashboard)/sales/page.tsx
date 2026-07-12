@@ -14,6 +14,8 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("AVAILABLE");
+  const [colorF, setColorF] = useState("");
+  const [isCreatingColor, setIsCreatingColor] = useState(false);
   const [view, setView] = useState<"grid" | "list">("list");
   const [uploading, setUploading] = useState(false);
 
@@ -85,6 +87,7 @@ export default function SalesPage() {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (statusF) params.set("status", statusF);
+    if (colorF) params.set("color", colorF);
     params.set("page", String(page));
     params.set("limit", "12");
     fetchWithDedup(`/api/sales?${params}`)
@@ -100,11 +103,11 @@ export default function SalesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, statusF]);
+  }, [debouncedSearch, statusF, colorF]);
 
   useEffect(() => {
     fetchData();
-  }, [debouncedSearch, statusF, page]);
+  }, [debouncedSearch, statusF, colorF, page]);
 
   const handleDelete = async (id: number) => {
     const confirmed = await modal.confirm({
@@ -143,6 +146,7 @@ export default function SalesPage() {
 
   const handleOpenAdd = () => {
     setEditingId(null);
+    setIsCreatingColor(false);
     setFormData({
       vin: "",
       sku: "",
@@ -165,6 +169,7 @@ export default function SalesPage() {
 
   const handleOpenEdit = (v: any) => {
     setEditingId(v.id);
+    setIsCreatingColor(false);
     const brName = v.warehouse || "";
     setFormData({
       vin: v.vin,
@@ -286,9 +291,10 @@ export default function SalesPage() {
     vehicles.map((v: any) => v.variant as string).filter(Boolean)
   ));
   
+  const apiColors = data?.uniqueColors || [];
   const uniqueColors: string[] = Array.from(new Set([
     "Đen", "Trắng", "Bạc", "Đỏ", "Xanh", "Vàng", "Xám",
-    ...vehicles.map((v: any) => v.color as string).filter(Boolean)
+    ...apiColors
   ]));
 
   const uniqueWarehouses: string[] = Array.from(new Set(
@@ -397,6 +403,16 @@ export default function SalesPage() {
           <option value="INCOMING">Đang về (Incoming)</option>
           <option value="SOLD">Đã bán (Sold)</option>
           <option value="">Tất cả xe hoạt động</option>
+        </select>
+        <select 
+          value={colorF} 
+          onChange={(e) => setColorF(e.target.value)} 
+          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/30 min-w-[150px]"
+        >
+          <option value="">All colors</option>
+          {uniqueColors.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
         </select>
         <div className="flex bg-card border border-border rounded-xl overflow-hidden shrink-0">
           <button onClick={() => setView("grid")} className={`px-3 py-2 text-xs ${view === "grid" ? "bg-primary text-white" : ""}`}><Grid3X3 size={14} /></button>
@@ -675,13 +691,48 @@ export default function SalesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Màu sắc</label>
-                  <input 
-                    list="color-list" 
-                    value={formData.color} 
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })} 
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
-                    placeholder="VD: Đen, Trắng..." 
-                  />
+                  {isCreatingColor ? (
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={formData.color} 
+                        onChange={(e) => setFormData({ ...formData, color: e.target.value })} 
+                        className="flex-1 px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                        placeholder="Nhập màu mới..." 
+                        autoFocus
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setIsCreatingColor(false)}
+                        className="px-3 py-2 bg-secondary hover:bg-secondary/80 border border-border rounded-xl text-xs font-semibold"
+                      >
+                        Chọn sẵn có
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <select 
+                        value={formData.color} 
+                        onChange={(e) => setFormData({ ...formData, color: e.target.value })} 
+                        className="flex-1 px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none font-medium"
+                      >
+                        <option value="">-- Chọn màu sắc --</option>
+                        {uniqueColors.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingColor(true);
+                          setFormData({ ...formData, color: "" });
+                        }}
+                        className="px-3 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-semibold hover:bg-primary/20 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -961,11 +1012,7 @@ export default function SalesPage() {
           <option key={variant} value={variant} />
         ))}
       </datalist>
-      <datalist id="color-list">
-        {uniqueColors.map(color => (
-          <option key={color} value={color} />
-        ))}
-      </datalist>
+
       <datalist id="branch-list">
         {uniqueWarehouses.map(w => (
           <option key={w} value={w} />

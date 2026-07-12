@@ -107,6 +107,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") || "";
   const status = searchParams.get("status") || "";
   const saleType = searchParams.get("saleType") || "";
+  const color = searchParams.get("color") || "";
 
   // Pagination params
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
@@ -118,6 +119,7 @@ export async function GET(req: NextRequest) {
   const where: any = {};
   if (branchId) where.branchId = branchId;
   if (saleType) where.saleType = saleType;
+  if (color) where.color = color;
   const customerId = searchParams.get("customerId");
   if (customerId) where.customerId = parseInt(customerId);
   if (search) {
@@ -127,11 +129,10 @@ export async function GET(req: NextRequest) {
       where.AND = keywords.map(keyword => {
         const expanded = expandVietnameseKeyword(keyword);
         const keywordOr: any[] = [];
-        
+
         expanded.forEach(kw => {
           keywordOr.push(
             { model: { contains: kw, mode: "insensitive" } },
-            { color: { contains: kw, mode: "insensitive" } },
             { vin: { contains: kw, mode: "insensitive" } },
             { variant: { contains: kw, mode: "insensitive" } },
             { engineNumber: { contains: kw, mode: "insensitive" } }
@@ -156,7 +157,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Run heavy queries in parallel
-  const [vehicles, total, statusGroups] = await Promise.all([
+  const [vehicles, total, statusGroups, colorsGroup] = await Promise.all([
     prisma.vehicle.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -185,6 +186,10 @@ export async function GET(req: NextRequest) {
         listPrice: true,
         importPrice: true
       }
+    }),
+    prisma.vehicle.groupBy({
+      by: ["color"],
+      where: { color: { not: null } }
     })
   ]);
 
@@ -266,9 +271,12 @@ export async function GET(req: NextRequest) {
     remainingImportValue,
   };
 
+  const uniqueColors = colorsGroup.map(g => g.color).filter(Boolean) as string[];
+
   return NextResponse.json({
     vehicles: vehiclesWithExportStatus,
     counts,
+    uniqueColors,
     pagination: { total, page, limit, totalPages: Math.ceil(total / limit) }
   });
 }
@@ -400,14 +408,14 @@ export async function POST(req: NextRequest) {
             }
           }
         });
-        
+
         for (const item of giftItems) {
           await tx.productBranch.updateMany({
             where: { productId: Number(item.productId || item.id), branchId },
             data: { reservedStock: { increment: Number(item.quantity) || 1 } }
           });
         }
-        
+
         pendingExportBranchId = branchId;
       }
 
