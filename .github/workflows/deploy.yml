@@ -22,16 +22,32 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           # Thư mục gốc chứa dự án trên VPS
           script: |
-            # 1. Di chuyển vào thư mục dự án trên VPS
-            cd ~/auto-smart
+            # 1. Di chuyển vào thư mục dự án trên VPS (hỗ trợ cả tên thư mục mặc định)
+            if [ -d "$HOME/auto-smart" ]; then
+              cd "$HOME/auto-smart"
+            elif [ -d "$HOME/AUTO-SMART CRM & ERP" ]; then
+              cd "$HOME/AUTO-SMART CRM & ERP"
+            else
+              echo "❌ ERROR: Không tìm thấy thư mục dự án trên VPS!"
+              echo "Vui lòng kiểm tra lại đường dẫn dự án trên VPS (hoặc đổi tên thư mục thành auto-smart)."
+              exit 1
+            fi
             
-            # 2. Xóa bỏ các thay đổi cục bộ không mong muốn trên VPS để tránh xung đột khi merge
+            # 2. Cập nhật mã nguồn mới nhất từ Github
+            echo "📥 Đang cập nhật mã nguồn trên VPS..."
             git reset --hard HEAD
             git pull origin main
             
-            # 3. Cấp quyền thực thi và chạy file deploy tự động
+            # 3. Kiểm tra sự tồn tại của file deploy.sh
+            if [ ! -f "./deploy.sh" ]; then
+              echo "❌ ERROR: Không tìm thấy file deploy.sh trong thư mục dự án!"
+              exit 1
+            fi
+            
+            # 4. Cấp quyền thực thi và chạy file deploy tự động
+            echo "🚀 Đang chạy file deploy..."
             chmod +x ./deploy.sh
             ./deploy.sh
             
-            # 4. Xóa các file build cũ/rác của Docker để VPS không bị đầy ổ cứng
+            # 5. Xóa các file build cũ/rác của Docker để tránh đầy ổ cứng
             docker image prune -f
