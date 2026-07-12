@@ -16,6 +16,10 @@ if (process.env.NODE_ENV !== "production") {
       .then(() => console.log("Runtime migration: Column 'image' checked/created."))
       .catch((err) => console.error("Runtime migration failed:", err));
 
+    prisma.$executeRawUnsafe('ALTER TABLE "Branch" ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;')
+      .then(() => console.log("Runtime migration: Column 'logoUrl' checked/created on Branch."))
+      .catch((err) => console.error("Runtime migration failed for Branch logoUrl:", err));
+
     (async () => {
       await prisma.$executeRawUnsafe('ALTER TABLE "PartsRequisition" ADD COLUMN IF NOT EXISTS "vehicleId" INTEGER;');
       await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "PartsRequisition_vehicleId_idx" ON "PartsRequisition"("vehicleId");');

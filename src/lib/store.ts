@@ -7,6 +7,7 @@ export interface Branch {
   name: string;
   address?: string | null;
   phone?: string | null;
+  logoUrl?: string | null;
 }
 
 export interface AuthUser {

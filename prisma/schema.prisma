@@ -46,6 +46,7 @@ model Branch {
   name         String
   address      String?
   phone        String?
+  logoUrl      String?
   users        UserBranch[]
   productBranches ProductBranch[]
   repairOrders RepairOrder[]

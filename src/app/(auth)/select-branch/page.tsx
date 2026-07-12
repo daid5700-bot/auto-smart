@@ -74,7 +74,11 @@ export default function SelectBranchPage() {
       <div className="w-full max-w-2xl animate-slide-in-bottom">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            {activeBranch?.name?.toLowerCase().includes("vinfast") ? (
+            {activeBranch?.logoUrl ? (
+              <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-sm">
+                <img src={activeBranch.logoUrl} alt={`${activeBranch.name} Logo`} className="w-full h-full object-contain" />
+              </div>
+            ) : activeBranch?.name?.toLowerCase().includes("vinfast") ? (
               <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
                 <img src="/vinfast.png" alt="Vinfast Logo" className="w-full h-full object-contain" />
               </div>
@@ -127,7 +131,9 @@ export default function SelectBranchPage() {
                 >
                   <div>
                     <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-4 group-hover:scale-110 transition-transform overflow-hidden shadow-sm">
-                      {branch.name.toLowerCase().includes("vinfast") ? (
+                      {branch.logoUrl ? (
+                        <div className="w-full h-full bg-white p-0.5 flex items-center justify-center"><img src={branch.logoUrl} alt={branch.name} className="w-full h-full object-contain" /></div>
+                      ) : branch.name.toLowerCase().includes("vinfast") ? (
                         <div className="w-full h-full bg-white p-1 flex items-center justify-center"><img src="/vinfast.png" alt="Vinfast" className="w-full h-full object-contain" /></div>
                       ) : branch.name.toLowerCase().includes("yamaha") ? (
                         <div className="w-full h-full bg-white p-1 flex items-center justify-center"><img src="/yamaha.png" alt="Yamaha" className="w-full h-full object-contain" /></div>

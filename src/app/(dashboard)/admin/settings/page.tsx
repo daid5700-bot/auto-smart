@@ -8,7 +8,6 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  const [znsTemplate, setZnsTemplate] = useState("");
   const [leaseRate, setLeaseRate] = useState("7.9");
   const [pointsRate, setPointsRate] = useState("1");
 
@@ -17,7 +16,6 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.config) {
-          setZnsTemplate(data.config.zns_template || "");
           setLeaseRate(data.config.lease_rate || "7.9");
           setPointsRate(data.config.points_rate || "1");
         }
@@ -35,7 +33,6 @@ export default function SettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          zns_template: znsTemplate,
           lease_rate: leaseRate,
           points_rate: pointsRate,
         }),
@@ -66,28 +63,9 @@ export default function SettingsPage() {
         </div>
 
       <form onSubmit={handleSave} className="max-w-2xl glass-card rounded-xl p-6 space-y-6">
-        {/* Section 1: ZNS */}
+        {/* Section 1: Vehicle Sales */}
         <div className="space-y-4">
-          <h3 className="font-bold border-b border-border/40 pb-2">1. Cấu hình Zalo ZNS</h3>
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
-              Mẫu tin nhắn nhắc thay dầu (Template)
-            </label>
-            <textarea
-              value={znsTemplate}
-              onChange={(e) => setZnsTemplate(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Dùng biến: <code>[NAME]</code> = Tên khách, <code>[PLATE]</code> = Biển số xe
-            </p>
-          </div>
-        </div>
-
-        {/* Section 2: Vehicle Sales */}
-        <div className="space-y-4">
-          <h3 className="font-bold border-b border-border/40 pb-2">2. Cấu hình Kinh doanh xe</h3>
+          <h3 className="font-bold border-b border-border/40 pb-2">1. Cấu hình Kinh doanh xe</h3>
           <div>
             <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
               Lãi suất trả góp ngân hàng cơ bản (% / năm)
@@ -108,9 +86,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Section 3: Loyalty */}
+        {/* Section 2: Loyalty */}
         <div className="space-y-4">
-          <h3 className="font-bold border-b border-border/40 pb-2">3. Chương trình khách hàng thân thiết</h3>
+          <h3 className="font-bold border-b border-border/40 pb-2">2. Chương trình khách hàng thân thiết</h3>
           <div>
             <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
               Tỷ lệ tích điểm (% trên tổng thanh toán)

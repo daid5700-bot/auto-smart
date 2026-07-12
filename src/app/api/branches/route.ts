@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
         name: body.name,
         address: body.address || "",
         phone: body.phone || "",
+        logoUrl: body.logoUrl || null,
       },
     });
 

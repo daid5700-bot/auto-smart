@@ -20,6 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         name: body.name,
         address: body.address,
         phone: body.phone,
+        logoUrl: body.logoUrl,
       },
     });
 
