@@ -62,12 +62,22 @@ export async function GET(req: NextRequest) {
   const customerId = searchParams.get("customerId");
   if (customerId) where.customerId = parseInt(customerId);
   if (search) {
-    where.OR = [
-      { model: { contains: search, mode: "insensitive" } },
-      { vin: { contains: search, mode: "insensitive" } },
-    ];
-    if (/^\d+$/.test(search.trim())) {
-      where.OR.push({ id: parseInt(search.trim(), 10) });
+    const trimmed = search.trim();
+    const keywords = trimmed.split(/\s+/).filter(Boolean);
+    if (keywords.length > 0) {
+      where.AND = keywords.map(keyword => {
+        const keywordOr: any[] = [
+          { model: { contains: keyword, mode: "insensitive" } },
+          { color: { contains: keyword, mode: "insensitive" } },
+          { vin: { contains: keyword, mode: "insensitive" } },
+          { variant: { contains: keyword, mode: "insensitive" } },
+          { engineNumber: { contains: keyword, mode: "insensitive" } },
+        ];
+        if (/^\d+$/.test(keyword)) {
+          keywordOr.push({ id: parseInt(keyword, 10) });
+        }
+        return { OR: keywordOr };
+      });
     }
   }
   if (status) {
