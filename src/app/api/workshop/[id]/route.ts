@@ -218,55 +218,53 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           });
 
           // Send Zalo ZNS Live (Awaited to ensure Vercel doesn't kill the container)
-          await (async () => {
-            try {
-              const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
-              const updatedCustomer = await prisma.customer.findUnique({
-                where: { id: ro.customerId! },
-                select: { loyaltyPoints: true },
-              });
-              const totalPoint = updatedCustomer?.loyaltyPoints ?? (ro.customer.loyaltyPoints + points);
-              
-              const custName = ro.customer.name;
-              const noteVal = ro.vehicleModel || ro.plateNumber || "Dịch vụ sửa chữa xe";
-              const templateData = {
-                customer_name: custName.length > 49 ? custName.substring(0, 49) : custName,
-                order_date: formatDateForZalo(new Date()),
-                note: noteVal.length > 29 ? noteVal.substring(0, 29) : noteVal,
-                point: String(points),
-                total_point: String(totalPoint),
-              };
-              
-              const result = await sendZaloZns(ro.customer.phone, "CRM_THANK_YOU_001", templateData);
-              
-              await prisma.znsLog.create({
-                data: {
-                  customerId: ro.customerId,
-                  phone: ro.customer.phone,
-                  messageType: "THANK_YOU",
-                  templateId: "CRM_THANK_YOU_001",
-                  content: `Cảm ơn khách hàng ${ro.customer.name} đã sửa chữa xe ${ro.vehicleModel || ro.plateNumber}. Quý khách tích được +${points} điểm!`,
-                  status: result.success ? "SUCCESS" : "FAILED",
-                  error: result.error || null,
-                  branchId: ro.branchId,
-                },
-              });
-            } catch (e: any) {
-              console.error("ZNS Background Task Error:", e);
-              await prisma.znsLog.create({
-                data: {
-                  customerId: ro.customerId,
-                  phone: ro.customer.phone,
-                  messageType: "THANK_YOU",
-                  templateId: "CRM_THANK_YOU_001",
-                  content: `Lỗi khi chuẩn bị gửi ZNS cho RO-${ro.id}`,
-                  status: "FAILED",
-                  error: e.message,
-                  branchId: ro.branchId,
-                },
-              });
-            }
-          });
+          try {
+            const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
+            const updatedCustomer = await prisma.customer.findUnique({
+              where: { id: ro.customerId! },
+              select: { loyaltyPoints: true },
+            });
+            const totalPoint = updatedCustomer?.loyaltyPoints ?? (ro.customer.loyaltyPoints + points);
+            
+            const custName = ro.customer.name;
+            const noteVal = ro.vehicleModel || ro.plateNumber || "Dịch vụ sửa chữa xe";
+            const templateData = {
+              customer_name: custName.length > 49 ? custName.substring(0, 49) : custName,
+              order_date: formatDateForZalo(new Date()),
+              note: noteVal.length > 29 ? noteVal.substring(0, 29) : noteVal,
+              point: String(points),
+              total_point: String(totalPoint),
+            };
+            
+            const result = await sendZaloZns(ro.customer.phone, "CRM_THANK_YOU_001", templateData);
+            
+            await prisma.znsLog.create({
+              data: {
+                customerId: ro.customerId,
+                phone: ro.customer.phone,
+                messageType: "THANK_YOU",
+                templateId: "CRM_THANK_YOU_001",
+                content: `Cảm ơn khách hàng ${ro.customer.name} đã sửa chữa xe ${ro.vehicleModel || ro.plateNumber}. Quý khách tích được +${points} điểm!`,
+                status: result.success ? "SUCCESS" : "FAILED",
+                error: result.error || null,
+                branchId: ro.branchId,
+              },
+            });
+          } catch (e: any) {
+            console.error("ZNS Background Task Error:", e);
+            await prisma.znsLog.create({
+              data: {
+                customerId: ro.customerId,
+                phone: ro.customer.phone,
+                messageType: "THANK_YOU",
+                templateId: "CRM_THANK_YOU_001",
+                content: `Lỗi khi chuẩn bị gửi ZNS cho RO-${ro.id}`,
+                status: "FAILED",
+                error: e.message,
+                branchId: ro.branchId,
+              },
+            });
+          }
         }
       }
     }
