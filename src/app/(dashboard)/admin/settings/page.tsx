@@ -66,7 +66,7 @@ export default function SettingsPage() {
     <div className="space-y-6 stagger">
       <div>
         <h2 className="text-2xl font-bold">Cấu hình Hệ thống</h2>
-        </div>
+      </div>
 
       <form onSubmit={handleSave} className="max-w-2xl glass-card rounded-xl p-6 space-y-6">
         {/* Section 1: Vehicle Sales */}
@@ -134,7 +134,7 @@ export default function SettingsPage() {
                 className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono resize-y"
               />
             </div>
-            
+
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
                 Zalo Refresh Token
