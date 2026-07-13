@@ -20,8 +20,8 @@ export default function SettingsPage() {
         if (data.config) {
           setLeaseRate(data.config.lease_rate || "7.9");
           setPointsRate(data.config.points_rate || "1");
-          setZaloAccessToken(data.config.zalo_access_token || "");
-          setZaloRefreshToken(data.config.zalo_refresh_token || "");
+          setZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
+          setZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
         }
       })
       .catch(() => setError("Không thể tải cấu hình"))
@@ -39,8 +39,8 @@ export default function SettingsPage() {
         body: JSON.stringify({
           lease_rate: leaseRate,
           points_rate: pointsRate,
-          zalo_access_token: zaloAccessToken,
-          zalo_refresh_token: zaloRefreshToken,
+          ZALO_OA_ACCESS_TOKEN: zaloAccessToken,
+          ZALO_REFRESH_TOKEN: zaloRefreshToken,
         }),
       });
       const data = await res.json();

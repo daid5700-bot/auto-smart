@@ -14,51 +14,19 @@ export function formatPhoneForZalo(phone: string): string {
   return cleaned;
 }
 
-// Get credential from Database first, fallback to process.env and auto-cache to DB
+// Get credential from Database only
 export async function getZaloCredential(key: string): Promise<string> {
-  const envValue = process.env[key] || "";
-
   try {
     const config = await prisma.systemConfig.findUnique({ where: { key } });
-    
-    // Auto-sync: If environment variable has changed from cached DB value, update DB
-    if (envValue && config?.value !== envValue) {
-      try {
-        await prisma.systemConfig.upsert({
-          where: { key },
-          update: { value: envValue },
-          create: { key, value: envValue },
-        });
-        console.log(`[ZALO] Synced Zalo config "${key}" from process.env to DB: ${envValue}`);
-      } catch (saveErr) {
-        console.warn(`[ZALO] Could not sync "${key}" to DB:`, saveErr);
-      }
-      return envValue;
-    }
-
-    if (config?.value) return config.value;
+    return config?.value || "";
   } catch (dbErr) {
-    console.warn(`⚠️ Warning: Could not read ${key} from DB, falling back to process.env`);
+    console.error(`❌ [ZALO] Could not read ${key} from DB:`, dbErr);
+    return "";
   }
-
-  if (envValue) {
-    try {
-      await prisma.systemConfig.upsert({
-        where: { key },
-        update: { value: envValue },
-        create: { key, value: envValue },
-      });
-    } catch (saveErr) {
-      console.warn(`⚠️ Warning: Could not cache ${key} to DB:`, saveErr);
-    }
-  }
-
-  return envValue;
 }
 
-// Update token in DB and safely try local .env (ignores write failures in read-only production environments like Vercel)
+// Update token in DB only
 export async function updateZaloCredentials(updates: Record<string, string>) {
-  // 1. Persist to Database (Production-safe, works on Vercel)
   for (const [key, value] of Object.entries(updates)) {
     try {
       await prisma.systemConfig.upsert({
@@ -70,32 +38,6 @@ export async function updateZaloCredentials(updates: Record<string, string>) {
     } catch (dbErr: any) {
       console.error(`❌ Failed to save ${key} to database:`, dbErr.message);
     }
-  }
-
-  // 2. Persist to local .env (For local development comfort)
-  try {
-    const envPath = path.resolve(process.cwd(), ".env");
-    if (fs.existsSync(envPath)) {
-      let envContent = fs.readFileSync(envPath, "utf-8");
-      for (const [key, value] of Object.entries(updates)) {
-        const regex = new RegExp(`^${key}=.*$`, "m");
-        if (regex.test(envContent)) {
-          envContent = envContent.replace(regex, `${key}="${value}"`);
-        } else {
-          envContent += `\n${key}="${value}"`;
-        }
-      }
-      fs.writeFileSync(envPath, envContent, "utf-8");
-      console.log("✅ Updated tokens in local .env file");
-    }
-  } catch (error: any) {
-    // Silently ignore write failures on Vercel
-    console.warn("⚠️ Local .env file could not be updated (this is normal on Vercel / serverless):", error.message);
-  }
-
-  // 3. Update current process memory
-  for (const [key, value] of Object.entries(updates)) {
-    process.env[key] = value;
   }
 }
 
@@ -126,29 +68,6 @@ export async function refreshZaloToken(): Promise<string> {
   });
 
   let data = await response.json();
-
-  // If DB refresh token failed, fallback to process.env.ZALO_REFRESH_TOKEN if different
-  if (!data.access_token && process.env.ZALO_REFRESH_TOKEN && process.env.ZALO_REFRESH_TOKEN !== refreshToken) {
-    console.warn("⚠️ DB refresh token failed. Attempting fallback with process.env.ZALO_REFRESH_TOKEN...");
-    const paramsEnv = new URLSearchParams();
-    paramsEnv.append("refresh_token", process.env.ZALO_REFRESH_TOKEN);
-    paramsEnv.append("app_id", appId);
-    paramsEnv.append("grant_type", "refresh_token");
-
-    const responseEnv = await fetch("https://oauth.zalo.me/v4/oa/access_token", {
-      method: "POST",
-      headers: {
-        "secret_key": secretKey,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: paramsEnv,
-    });
-    const dataEnv = await responseEnv.json();
-    if (dataEnv.access_token && dataEnv.refresh_token) {
-      console.log("✅ Fallback with process.env.ZALO_REFRESH_TOKEN succeeded!");
-      data = dataEnv;
-    }
-  }
 
   if (data.access_token && data.refresh_token) {
     await updateZaloCredentials({
@@ -245,31 +164,6 @@ export async function sendZaloZns(
         console.log(`[ZNS] 📨 Chi tiết phản hồi sau refresh:`, JSON.stringify(resData, null, 2));
       } catch (refreshErr: any) {
         console.warn(`⚠️ [ZNS] Lấy token mới thất bại: ${refreshErr.message}`);
-      }
-    }
-
-    // Fallback: If DB token failed (error != 0), try using the direct process.env token if different
-    if (resData.error !== 0 && process.env.ZALO_OA_ACCESS_TOKEN && process.env.ZALO_OA_ACCESS_TOKEN !== accessToken) {
-      console.warn("⚠️ DB token failed. Attempting fallback with process.env.ZALO_OA_ACCESS_TOKEN...");
-      try {
-        const envToken = process.env.ZALO_OA_ACCESS_TOKEN;
-        console.log(`[ZNS] 🚀 Thử gửi lại với token env (10 ký tự đầu): ${envToken.substring(0, 10)}...`);
-        const envResponse = await makeRequest(envToken);
-        const envResData = await envResponse.json();
-        console.log(`[ZNS] 📨 Phản hồi từ token env:`, JSON.stringify(envResData, null, 2));
-        
-        if (envResData.error === 0) {
-          console.log("✅ Fallback với token env thành công! Đồng bộ token mới vào DB...");
-          await updateZaloCredentials({
-            ZALO_OA_ACCESS_TOKEN: envToken,
-            ZALO_REFRESH_TOKEN: process.env.ZALO_REFRESH_TOKEN || "",
-          });
-          resData = envResData;
-        } else {
-          console.warn("⚠️ Fallback token env cũng thất bại:", envResData);
-        }
-      } catch (fallbackErr: any) {
-        console.error("❌ Fallback token env lỗi:", fallbackErr.message);
       }
     }
 
