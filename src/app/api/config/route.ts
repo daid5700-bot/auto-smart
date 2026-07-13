@@ -34,16 +34,13 @@ export async function POST(req: NextRequest) {
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
-      console.warn("⚠️ [API_CONFIG] POST Từ chối truy cập: Quyền không phải ADMIN, role hiện tại:", role);
       return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thay đổi cấu hình" }, { status: 403 });
     }
 
     const body = await req.json();
-    console.log("📥 [API_CONFIG] POST body nhận được để lưu:", body);
 
     for (const [key, value] of Object.entries(body)) {
       const v = String(value);
-      console.log(`💾 [API_CONFIG] Đang lưu cấu hình: key=${key}, value=${v.substring(0, 30)}${v.length > 30 ? "..." : ""}`);
       await prisma.systemConfig.upsert({
         where: { key },
         update: { value: v },
@@ -51,10 +48,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log("✅ [API_CONFIG] Lưu cấu hình thành công!");
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("❌ [API_CONFIG] POST lỗi:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
