@@ -10,20 +10,22 @@ const DEFAULT_CONFIGS: Record<string, string> = {
   ZALO_REFRESH_TOKEN: "",
 };
 
-// GET /api/config — return all system configs (with defaults)
 export async function GET() {
   try {
-    const rows = await prisma.$queryRaw<{ key: string; value: string }[]>`
-      SELECT key, value FROM "SystemConfig"
-    `;
+    const rows = await prisma.systemConfig.findMany({
+      select: {
+        key: true,
+        value: true,
+      },
+    });
     const config: Record<string, string> = { ...DEFAULT_CONFIGS };
     for (const row of rows) {
       config[row.key] = row.value;
     }
     return NextResponse.json({ config });
   } catch (error: any) {
-    // If table doesn't exist yet, return defaults
-    return NextResponse.json({ config: DEFAULT_CONFIGS });
+    console.error("❌ [API_CONFIG] GET error:", error);
+    return NextResponse.json({ config: DEFAULT_CONFIGS, error: error.message });
   }
 }
 
