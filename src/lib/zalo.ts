@@ -58,7 +58,7 @@ export async function refreshZaloToken(): Promise<string> {
   params.append("app_id", appId);
   params.append("grant_type", "refresh_token");
 
-  let response = await fetch("https://oauth.zalo.me/v4/oa/access_token", {
+  let response = await fetch("https://oauth.zaloapp.com/v4/oa/access_token", {
     method: "POST",
     headers: {
       "secret_key": secretKey,
