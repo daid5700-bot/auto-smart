@@ -6,6 +6,8 @@ const DEFAULT_CONFIGS: Record<string, string> = {
   zns_template: "Kính gửi quý khách [NAME], xe [PLATE] đã đến hạn bảo dưỡng thay dầu nhớt. Vui lòng liên hệ Xe Máy Toàn Thắng để đặt lịch!",
   lease_rate: "7.9",
   points_rate: "1",
+  zalo_access_token: "",
+  zalo_refresh_token: "",
 };
 
 // GET /api/config — return all system configs (with defaults)

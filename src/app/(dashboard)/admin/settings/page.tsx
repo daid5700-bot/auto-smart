@@ -10,6 +10,8 @@ export default function SettingsPage() {
 
   const [leaseRate, setLeaseRate] = useState("7.9");
   const [pointsRate, setPointsRate] = useState("1");
+  const [zaloAccessToken, setZaloAccessToken] = useState("");
+  const [zaloRefreshToken, setZaloRefreshToken] = useState("");
 
   useEffect(() => {
     fetch("/api/config")
@@ -18,6 +20,8 @@ export default function SettingsPage() {
         if (data.config) {
           setLeaseRate(data.config.lease_rate || "7.9");
           setPointsRate(data.config.points_rate || "1");
+          setZaloAccessToken(data.config.zalo_access_token || "");
+          setZaloRefreshToken(data.config.zalo_refresh_token || "");
         }
       })
       .catch(() => setError("Không thể tải cấu hình"))
@@ -35,6 +39,8 @@ export default function SettingsPage() {
         body: JSON.stringify({
           lease_rate: leaseRate,
           points_rate: pointsRate,
+          zalo_access_token: zaloAccessToken,
+          zalo_refresh_token: zaloRefreshToken,
         }),
       });
       const data = await res.json();
@@ -109,6 +115,38 @@ export default function SettingsPage() {
             <p className="text-[10px] text-muted-foreground mt-1">
               Ví dụ: Tỷ lệ 1% → thanh toán 10.000.000đ sẽ tích được 100.000đ điểm quy đổi.
             </p>
+          </div>
+        </div>
+
+        {/* Section 3: Zalo API Config */}
+        <div className="space-y-4">
+          <h3 className="font-bold border-b border-border/40 pb-2">3. Cấu hình Zalo API</h3>
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+                Zalo Access Token
+              </label>
+              <textarea
+                rows={3}
+                value={zaloAccessToken}
+                onChange={(e) => setZaloAccessToken(e.target.value)}
+                placeholder="Nhập Zalo Access Token..."
+                className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono resize-y"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+                Zalo Refresh Token
+              </label>
+              <input
+                type="text"
+                value={zaloRefreshToken}
+                onChange={(e) => setZaloRefreshToken(e.target.value)}
+                placeholder="Nhập Zalo Refresh Token..."
+                className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+              />
+            </div>
           </div>
         </div>
 
