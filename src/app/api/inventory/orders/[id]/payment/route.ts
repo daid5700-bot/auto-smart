@@ -70,7 +70,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return o;
     });
 
-    return NextResponse.json(updatedOrder);
+    const serializedOrder = {
+      ...updatedOrder,
+      totalAmount: Number(updatedOrder.totalAmount),
+      paidAmount: Number(updatedOrder.paidAmount),
+      debtAmount: Number(updatedOrder.debtAmount)
+    };
+
+    return NextResponse.json(serializedOrder);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -45,11 +46,12 @@ async function main() {
   console.log("✅ Branches created");
 
   console.log("🌱 Seeding admin user...");
+  const hashedPassword = bcrypt.hashSync("admin123", 10);
   await prisma.user.create({
     data: {
       name: "Nguyễn Văn Admin",
       email: "admin@autosmart.vn",
-      password: "admin123",
+      password: hashedPassword,
       role: "ADMIN",
       branches: {
         create: [

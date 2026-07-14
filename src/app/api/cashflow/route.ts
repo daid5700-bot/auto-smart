@@ -30,8 +30,13 @@ export async function GET(req: NextRequest) {
 
     const totalCount = await prisma.paymentTransaction.count({ where: whereClause });
 
+    const serializedTransactions = transactions.map((t: any) => ({
+      ...t,
+      amount: Number(t.amount)
+    }));
+
     return NextResponse.json({
-      data: transactions,
+      data: serializedTransactions,
       meta: {
         total: totalCount,
         page,

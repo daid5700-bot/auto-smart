@@ -16,12 +16,12 @@ export async function GET(req: NextRequest) {
 
   const view = searchParams.get("view");
   const isSelector = view === "selector";
-  
+
   const limitParam = parseInt(searchParams.get("limit") || "20");
-  const limit = isSelector 
-    ? Math.min(1000, Math.max(1, limitParam)) 
+  const limit = isSelector
+    ? Math.min(1000, Math.max(1, limitParam))
     : Math.min(50, Math.max(1, limitParam));
-  
+
   const skip = (page - 1) * limit;
 
   const where: any = { status: "ACTIVE" };
@@ -92,8 +92,11 @@ export async function GET(req: NextRequest) {
         id: p.id,
         sku: p.sku,
         name: p.name,
-        prices: p.prices,
-        stockCount: pb?.stockCount || 0,
+        prices: p.prices?.map((pr: any) => ({
+          ...pr,
+          amount: Number(pr.amount)
+        })) || [],
+        stockCount: pb ? Number(pb.stockCount) : 0,
       };
     });
 
@@ -132,21 +135,21 @@ export async function GET(req: NextRequest) {
   const [rawProducts, total, categories, summaryProducts] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: { 
-        prices: true, 
+      include: {
+        prices: true,
         productBranches: {
           where: targetBranchId ? { branchId: targetBranchId } : undefined,
           include: { branch: true },
         },
-        children: { 
-          include: { 
-            prices: true, 
+        children: {
+          include: {
+            prices: true,
             productBranches: {
               where: targetBranchId ? { branchId: targetBranchId } : undefined,
               include: { branch: true },
-            } 
-          } 
-        } 
+            }
+          }
+        }
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -170,10 +173,14 @@ export async function GET(req: NextRequest) {
     const pb = p.productBranches?.[0];
     return {
       ...p,
-      stockCount: pb?.stockCount || 0,
-      stockMin: pb?.stockMin || 0,
-      stockMax: pb?.stockMax || 100,
-      movingAvgCost: pb?.movingAvgCost || 0,
+      prices: p.prices?.map((pr: any) => ({
+        ...pr,
+        amount: Number(pr.amount)
+      })) || [],
+      stockCount: pb ? Number(pb.stockCount) : 0,
+      stockMin: pb ? Number(pb.stockMin) : 0,
+      stockMax: pb ? Number(pb.stockMax) : 100,
+      movingAvgCost: pb ? Number(pb.movingAvgCost) : 0,
       lastImportDate: pb?.lastImportDate || null,
       branchId: pb?.branchId || null,
       branch: pb?.branch || null,
@@ -199,7 +206,7 @@ export async function GET(req: NextRequest) {
   }, { totalValue: 0, totalInsuranceValue: 0, lowStockCount: 0, highStockCount: 0 });
 
   // Low stock alert (using the mapped products for simplicity, in production should query DB)
-  let lowStock = products.filter(p => p.stockCount <= p.stockMin).map(p => ({
+  let lowStock = products.filter(p => Number(p.stockCount) <= Number(p.stockMin)).map(p => ({
     id: p.id,
     name: p.name,
     stockCount: p.stockCount,
@@ -231,7 +238,7 @@ export async function POST(req: NextRequest) {
     const userRole = await verifyRole(req.cookies.get("user_role")?.value);
     const isAdmin = userRole === "ADMIN";
     const branchId = getActiveBranchId();
-    
+
     const targetBranchId = (isAdmin && body.branchId) ? Number(body.branchId) : branchId;
     if (!targetBranchId) return NextResponse.json({ error: "Yêu cầu mã chi nhánh hoạt động" }, { status: 400 });
 
@@ -293,15 +300,19 @@ export async function POST(req: NextRequest) {
       },
       include: { prices: true, productBranches: true },
     });
-    
+
     const mappedProduct = {
       ...product,
-      stockCount: product.productBranches[0].stockCount,
-      stockMin: product.productBranches[0].stockMin,
-      stockMax: product.productBranches[0].stockMax,
+      prices: product.prices?.map((pr: any) => ({
+        ...pr,
+        amount: Number(pr.amount)
+      })) || [],
+      stockCount: Number(product.productBranches[0].stockCount),
+      stockMin: Number(product.productBranches[0].stockMin),
+      stockMax: Number(product.productBranches[0].stockMax),
       branchId: product.productBranches[0].branchId
     };
-    
+
     return NextResponse.json(mappedProduct, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

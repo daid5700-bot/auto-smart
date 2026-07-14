@@ -4,6 +4,25 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { releaseReservedStock, restoreStockOnce, type ReturnSourceItem } from "@/lib/inventory-cancellation";
 
+const serializeRepairOrder = (ro: any) => {
+  if (!ro) return null;
+  return {
+    ...ro,
+    laborCost: Number(ro.laborCost || 0),
+    partsCost: Number(ro.partsCost || 0),
+    discountAmount: Number(ro.discountAmount || 0),
+    totalAmount: Number(ro.totalAmount || 0),
+    paidAmount: Number(ro.paidAmount || 0),
+    debtAmount: Number(ro.debtAmount || 0),
+    items: ro.items?.map((item: any) => ({
+      ...item,
+      quantity: Number(item.quantity || 0),
+      unitPrice: Number(item.unitPrice || 0),
+      totalPrice: Number(item.totalPrice || 0)
+    })) || []
+  };
+};
+
 // GET /api/workshop/[id] — get single repair order with full detail
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -18,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       },
     });
     if (!ro) return NextResponse.json({ error: "Không tìm thấy lệnh sửa chữa" }, { status: 404 });
-    return NextResponse.json(ro);
+    return NextResponse.json(serializeRepairOrder(ro));
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -269,7 +288,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
     }
 
-    return NextResponse.json(ro);
+    return NextResponse.json(serializeRepairOrder(ro));
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

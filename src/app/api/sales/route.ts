@@ -273,11 +273,53 @@ export async function GET(req: NextRequest) {
 
   const uniqueColors = colorsGroup.map(g => g.color).filter(Boolean) as string[];
 
+  const serializedVehicles = vehiclesWithExportStatus.map((v: any) => ({
+    ...v,
+    importPrice: v.importPrice ? Number(v.importPrice) : null,
+    listPrice: v.listPrice ? Number(v.listPrice) : 0,
+    floorPrice: v.floorPrice ? Number(v.floorPrice) : 0,
+    paidAmount: v.paidAmount ? Number(v.paidAmount) : 0,
+    debtAmount: v.debtAmount ? Number(v.debtAmount) : 0,
+    plateCost: v.plateCost ? Number(v.plateCost) : null,
+    partsRequisitions: v.partsRequisitions?.map((pr: any) => ({
+      ...pr,
+      items: pr.items?.map((item: any) => ({
+        ...item,
+        quantity: Number(item.quantity)
+      })) || []
+    })) || []
+  }));
+
+  const countWhere = { ...where };
+  delete countWhere.saleType;
+
+  const matchingForCount = await prisma.vehicle.findMany({
+    where: countWhere,
+    select: {
+      id: true,
+      saleType: true,
+      customerId: true,
+      updatedAt: true
+    }
+  });
+
+  const retailCount = matchingForCount.filter(v => (v.saleType || "RETAIL") === "RETAIL").length;
+  const wholesaleVehicles = matchingForCount.filter(v => v.saleType === "WHOLESALE");
+  const wholesaleGroups = new Set<string>();
+  wholesaleVehicles.forEach(v => {
+    const dateKey = v.updatedAt ? new Date(v.updatedAt).toISOString().split('T')[0] : "unknown";
+    const key = v.customerId ? `${v.customerId}_${dateKey}` : `v_${v.id}`;
+    wholesaleGroups.add(key);
+  });
+  const wholesaleCount = wholesaleGroups.size;
+
   return NextResponse.json({
-    vehicles: vehiclesWithExportStatus,
+    vehicles: serializedVehicles,
     counts,
     uniqueColors,
-    pagination: { total, page, limit, totalPages: Math.ceil(total / limit) }
+    pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    retailCount,
+    wholesaleCount
   });
 }
 // POST /api/sales — add vehicle with linked customer
@@ -424,7 +466,17 @@ export async function POST(req: NextRequest) {
 
     notifyRequisitionCountChanged(pendingExportBranchId);
 
-    return NextResponse.json(vehicle, { status: 201 });
+    const serializedVehicle = {
+      ...vehicle,
+      importPrice: vehicle.importPrice ? Number(vehicle.importPrice) : null,
+      listPrice: vehicle.listPrice ? Number(vehicle.listPrice) : 0,
+      floorPrice: vehicle.floorPrice ? Number(vehicle.floorPrice) : 0,
+      paidAmount: vehicle.paidAmount ? Number(vehicle.paidAmount) : 0,
+      debtAmount: vehicle.debtAmount ? Number(vehicle.debtAmount) : 0,
+      plateCost: vehicle.plateCost ? Number(vehicle.plateCost) : null
+    };
+
+    return NextResponse.json(serializedVehicle, { status: 201 });
   } catch (error: any) {
     console.error("POST /api/sales error details:", error);
     return NextResponse.json({ error: error.message }, { status: 400 });

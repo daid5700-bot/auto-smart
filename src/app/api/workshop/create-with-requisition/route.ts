@@ -214,7 +214,20 @@ export async function POST(req: NextRequest) {
       notifyRequisitionCountChanged(branchId);
     }
 
-    return NextResponse.json(result, { status: 201 });
+    const serializeRepairOrder = (ro: any) => {
+      if (!ro) return null;
+      return {
+        ...ro,
+        laborCost: Number(ro.laborCost || 0),
+        partsCost: Number(ro.partsCost || 0),
+        discountAmount: Number(ro.discountAmount || 0),
+        totalAmount: Number(ro.totalAmount || 0),
+        paidAmount: Number(ro.paidAmount || 0),
+        debtAmount: Number(ro.debtAmount || 0)
+      };
+    };
+
+    return NextResponse.json(serializeRepairOrder(result), { status: 201 });
   } catch (error: any) {
     console.error("Failed to create RO with requisition:", error);
     return NextResponse.json({ error: error.message }, { status: 400 });

@@ -384,7 +384,6 @@ export default function UnifiedRequisitionsApprovalPage() {
       <div className="flex flex-col gap-4 border-b border-border pb-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">PHÒNG PHỤ TÙNG &amp; KHO</p>
             <h2 className="text-2xl font-bold tracking-tight">Duyệt yêu cầu xuất kho</h2>
           </div>
 

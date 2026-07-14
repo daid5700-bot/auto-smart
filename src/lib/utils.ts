@@ -72,7 +72,7 @@ export function getFinalPrice(product: any, customerType: string, overridePrice?
 }
 
 export function checkStockWarning(product: any) {
-  if (product.stockCount < product.stockMin) {
+  if (Number(product.stockCount) < Number(product.stockMin)) {
     return "LOW_STOCK_WARNING";
   }
   return "OK";

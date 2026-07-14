@@ -77,8 +77,25 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       }
     });
 
-    return NextResponse.json({
+    const serializedVehicle = {
       ...vehicle,
+      importPrice: vehicle.importPrice ? Number(vehicle.importPrice) : null,
+      listPrice: vehicle.listPrice ? Number(vehicle.listPrice) : 0,
+      floorPrice: vehicle.floorPrice ? Number(vehicle.floorPrice) : 0,
+      paidAmount: vehicle.paidAmount ? Number(vehicle.paidAmount) : 0,
+      debtAmount: vehicle.debtAmount ? Number(vehicle.debtAmount) : 0,
+      plateCost: vehicle.plateCost ? Number(vehicle.plateCost) : null,
+      partsRequisitions: vehicle.partsRequisitions?.map((pr: any) => ({
+        ...pr,
+        items: pr.items?.map((item: any) => ({
+          ...item,
+          quantity: Number(item.quantity)
+        })) || []
+      })) || []
+    };
+
+    return NextResponse.json({
+      ...serializedVehicle,
       accessoriesExported: existingOrder ? existingOrder.status === "PAID" : false,
       accessoriesExportStatus: existingOrder ? existingOrder.status : "NONE", // NONE, PENDING, PAID, CANCELLED
     });
@@ -409,7 +426,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return v;
     });
     notifyRequisitionCountChanged(requisitionEventBranchId);
-    return NextResponse.json(vehicle);
+    const serializedVehicle = {
+      ...vehicle,
+      importPrice: vehicle.importPrice ? Number(vehicle.importPrice) : null,
+      listPrice: vehicle.listPrice ? Number(vehicle.listPrice) : 0,
+      floorPrice: vehicle.floorPrice ? Number(vehicle.floorPrice) : 0,
+      paidAmount: vehicle.paidAmount ? Number(vehicle.paidAmount) : 0,
+      debtAmount: vehicle.debtAmount ? Number(vehicle.debtAmount) : 0,
+      plateCost: vehicle.plateCost ? Number(vehicle.plateCost) : null
+    };
+
+    return NextResponse.json(serializedVehicle);
   } catch (error: any) {
     console.error("PATCH /api/sales/[id] error details:", error);
     return NextResponse.json({ error: error.message }, { status: 400 });

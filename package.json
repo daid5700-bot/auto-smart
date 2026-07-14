@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "test:ui": "npx tsx scripts/tests/ui/run_ui_tests.ts",
-    "test:api": "npx tsx scripts/tests/api/test_workshop_api.ts"
+    "test:api": "npx tsx scripts/tests/api/test_workshop_api.ts",
+    "test:integration": "npx tsx scripts/tests/system_integration_test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

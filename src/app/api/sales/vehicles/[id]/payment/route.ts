@@ -74,7 +74,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return v;
     });
 
-    return NextResponse.json(updatedVehicle);
+    const serializedVehicle = {
+      ...updatedVehicle,
+      importPrice: updatedVehicle.importPrice ? Number(updatedVehicle.importPrice) : null,
+      listPrice: Number(updatedVehicle.listPrice),
+      floorPrice: Number(updatedVehicle.floorPrice),
+      paidAmount: Number(updatedVehicle.paidAmount),
+      debtAmount: Number(updatedVehicle.debtAmount),
+      plateCost: updatedVehicle.plateCost ? Number(updatedVehicle.plateCost) : null,
+    };
+
+    return NextResponse.json(serializedVehicle);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

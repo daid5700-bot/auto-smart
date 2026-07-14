@@ -61,7 +61,30 @@ export async function GET(req: NextRequest) {
       }),
       prisma.customer.count({ where: baseWhere })
     ]);
-    return NextResponse.json({ customers, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
+    const serializedCustomers = customers.map((c: any) => ({
+      ...c,
+      totalSpent: Number(c.totalSpent || 0),
+      totalDebt: Number(c.totalDebt || 0),
+      vehicles: c.vehicles?.map((v: any) => ({
+        ...v,
+        importPrice: v.importPrice ? Number(v.importPrice) : null,
+        listPrice: v.listPrice ? Number(v.listPrice) : 0,
+        floorPrice: v.floorPrice ? Number(v.floorPrice) : 0,
+        paidAmount: v.paidAmount ? Number(v.paidAmount) : 0,
+        debtAmount: v.debtAmount ? Number(v.debtAmount) : 0,
+        plateCost: v.plateCost ? Number(v.plateCost) : null
+      })) || [],
+      repairOrders: c.repairOrders?.map((ro: any) => ({
+        ...ro,
+        laborCost: Number(ro.laborCost || 0),
+        partsCost: Number(ro.partsCost || 0),
+        discountAmount: Number(ro.discountAmount || 0),
+        totalAmount: Number(ro.totalAmount || 0),
+        paidAmount: Number(ro.paidAmount || 0),
+        debtAmount: Number(ro.debtAmount || 0)
+      })) || []
+    }));
+    return NextResponse.json({ customers: serializedCustomers, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }
 
   if (tab === "reminders") {
@@ -315,7 +338,12 @@ export async function POST(req: NextRequest) {
           branchId,
         } as any
       });
-      return NextResponse.json(customer, { status: 201 });
+      const serializedCustomer = {
+        ...customer,
+        totalSpent: Number(customer.totalSpent || 0),
+        totalDebt: Number(customer.totalDebt || 0)
+      };
+      return NextResponse.json(serializedCustomer, { status: 201 });
     } else {
       const lead = await prisma.lead.create({
         data: {

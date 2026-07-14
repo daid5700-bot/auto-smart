@@ -131,13 +131,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const serializedSoldList = soldList.map((v: any) => ({
+      ...v,
+      importPrice: v.importPrice ? Number(v.importPrice) : null,
+      listPrice: v.listPrice ? Number(v.listPrice) : 0,
+      floorPrice: v.floorPrice ? Number(v.floorPrice) : 0,
+      paidAmount: v.paidAmount ? Number(v.paidAmount) : 0,
+      debtAmount: v.debtAmount ? Number(v.debtAmount) : 0,
+      plateCost: v.plateCost ? Number(v.plateCost) : null
+    }));
+
     return NextResponse.json({
       soldVehicles,
       soldValue,
       totalPlateCost,
       totalAccessoriesCost,
       avgPrice,
-      soldList,
+      soldList: serializedSoldList,
       topModels,
       monthlySales,
       trendPercentage

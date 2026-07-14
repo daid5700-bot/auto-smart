@@ -4,6 +4,25 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { requireAuth } from "@/lib/guard";
 
+const serializeRepairOrder = (ro: any) => {
+  if (!ro) return null;
+  return {
+    ...ro,
+    laborCost: Number(ro.laborCost || 0),
+    partsCost: Number(ro.partsCost || 0),
+    discountAmount: Number(ro.discountAmount || 0),
+    totalAmount: Number(ro.totalAmount || 0),
+    paidAmount: Number(ro.paidAmount || 0),
+    debtAmount: Number(ro.debtAmount || 0),
+    items: ro.items?.map((item: any) => ({
+      ...item,
+      quantity: Number(item.quantity || 0),
+      unitPrice: Number(item.unitPrice || 0),
+      totalPrice: Number(item.totalPrice || 0)
+    })) || []
+  };
+};
+
 // GET /api/workshop — list repair orders + technicians
 export async function GET(req: NextRequest) {
   const guard = await requireAuth(req);
@@ -77,8 +96,9 @@ export async function GET(req: NextRequest) {
     completedOrders: t._count.repairOrders,
   }));
 
+  const serializedROs = repairOrders.map(serializeRepairOrder);
   return NextResponse.json({ 
-    repairOrders, 
+    repairOrders: serializedROs, 
     technicians: enrichedTechs,
     pagination: { total: totalROs, page, limit, totalPages: Math.ceil(totalROs / limit) }
   });
@@ -116,7 +136,7 @@ export async function POST(req: NextRequest) {
       await prisma.technician.update({ where: { id: body.technicianId }, data: { status: "WORKING" } });
     }
 
-    return NextResponse.json(ro, { status: 201 });
+    return NextResponse.json(serializeRepairOrder(ro), { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

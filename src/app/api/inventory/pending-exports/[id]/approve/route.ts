@@ -54,7 +54,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           productId: { in: productIds },
           branchId
         },
-        include: { product: true }
+        include: {
+          product: {
+            include: { prices: true }
+          }
+        }
       });
       const pbMap = new Map(pbs.map(pb => [pb.productId, pb]));
 
@@ -85,15 +89,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const quantity = Number(item.quantity);
 
         const pb = pbMap.get(productId);
-        const cogsUnit = Number(pb?.movingAvgCost || 0);
+        const retailPrice = Number(pb?.product?.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
 
         await tx.stockMovement.create({
           data: {
             productId,
             type: "EXPORT",
             quantity,
-            unitCost: cogsUnit,
-            totalCost: cogsUnit * quantity,
+            unitCost: retailPrice,
+            totalCost: retailPrice * quantity,
             reason: `Duyệt lệnh xuất theo hồ sơ xe ${vehicle.vin}`,
             inventoryOrderId: orderId,
             vehicleId: vehicle.id,

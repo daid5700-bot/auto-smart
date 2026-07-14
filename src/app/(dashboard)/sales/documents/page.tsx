@@ -30,6 +30,8 @@ export default function DocumentsPage() {
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, RESERVED, SOLD
   const [plateFilter, setPlateFilter] = useState("ALL"); // ALL, PENDING, TAX_PAID, PLATE_DONE
   const [saleTypeFilter, setSaleTypeFilter] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
+  const [retailCount, setRetailCount] = useState<number | null>(null);
+  const [wholesaleCount, setWholesaleCount] = useState<number | null>(null);
 
   // Payment & Detail Modal State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -114,6 +116,12 @@ export default function DocumentsPage() {
       setVehicles((prev) => append ? [...prev, ...(data.vehicles || [])] : (data.vehicles || []));
       setTotalPages(data.pagination?.totalPages || 1);
       setPage(targetPage);
+      if (data.retailCount !== undefined) {
+        setRetailCount(data.retailCount);
+      }
+      if (data.wholesaleCount !== undefined) {
+        setWholesaleCount(data.wholesaleCount);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -351,26 +359,44 @@ export default function DocumentsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex">
+      <div className="flex gap-2 border-b border-border mb-4">
         <button
           onClick={() => setSaleTypeFilter("RETAIL")}
-          className={`px-6 py-3 text-sm font-semibold transition-all border-b-2 -mb-[2px] ${
+          className={`px-6 py-3 text-sm font-semibold transition-all border-b-2 -mb-[2px] flex items-center gap-2 ${
             saleTypeFilter === "RETAIL"
               ? "border-primary text-primary font-bold"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           Hồ sơ Bán Lẻ
+          {retailCount !== null && (
+            <span className={`flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-[10px] font-bold rounded-full border transition-colors shrink-0 ${
+              saleTypeFilter === "RETAIL"
+                ? "bg-primary/10 text-primary border-primary/20"
+                : "bg-secondary text-muted-foreground border-transparent"
+            }`}>
+              {retailCount > 99 ? "99+" : retailCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setSaleTypeFilter("WHOLESALE")}
-          className={`px-6 py-3 text-sm font-semibold transition-all border-b-2 -mb-[2px] ${
+          className={`px-6 py-3 text-sm font-semibold transition-all border-b-2 -mb-[2px] flex items-center gap-2 ${
             saleTypeFilter === "WHOLESALE"
               ? "border-primary text-primary font-bold"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           Hồ sơ Bán Buôn
+          {wholesaleCount !== null && (
+            <span className={`flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-[10px] font-bold rounded-full border transition-colors shrink-0 ${
+              saleTypeFilter === "WHOLESALE"
+                ? "bg-primary/10 text-primary border-primary/20"
+                : "bg-secondary text-muted-foreground border-transparent"
+            }`}>
+              {wholesaleCount > 99 ? "99+" : wholesaleCount}
+            </span>
+          )}
         </button>
       </div>
 

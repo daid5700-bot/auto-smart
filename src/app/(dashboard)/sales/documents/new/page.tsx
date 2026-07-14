@@ -390,11 +390,8 @@ export default function NewDocumentPage() {
           <ArrowLeft size={18} />
         </button>
         <div>
-          <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Quản trị bán hàng / Hồ sơ & Thủ tục
-          </p>
           <h2 className="text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2">
-            <Sparkles className="text-primary w-6 h-6" /> Tạo mới Hồ sơ & Thủ tục xe
+            Tạo mới Hồ sơ & Thủ tục xe
           </h2>
         </div>
       </div>
@@ -403,9 +400,31 @@ export default function NewDocumentPage() {
       <form onSubmit={handleSubmit} className="space-y-5 pb-6">
 
         {/* ── Mode Toggle ── */}
-        <div className="flex bg-secondary/30 p-1 rounded-xl w-fit mx-auto">
-          <button type="button" onClick={()=>{setSaleMode("RETAIL");setWholesaleVehicles([]);}} className={`px-8 py-2 rounded-lg text-sm font-bold transition-all ${saleMode==="RETAIL"?"bg-card shadow text-primary":"text-muted-foreground hover:text-foreground"}`}>BÁN LẺ</button>
-          <button type="button" onClick={()=>{setSaleMode("WHOLESALE");setSelectedVehicleId("");}} className={`px-8 py-2 rounded-lg text-sm font-bold transition-all ${saleMode==="WHOLESALE"?"bg-card shadow text-blue-600":"text-muted-foreground hover:text-foreground"}`}>BÁN BUÔN</button>
+        <div className="border border-border bg-card shadow-sm rounded-2xl overflow-hidden">
+          <div className="flex bg-secondary/20 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => { setSaleMode("RETAIL"); setWholesaleVehicles([]); }}
+              className={`flex-1 py-2.5 text-sm font-bold flex justify-center items-center gap-2 transition-all ${
+                saleMode === "RETAIL"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-secondary/40"
+              }`}
+            >
+              <User size={16} /> BÁN LẺ
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSaleMode("WHOLESALE"); setSelectedVehicleId(""); }}
+              className={`flex-1 py-2.5 text-sm font-bold flex justify-center items-center gap-2 transition-all ${
+                saleMode === "WHOLESALE"
+                  ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900"
+                  : "text-muted-foreground hover:bg-secondary/40"
+              }`}
+            >
+              <Receipt size={16} /> BÁN BUÔN
+            </button>
+          </div>
         </div>
 
         {/* ── WHOLESALE: Customer card ── */}
@@ -577,56 +596,94 @@ export default function NewDocumentPage() {
           {/* ── WHOLESALE: multi vehicle picker ── */}
           {saleMode==="WHOLESALE" && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Cột trái: Kho xe */}
-                <div className="bg-secondary/10 border border-border/50 rounded-xl p-4 space-y-3">
+                <div className="lg:col-span-1 bg-secondary/10 border border-border/50 rounded-2xl p-4 space-y-3 flex flex-col h-[400px]">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kho xe hiện có</p>
                   </div>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={13}/>
                     <input type="text" placeholder="Tìm theo model, VIN..." value={wholesaleSearch} onChange={(e)=>setWholesaleSearch(e.target.value)}
-                      className="w-full pl-8 pr-2 py-1.5 bg-background border border-border/50 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary" />
+                      className="w-full pl-8 pr-2 py-1.5 bg-background border border-border/50 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary font-medium" />
                   </div>
-                  <div className="max-h-[260px] overflow-y-auto space-y-1 pr-1">
+                  <div className="flex-1 overflow-y-auto space-y-1 pr-1">
                     {filteredWholesaleVehicles.map(v=>{
                       if(wholesaleVehicles.some(wv=>wv.id===v.id))return null;
                       return(
                         <div key={v.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-background transition-colors text-xs border border-transparent hover:border-border/50">
-                          <div><p className="font-bold text-foreground">{v.model} {v.variant?`(${v.variant})`:""}</p><p className="text-[10px] text-muted-foreground">VIN: {v.vin} • {v.color||"Không màu"}</p></div>
+                          <div className="min-w-0 flex-1 pr-2">
+                            <p className="font-bold text-foreground truncate">{v.model} {v.variant?`(${v.variant})`:""}</p>
+                            <p className="text-[10px] text-muted-foreground truncate font-mono">VIN: {v.vin} • {v.color||"Không màu"}</p>
+                          </div>
                           <button type="button" onClick={()=>setWholesaleVehicles([...wholesaleVehicles,{id:v.id,vin:v.vin,model:v.model,variant:v.variant||"",color:v.color||"",listPrice:v.listPrice?.toString()||""}])}
-                            className="px-3 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors text-[10px] font-bold rounded-lg shrink-0">Thêm</button>
+                            className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors text-[10px] font-bold rounded-lg shrink-0">Thêm</button>
                         </div>
                       );
                     })}
+                    {filteredWholesaleVehicles.filter(v => !wholesaleVehicles.some(wv => wv.id === v.id)).length === 0 && (
+                      <div className="h-full flex items-center justify-center py-12">
+                        <p className="text-xs text-muted-foreground italic text-center">Không có xe khả dụng</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Cột phải: Đã chọn */}
-                <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 flex flex-col">
+                {/* Cột phải: Đã chọn (Bố cục Bảng đẹp, rộng rãi) */}
+                <div className="lg:col-span-2 bg-primary/5 border border-primary/10 rounded-2xl p-4 flex flex-col h-[400px]">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-bold text-primary uppercase tracking-wider">Xe xuất buôn ({wholesaleVehicles.length})</p>
                   </div>
-                  <div className="max-h-[260px] overflow-y-auto space-y-2 pr-1 flex-1">
-                    {wholesaleVehicles.map(wv=>(
-                      <div key={wv.id} className="flex items-center justify-between gap-3 text-xs bg-background p-2.5 rounded-lg border border-primary/20 shadow-sm">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-foreground truncate" title={`${wv.model} ${wv.variant?`(${wv.variant})`:""}`}>{wv.model} {wv.variant?`(${wv.variant})`:""}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">VIN: {wv.vin} • {wv.color}</p>
+                  <div className="flex-1 overflow-auto pr-1">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-border/50 text-muted-foreground font-bold">
+                          <th className="py-2 px-1 text-center w-10">STT</th>
+                          <th className="py-2 px-2">Thông tin xe</th>
+                          <th className="py-2 px-2 text-right w-48">Giá bán thực tế (đ) *</th>
+                          <th className="py-2 px-2 text-center w-12"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/30">
+                        {wholesaleVehicles.map((wv, idx) => (
+                          <tr key={wv.id} className="hover:bg-background/40 transition-colors">
+                            <td className="py-3 px-1 text-center font-semibold text-muted-foreground">{idx + 1}</td>
+                            <td className="py-3 px-2 min-w-[200px]">
+                              <div className="font-bold text-foreground">{wv.model} {wv.variant ? `(${wv.variant})` : ""}</div>
+                              <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">VIN: {wv.vin} • {wv.color}</div>
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              <div className="inline-block relative w-full max-w-[180px]">
+                                <NumericInput 
+                                  placeholder="Nhập giá bán..."
+                                  value={wv.listPrice}
+                                  onChange={(c) => setWholesaleVehicles(wholesaleVehicles.map(x => x.id === wv.id ? { ...x, listPrice: c } : x))}
+                                  className="w-full px-3 py-1.5 border border-border rounded-lg bg-background text-xs font-bold focus:border-primary outline-none text-emerald-600 text-right pr-6" 
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">đ</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <button 
+                                type="button" 
+                                onClick={() => setWholesaleVehicles(wholesaleVehicles.filter(x => x.id !== wv.id))} 
+                                className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {wholesaleVehicles.length === 0 && (
+                      <div className="h-full flex flex-col items-center justify-center py-16 gap-2">
+                        <div className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center text-primary/40">
+                          <Car size={18} />
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div className="relative">
-                            <NumericInput placeholder="Giá bán..."
-                              value={wv.listPrice}
-                              onChange={(c)=>setWholesaleVehicles(wholesaleVehicles.map(x=>x.id===wv.id?{...x,listPrice:c}:x))}
-                              className="w-36 px-2 py-1.5 border border-border rounded-lg bg-background text-xs font-bold focus:border-primary outline-none text-emerald-600 text-right pr-6" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">đ</span>
-                          </div>
-                          <button type="button" onClick={()=>setWholesaleVehicles(wholesaleVehicles.filter(x=>x.id!==wv.id))} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"><Trash2 size={14}/></button>
-                        </div>
+                        <p className="text-xs text-primary/60 italic text-center">Chưa chọn xe nào từ kho bên trái.</p>
                       </div>
-                    ))}
-                    {wholesaleVehicles.length===0&&<div className="h-full flex items-center justify-center py-8"><p className="text-xs text-primary/60 italic text-center">Chưa chọn xe nào.</p></div>}
+                    )}
                   </div>
                 </div>
               </div>

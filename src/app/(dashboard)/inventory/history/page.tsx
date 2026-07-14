@@ -182,9 +182,6 @@ function InventoryHistoryContent() {
   return (
     <div className="mx-auto space-y-6 stagger">
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1">
-          PHÒNG PHỤ TÙNG
-        </p>
         <h2 className="text-3xl font-black tracking-tight">Lịch sử phiếu kho</h2>
       </div>
 
@@ -503,7 +500,7 @@ function InventoryHistoryContent() {
                             {m.type === "EXPORT_GIFT" ? (
                               <div className="text-right flex flex-col items-end">
                                 <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 rounded font-bold">Hàng tặng</span>
-                                <span className="text-[10px] text-zinc-400 font-mono mt-0.5">(Vốn: {formatCurrency(Number(m.unitCost))})</span>
+                                <span className="text-[10px] text-zinc-400 font-mono mt-0.5">(Giá lẻ: {formatCurrency(Number(m.unitCost))})</span>
                               </div>
                             ) : (
                               formatCurrency(Number(m.unitCost))

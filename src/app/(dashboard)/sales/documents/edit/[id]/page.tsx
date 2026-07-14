@@ -377,9 +377,6 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
           <ArrowLeft size={18} />
         </button>
         <div>
-          <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Quản trị bán hàng / Hồ sơ & Thủ tục
-          </p>
           <h2 className="text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2">
             <Sparkles className="text-primary w-6 h-6" /> Cập nhật Hồ sơ & Thủ tục xe
           </h2>

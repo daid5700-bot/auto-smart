@@ -4,8 +4,8 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useAuth } from "@/lib/store";
-import { 
-  Loader2, ArrowDownToLine, ArrowUpFromLine, 
+import {
+  Loader2, ArrowDownToLine, ArrowUpFromLine,
   SlidersHorizontal, Search, X, Plus, Trash2, Save, DollarSign
 } from "lucide-react";
 import { createManualImport, createDirectExport } from "@/app/actions";
@@ -28,7 +28,7 @@ interface MovementItem {
 export default function MovementsPage() {
   const modal = useModal();
   const { user } = useAuth();
-  
+
   const [activeTab, setActiveTab] = useState<TabType>("IMPORT");
   const [exportType, setExportType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
   const [products, setProducts] = useState<any[]>([]);
@@ -256,7 +256,7 @@ export default function MovementsPage() {
           throw new Error(resErr.error || "Gặp lỗi tạo phiếu xuất.");
         }
       }
-      
+
       resetItems();
       if (activeTab === "EXPORT") {
         setPhone("");
@@ -297,32 +297,27 @@ export default function MovementsPage() {
   return (
     <div className=" mx-auto space-y-6 stagger">
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1">
-          PHÒNG PHỤ TÙNG
-        </p>
         <h2 className="text-3xl font-black tracking-tight">Lệnh xuất nhập kho</h2>
-        </div>
+      </div>
 
       <div className="border border-border bg-card shadow-sm rounded-xl relative z-20">
         {/* Tabs */}
         <div className="flex border-b border-border bg-secondary/20 rounded-t-xl overflow-hidden">
-          <button 
+          <button
             type="button"
             onClick={() => setActiveTab("IMPORT")}
-            className={`flex-1 py-2.5 text-xs font-bold flex justify-center items-center gap-2 transition-all ${
-              activeTab === "IMPORT" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary/40"
-            }`}
+            className={`flex-1 py-2.5 text-sm font-bold flex justify-center items-center gap-2 transition-all ${activeTab === "IMPORT" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary/40"
+              }`}
           >
-            <ArrowDownToLine size={14} /> Nhập kho
+            <ArrowDownToLine size={16} /> Nhập kho
           </button>
-          <button 
+          <button
             type="button"
             onClick={() => setActiveTab("EXPORT")}
-            className={`flex-1 py-2.5 text-xs font-bold flex justify-center items-center gap-2 transition-all ${
-              activeTab === "EXPORT" ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900" : "text-muted-foreground hover:bg-secondary/40"
-            }`}
+            className={`flex-1 py-2.5 text-sm font-bold flex justify-center items-center gap-2 transition-all ${activeTab === "EXPORT" ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900" : "text-muted-foreground hover:bg-secondary/40"
+              }`}
           >
-            <ArrowUpFromLine size={14} /> Xuất kho
+            <ArrowUpFromLine size={16} /> Xuất kho
           </button>
         </div>
 
@@ -334,22 +329,20 @@ export default function MovementsPage() {
                 <button
                   type="button"
                   onClick={() => setExportType("RETAIL")}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                    exportType === "RETAIL" 
-                      ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-sm" 
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${exportType === "RETAIL"
+                    ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
                 >
                   Bán lẻ (Retail)
                 </button>
                 <button
                   type="button"
                   onClick={() => setExportType("WHOLESALE")}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                    exportType === "WHOLESALE" 
-                      ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-sm" 
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${exportType === "WHOLESALE"
+                    ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
                 >
                   Bán buôn (Wholesale)
                 </button>
@@ -357,7 +350,7 @@ export default function MovementsPage() {
             </div>
 
             {/* Customer Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-border/50 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 border-t border-border/50 pt-5">
               <div className="relative">
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">SĐT Khách (Để trống nếu khách vãng lai)</label>
                 <input
@@ -365,7 +358,7 @@ export default function MovementsPage() {
                   value={phone}
                   onChange={(e) => handlePhoneChange(e.target.value)}
                   onFocus={() => { if (phone.trim().length > 1) setShowSuggestions(true); }}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  className="w-full px-3 py-3 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none font-medium"
                   placeholder="Nhập SĐT tìm khách..."
                 />
                 {showSuggestions && suggestions.length > 0 && (
@@ -377,7 +370,7 @@ export default function MovementsPage() {
                           key={c.id}
                           type="button"
                           onClick={() => handleSelectSuggestedCustomer(c)}
-                          className="w-full text-left px-3 py-2 hover:bg-secondary/80 rounded-lg text-xs block border-b border-border/20"
+                          className="w-full text-left px-3 py-2.5 hover:bg-secondary/80 rounded-lg text-xs block border-b border-border/20"
                         >
                           <div className="font-semibold text-primary">{c.phone}</div>
                           <div className="text-[10px] text-muted-foreground">{c.name}</div>
@@ -393,7 +386,7 @@ export default function MovementsPage() {
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm outline-none"
+                  className="w-full px-3 py-3 bg-card border border-border rounded-xl text-sm outline-none font-medium"
                   placeholder="Nhập tên..."
                 />
               </div>
@@ -403,7 +396,7 @@ export default function MovementsPage() {
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm outline-none"
+                  className="w-full px-3 py-3 bg-card border border-border rounded-xl text-sm outline-none font-medium"
                   placeholder="Nhập địa chỉ..."
                 />
               </div>
@@ -413,29 +406,29 @@ export default function MovementsPage() {
 
         <form onSubmit={handleSubmit} className="divide-y divide-border">
           <div>
-            
+
             {/* LEFT COLUMN: The list */}
-            <div className="p-4 space-y-3">
-              <div className="flex justify-between items-center mb-4">
+            <div className="p-6 space-y-5">
+              <div className="flex justify-between items-center mb-6">
                 <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
                   {activeTab === "IMPORT" ? "YÊU CẦU PHỤ TÙNG CẦN NHẬP" : "YÊU CẦU PHỤ TÙNG CẦN XUẤT"}
                 </h3>
                 <button
                   type="button"
                   onClick={addItemRow}
-                  className="text-[11px] bg-secondary text-foreground hover:bg-secondary/80 font-bold flex items-center gap-1.5 border border-border px-3 py-1.5 rounded-lg transition-all shadow-sm"
+                  className="text-xs bg-secondary text-foreground hover:bg-secondary/80 font-bold flex items-center gap-1.5 border border-border px-4 py-2.5 rounded-xl transition-all shadow-sm"
                 >
-                  <Plus size={14} /> Thêm phụ tùng
+                  <Plus size={16} /> Thêm phụ tùng
                 </button>
               </div>
 
               {/* Desktop Table Header */}
               <div className="hidden lg:grid grid-cols-12 gap-2 px-1 pb-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/50">
-                <div className="col-span-4">Sản phẩm phụ tùng (Nhấp để tìm kiếm)</div>
-                <div className="col-span-2">Số lượng</div>
-                <div className="col-span-2">Quy đổi</div>
+                <div className="col-span-5">Sản phẩm phụ tùng (Nhấp để tìm kiếm)</div>
+                <div className="col-span-1 text-center">Số lượng</div>
+                <div className="col-span-1 text-center">Quy đổi</div>
                 <div className="col-span-2">Đơn giá (VND)</div>
-                <div className="col-span-1 text-right">Tổng</div>
+                <div className="col-span-2 text-right">Tổng tiền</div>
                 <div className="col-span-1 text-center">Xóa</div>
               </div>
 
@@ -444,10 +437,10 @@ export default function MovementsPage() {
                   const selectedProd = productMap.get(item.productId);
 
                   return (
-                    <div key={item.id} className={`flex flex-col lg:grid lg:grid-cols-12 gap-1.5 items-center bg-secondary/10 lg:bg-transparent p-3 lg:p-1 rounded-xl border border-border lg:border-none relative ${activeDropdownIdx === idx ? "z-50" : "z-10"}`}>
-                      
+                    <div key={item.id} className={`flex flex-col lg:grid lg:grid-cols-12 gap-4 items-center bg-secondary/10 lg:bg-transparent p-3 lg:py-3.5 lg:px-2 rounded-xl border border-border lg:border-none relative ${activeDropdownIdx === idx ? "z-50" : "z-10"}`}>
+
                       {/* Product Selection */}
-                      <div className="w-full lg:col-span-4 relative">
+                      <div className="w-full lg:col-span-5 relative">
                         <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Sản phẩm phụ tùng</label>
                         <button
                           type="button"
@@ -461,9 +454,9 @@ export default function MovementsPage() {
                               setSearchQuery("");
                             }
                           }}
-                          className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs text-left focus:ring-2 focus:ring-primary/20 flex justify-between items-center transition-all hover:border-primary/50"
+                          className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-xs text-left focus:ring-2 focus:ring-primary/20 flex justify-between items-center transition-all hover:border-primary/50"
                         >
-                          <span className={item.productId ? "text-foreground font-semibold truncate" : "text-muted-foreground"}>
+                          <span className={item.productId ? "text-foreground font-bold truncate" : "text-muted-foreground"}>
                             {selectedProd ? `[${selectedProd.sku}] ${selectedProd.name}` : "-- Chọn --"}
                           </span>
                           <span className="text-muted-foreground text-xs shrink-0 ml-1">▼</span>
@@ -471,8 +464,8 @@ export default function MovementsPage() {
 
                         {/* Dropdown list popover */}
                         {activeDropdownIdx === idx && (
-                          <div ref={dropdownRef} className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-xl max-h-60 flex flex-col">
-                            <div className="p-2 border-b border-border bg-secondary/15 flex items-center gap-2">
+                          <div ref={dropdownRef} className="absolute z-50 w-full mt-1 bg-card border border-border rounded-xl shadow-xl max-h-60 flex flex-col">
+                            <div className="p-2.5 border-b border-border bg-secondary/15 flex items-center gap-2">
                               <Search size={14} className="text-muted-foreground shrink-0" />
                               <input
                                 type="text"
@@ -495,9 +488,8 @@ export default function MovementsPage() {
                                   key={p.id}
                                   type="button"
                                   onClick={() => handleProductSelect(idx, p.id.toString())}
-                                  className={`w-full text-left px-3 py-2 hover:bg-secondary/50 transition-colors flex justify-between items-center ${
-                                    item.productId === p.id.toString() ? "bg-primary/5 text-primary" : ""
-                                  }`}
+                                  className={`w-full text-left px-3 py-2.5 hover:bg-secondary/50 transition-colors flex justify-between items-center ${item.productId === p.id.toString() ? "bg-primary/5 text-primary" : ""
+                                    }`}
                                 >
                                   <div>
                                     <span className="font-bold text-sm block">{p.sku}</span>
@@ -514,24 +506,24 @@ export default function MovementsPage() {
                         )}
                       </div>
 
-                      <div className="w-full lg:col-span-2">
+                      <div className="w-full lg:col-span-1">
                         <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Số lượng</label>
                         <NumericInput
                           required
                           value={item.quantity}
                           onChange={(c) => updateItem(idx, "quantity", c === "" ? "" : parseInt(c, 10))}
-                          className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-center"
+                          className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold text-center"
                         />
                       </div>
 
-                      <div className="w-full lg:col-span-2">
-                        <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Hệ số quy đổi</label>
+                      <div className="w-full lg:col-span-1">
+                        <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase lg:hidden">Quy đổi</label>
                         <div className="relative">
                           <NumericInput
                             required
                             value={item.conversionFactor}
                             onChange={(c) => updateItem(idx, "conversionFactor", c === "" ? "" : parseInt(c, 10))}
-                            className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-center"
+                            className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-xs focus:ring-2 focus:ring-primary/20 outline-none text-center"
                           />
                         </div>
                       </div>
@@ -542,10 +534,10 @@ export default function MovementsPage() {
                           required
                           value={item.unitCost}
                           onChange={(c) => updateItem(idx, "unitCost", c === "" ? "" : parseInt(c, 10))}
-                          className="w-full px-2 py-1.5 bg-card border border-border rounded-md text-xs focus:ring-2 focus:ring-primary/20 outline-none text-primary font-semibold"
+                          className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-xs focus:ring-2 focus:ring-primary/20 outline-none text-primary font-bold text-right"
                         />
                       </div>
-                      <div className="w-full lg:col-span-1 lg:text-right font-bold text-xs">
+                      <div className="w-full lg:col-span-2 lg:text-right font-bold text-sm text-foreground">
                         <span className="lg:hidden text-xs text-muted-foreground font-normal mr-2">Tổng:</span>
                         {formatCurrency((Number(item.quantity) || 0) * (Number(item.unitCost) || 0))}
                       </div>
@@ -554,7 +546,7 @@ export default function MovementsPage() {
                         <button
                           type="button"
                           onClick={() => removeItemRow(idx)}
-                          className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                          className="p-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -565,24 +557,23 @@ export default function MovementsPage() {
               </div>
             </div>
 
-            </div>
+          </div>
 
-          <div className="p-4 bg-secondary/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-b-xl">
+          <div className="p-6 bg-secondary/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-b-xl">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-muted-foreground uppercase">Tổng tiền:</span>
-              <span className="text-xl font-black text-primary">
+              <span className="text-2xl font-black text-primary">
                 {formatCurrency(grandTotal)}
               </span>
             </div>
 
             <div className="flex justify-end">
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={submitLoading || items.length === 0}
-                className={`text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg transition-all uppercase tracking-wider ${
-                  activeTab === "IMPORT" ? "bg-primary hover:bg-primary/90 shadow-primary/20" : 
+                className={`text-white px-6 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg transition-all uppercase tracking-wider ${activeTab === "IMPORT" ? "bg-primary hover:bg-primary/90 shadow-primary/20" :
                   "bg-zinc-800 hover:bg-zinc-700 shadow-zinc-800/20 dark:bg-zinc-200 dark:text-zinc-900"
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {submitLoading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                 {activeTab === "IMPORT" ? "Lưu phiếu nhập" : "Lưu phiếu xuất"}

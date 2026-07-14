@@ -212,7 +212,7 @@ export async function GET(req: NextRequest) {
           SUM(m.quantity)::float as quantity,
           SUM(
             CASE
-              WHEN m.type = 'EXPORT_GIFT' THEN m.quantity * COALESCE(NULLIF(m."unitCost", 0), p.amount, 0)
+              WHEN m.type = 'EXPORT_GIFT' THEN m.quantity * COALESCE(p.amount, m."unitCost", 0)
               ELSE 
                 CASE 
                   WHEN m."totalCost" > 0 THEN m."totalCost"
@@ -319,7 +319,7 @@ export async function GET(req: NextRequest) {
         return {
           id: item.id,
           productId: item.productId,
-          quantity: item.quantity,
+          quantity: Number(item.quantity),
           product: {
             sku: item.product.sku,
             name: item.product.name,
@@ -330,6 +330,13 @@ export async function GET(req: NextRequest) {
       })
     }));
 
+    const serializedRecentMovements = recentMovements.map((mov: any) => ({
+      ...mov,
+      quantity: Number(mov.quantity),
+      unitCost: Number(mov.unitCost),
+      totalCost: Number(mov.totalCost)
+    }));
+
     return NextResponse.json({
       totalProducts,
       totalStock,
@@ -337,7 +344,7 @@ export async function GET(req: NextRequest) {
       lowStockCount,
       categories,
       lowStockItems,
-      recentMovements,
+      recentMovements: serializedRecentMovements,
       totalSoldQty,
       totalSoldAmount,
       totalGiftQty,

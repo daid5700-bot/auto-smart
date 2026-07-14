@@ -72,21 +72,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Update product branch
     const targetBranchId = body.branchId ? Number(body.branchId) : branchId;
     if (targetBranchId && (body.stockCount !== undefined || body.stockMin !== undefined || body.stockMax !== undefined)) {
-       await prisma.productBranch.upsert({
-         where: { productId_branchId: { productId: id, branchId: targetBranchId } },
-         update: { 
-            ...(body.stockCount !== undefined ? { stockCount: body.stockCount } : {}),
-            ...(body.stockMin !== undefined ? { stockMin: body.stockMin } : {}),
-            ...(body.stockMax !== undefined ? { stockMax: body.stockMax } : {}),
-         },
-         create: {
-            productId: id,
-            branchId: targetBranchId,
-            stockCount: body.stockCount || 0,
-            stockMin: body.stockMin || 0,
-            stockMax: body.stockMax || 100,
-         }
-       })
+      await prisma.productBranch.upsert({
+        where: { productId_branchId: { productId: id, branchId: targetBranchId } },
+        update: {
+          ...(body.stockCount !== undefined ? { stockCount: body.stockCount } : {}),
+          ...(body.stockMin !== undefined ? { stockMin: body.stockMin } : {}),
+          ...(body.stockMax !== undefined ? { stockMax: body.stockMax } : {}),
+        },
+        create: {
+          productId: id,
+          branchId: targetBranchId,
+          stockCount: body.stockCount || 0,
+          stockMin: body.stockMin || 0,
+          stockMax: body.stockMax || 100,
+        }
+      })
     }
 
     if (body.prices && Array.isArray(body.prices)) {
@@ -125,7 +125,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     await prisma.product.update({
       where: { id },
-      data: { 
+      data: {
         status: "INACTIVE",
         sku: currentProduct.sku.startsWith("INACTIVE-") ? currentProduct.sku : `INACTIVE-${currentProduct.id}-${currentProduct.sku}`
       },

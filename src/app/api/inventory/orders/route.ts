@@ -42,8 +42,21 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
+    const serializedOrders = orders.map((order: any) => ({
+      ...order,
+      totalAmount: Number(order.totalAmount),
+      paidAmount: Number(order.paidAmount),
+      debtAmount: Number(order.debtAmount),
+      movements: order.movements?.map((m: any) => ({
+        ...m,
+        quantity: Number(m.quantity),
+        unitCost: Number(m.unitCost),
+        totalCost: Number(m.totalCost)
+      })) || []
+    }));
+
     return NextResponse.json({
-      orders,
+      orders: serializedOrders,
       pagination: {
         total,
         page,
@@ -211,7 +224,14 @@ export async function POST(req: NextRequest) {
       return newOrder;
     });
 
-    return NextResponse.json(order, { status: 201 });
+    const serializedOrder = {
+      ...order,
+      totalAmount: Number(order.totalAmount),
+      paidAmount: Number(order.paidAmount),
+      debtAmount: Number(order.debtAmount)
+    };
+
+    return NextResponse.json(serializedOrder, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

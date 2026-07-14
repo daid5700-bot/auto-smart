@@ -384,10 +384,26 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const serializedActiveROList = activeROList.map((ro: any) => ({
+      ...ro,
+      laborCost: Number(ro.laborCost || 0),
+      partsCost: Number(ro.partsCost || 0),
+      discountAmount: Number(ro.discountAmount || 0),
+      totalAmount: Number(ro.totalAmount || 0),
+      paidAmount: Number(ro.paidAmount || 0),
+      debtAmount: Number(ro.debtAmount || 0)
+    }));
+
+    const serializedLowStockParts = lowStockParts.map((item: any) => ({
+      ...item,
+      stockCount: Number(item.stockCount || 0),
+      stockMin: Number(item.stockMin || 0)
+    }));
+
     const responseData = {
       totalProducts,
       lowStockCount: lowStockProducts,
-      lowStockParts,
+      lowStockParts: serializedLowStockParts,
       totalCustomers,
       pendingLeads: totalLeads,
       newLeadsCount,
@@ -401,7 +417,7 @@ export async function GET(req: NextRequest) {
       closedROsCount,
       trendPercentage,
       topKtv,
-      activeROList,
+      activeROList: serializedActiveROList,
       careSchedules,
       monthlyRevenue,
     };

@@ -69,7 +69,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return updated;
     });
 
-    return NextResponse.json(updatedRo);
+    const serializedRo = {
+      ...updatedRo,
+      laborCost: Number(updatedRo.laborCost),
+      partsCost: Number(updatedRo.partsCost),
+      totalAmount: Number(updatedRo.totalAmount),
+      paidAmount: Number(updatedRo.paidAmount),
+      debtAmount: Number(updatedRo.debtAmount),
+    };
+
+    return NextResponse.json(serializedRo);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -303,7 +303,7 @@ export default function HistoryPage() {
               </div>
 
               {/* Symptoms / Notes section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div className="p-4 bg-secondary/5 border border-border/40 rounded-2xl">
                   <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Triệu chứng & Yêu cầu của khách</h4>
                   {(() => {

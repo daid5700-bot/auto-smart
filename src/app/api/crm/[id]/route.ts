@@ -32,7 +32,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         where: { id },
         data: updateData,
       });
-      return NextResponse.json(customer);
+      const serializedCustomer = {
+        ...customer,
+        totalSpent: Number(customer.totalSpent || 0),
+        totalDebt: Number(customer.totalDebt || 0)
+      };
+      return NextResponse.json(serializedCustomer);
     } else {
       const currentLead = await prisma.lead.findFirst({
         where: {

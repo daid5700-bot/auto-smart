@@ -86,41 +86,43 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           }
         });
 
-        // Tìm metadata của item này để lấy giá đã chọn ở xưởng
-        const meta = itemsMeta.find((m: any) => m.productId === product.id);
-        const priceType = meta?.priceType || "RETAIL";
-        const customUnitPrice = meta?.customUnitPrice;
-
-        let unitPrice = 0;
-        if (customUnitPrice !== undefined && customUnitPrice !== null && customUnitPrice > 0) {
-          unitPrice = customUnitPrice;
-        } else {
-          const selectedPrice = product.prices?.find((p: any) => p.type === priceType);
-          unitPrice = selectedPrice ? Number(selectedPrice.amount) : Number(product.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
-        }
+        // Luôn lấy giá bán lẻ phụ tùng làm giá
+        const retailPrice = Number(product.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
+        const unitPrice = retailPrice;
         const totalPrice = unitPrice * itemQty;
 
         // Nếu là đơn sửa chữa thì ghi nhận vào hóa đơn
         if (requisition.repairOrderId) {
-          await tx.orderItem.upsert({
+          const existingOrderItem = await tx.orderItem.findUnique({
             where: {
               repairOrderId_productId: {
                 repairOrderId: requisition.repairOrderId,
                 productId: product.id,
               }
-            },
-            create: {
-              repairOrderId: requisition.repairOrderId,
-              productId: product.id,
-              quantity: itemQty,
-              unitPrice,
-              totalPrice,
-            },
-            update: {
-              quantity: { increment: itemQty },
-              totalPrice: { increment: totalPrice },
             }
           });
+
+          if (existingOrderItem) {
+            const newQty = Number(existingOrderItem.quantity) + itemQty;
+            await tx.orderItem.update({
+              where: { id: existingOrderItem.id },
+              data: {
+                quantity: newQty,
+                unitPrice: unitPrice,
+                totalPrice: unitPrice * newQty,
+              }
+            });
+          } else {
+            await tx.orderItem.create({
+              data: {
+                repairOrderId: requisition.repairOrderId,
+                productId: product.id,
+                quantity: itemQty,
+                unitPrice,
+                totalPrice,
+              }
+            });
+          }
 
           // Create StockMovement (EXPORT)
           await tx.stockMovement.create({
@@ -128,8 +130,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               productId: product.id,
               type: "EXPORT",
               quantity: itemQty,
-              unitCost: currentMac || unitPrice,
-              totalCost: (currentMac || unitPrice) * itemQty,
+              unitCost: unitPrice,
+              totalCost: unitPrice * itemQty,
               reason: `Xuất kho duyệt phụ tùng cho RO #${requisition.repairOrderId}`,
               relatedRoId: requisition.repairOrderId,
               createdBy: "Thủ kho",
@@ -143,8 +145,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               productId: product.id,
               type: "EXPORT_GIFT",
               quantity: itemQty,
-              unitCost: currentMac || unitPrice,
-              totalCost: (currentMac || unitPrice) * itemQty,
+              unitCost: unitPrice,
+              totalCost: unitPrice * itemQty,
               reason: `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${requisition.vehicle?.vin || requisition.vehicleId}`,
               vehicleId: requisition.vehicleId,
               createdBy: "Thủ kho",

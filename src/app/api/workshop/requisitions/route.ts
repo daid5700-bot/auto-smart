@@ -41,16 +41,16 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Handle Decimal serialization safely
     const serializedRequisitions = requisitions.map((req) => ({
       ...req,
       items: req.items.map((item) => {
         const pb = item.product?.productBranches?.[0];
         return {
           ...item,
+          quantity: Number(item.quantity),
           product: item.product ? {
             ...item.product,
-            stockCount: pb?.stockCount || 0,
+            stockCount: pb ? Number(pb.stockCount) : 0,
             prices: (item.product.prices || []).map((p) => ({
               ...p,
               amount: Number(p.amount)
@@ -62,7 +62,10 @@ export async function GET(req: NextRequest) {
         ...req.repairOrder,
         laborCost: Number(req.repairOrder.laborCost),
         partsCost: Number(req.repairOrder.partsCost),
-        totalAmount: Number(req.repairOrder.totalAmount)
+        discountAmount: Number(req.repairOrder.discountAmount || 0),
+        totalAmount: Number(req.repairOrder.totalAmount),
+        paidAmount: Number(req.repairOrder.paidAmount || 0),
+        debtAmount: Number(req.repairOrder.debtAmount || 0)
       } : null
     }));
 
