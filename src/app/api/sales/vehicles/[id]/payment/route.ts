@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/guard";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: "ID xe không hợp lệ" }, { status: 400 });
+    }
+
     const { amount } = await req.json();
-    
-    // Allow setting absolute paidAmount, just like inventory orders
+
+    // `amount` is the ADDITIONAL payment delta (not absolute total paid)
     const paymentDelta = Number(amount);
-    if (isNaN(paymentDelta) || paymentDelta < 0) {
-      return NextResponse.json({ error: "Số tiền không hợp lệ" }, { status: 400 });
+    if (isNaN(paymentDelta) || paymentDelta <= 0) {
+      return NextResponse.json({ error: "Số tiền phải lớn hơn 0" }, { status: 400 });
     }
 
     const vehicle = await prisma.vehicle.findUnique({
@@ -20,17 +28,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!vehicle) return NextResponse.json({ error: "Không tìm thấy xe" }, { status: 404 });
 
     // Calculate total bill for the vehicle
-    const accessories = typeof vehicle.accessoriesJson === "string" ? JSON.parse(vehicle.accessoriesJson) : (vehicle.accessoriesJson as any) || [];
+    let accessories: any[] = [];
+    try {
+      accessories = typeof vehicle.accessoriesJson === "string"
+        ? JSON.parse(vehicle.accessoriesJson)
+        : (vehicle.accessoriesJson as any) || [];
+    } catch { accessories = []; }
     const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
     const totalAmount = vehicle.listPrice.toNumber() + (vehicle.plateCost ? vehicle.plateCost.toNumber() : 0) + accCost;
 
     const oldPaidAmount = vehicle.paidAmount.toNumber();
     const oldDebtAmount = vehicle.debtAmount.toNumber();
+
+    // Cap delta so it cannot exceed remaining debt (no overpayment)
     const actualPaymentDelta = Math.min(paymentDelta, oldDebtAmount);
     const newPaidAmount = oldPaidAmount + actualPaymentDelta;
-    const newDebtAmount = oldDebtAmount - actualPaymentDelta;
+    const newDebtAmount = Math.max(0, totalAmount - newPaidAmount);
     const diffPaid = actualPaymentDelta;
     const debtDelta = newDebtAmount - oldDebtAmount;
+
 
     const updatedVehicle = await prisma.$transaction(async (tx) => {
       // update vehicle

@@ -14,7 +14,7 @@ export default function SalesCustomerDebtsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [saleType, setSaleType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
-  
+
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -58,7 +58,10 @@ export default function SalesCustomerDebtsPage() {
   };
 
   const getVehicleContractTotal = (v: any) => {
-    const accs = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : v.accessoriesJson || [];
+    let accs: any[] = [];
+    try {
+      accs = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : v.accessoriesJson || [];
+    } catch { accs = []; }
     const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
     return Number(v.listPrice) + Number(v.plateCost || 0) + accsCost;
   };
@@ -81,7 +84,7 @@ export default function SalesCustomerDebtsPage() {
   const submitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingOrder || paymentInput === "") return;
-    
+
     try {
       setSubmittingPayment(true);
       const res = await fetch(`/api/sales/vehicles/${editingOrder.id}/payment`, {
@@ -234,7 +237,7 @@ export default function SalesCustomerDebtsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); openCustomerModal(c); }}
                         className="p-1.5 hover:bg-primary/10 text-primary rounded-lg transition-colors"
                       >
@@ -337,7 +340,7 @@ export default function SalesCustomerDebtsPage() {
                           <button
                             onClick={() => {
                               setEditingOrder(veh);
-                              setPaymentInput(Number(veh.paidAmount));
+                              setPaymentInput(0);
                             }}
                             className={`p-2 rounded-xl border ${Number(veh.debtAmount) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20" : "border-border bg-card text-muted-foreground hover:bg-secondary"} transition-colors`}
                             title="Cập nhật thanh toán"
@@ -367,7 +370,7 @@ export default function SalesCustomerDebtsPage() {
                 <X size={20} />
               </button>
             </div>
-            
+
             <form onSubmit={submitPayment} className="p-6">
               <div className="bg-secondary/10 p-4 rounded-xl mb-6 border border-border">
                 <div className="flex justify-between text-sm mb-2">
@@ -390,7 +393,7 @@ export default function SalesCustomerDebtsPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold mb-2">Tổng số tiền khách đã trả tới thời điểm này</label>
+                  <label className="block text-sm font-bold mb-2">Số tiền trả thêm lần này</label>
                   <div className="relative">
                     <NumericInput
                       required
@@ -403,17 +406,17 @@ export default function SalesCustomerDebtsPage() {
                   <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => setPaymentInput(getVehicleContractTotal(editingOrder))}
+                      onClick={() => setPaymentInput(Number(editingOrder.debtAmount))}
                       className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-all"
                     >
-                      [ Trả đủ: {formatCurrency(getVehicleContractTotal(editingOrder))} ]
+                      [ Trả đủ nợ còn lại: {formatCurrency(Number(editingOrder.debtAmount))} ]
                     </button>
                     <p className="text-[10px] text-muted-foreground font-medium">
                       Phần nợ sẽ được hệ thống tự tính lại.
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"

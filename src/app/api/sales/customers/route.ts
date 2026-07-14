@@ -2,8 +2,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { requireAuth } from "@/lib/guard";
 
 export async function GET(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const { searchParams } = req.nextUrl;
     const search = searchParams.get("search") || "";
@@ -64,13 +68,19 @@ export async function GET(req: NextRequest) {
       let latestOrderAmount = 0;
       if (customer.vehicles.length > 0) {
         const latestVeh = customer.vehicles[0];
-        const accs = typeof latestVeh.accessoriesJson === "string" ? JSON.parse(latestVeh.accessoriesJson) : (latestVeh.accessoriesJson as any) || [];
+        let accs: any[] = [];
+        try {
+          accs = typeof latestVeh.accessoriesJson === "string" ? JSON.parse(latestVeh.accessoriesJson) : (latestVeh.accessoriesJson as any) || [];
+        } catch { accs = []; }
         const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
         latestOrderAmount = latestVeh.listPrice.toNumber() + (latestVeh.plateCost ? latestVeh.plateCost.toNumber() : 0) + accsCost;
       }
 
       for (const veh of customer.vehicles) {
-        const accs = typeof veh.accessoriesJson === "string" ? JSON.parse(veh.accessoriesJson) : (veh.accessoriesJson as any) || [];
+        let accs: any[] = [];
+        try {
+          accs = typeof veh.accessoriesJson === "string" ? JSON.parse(veh.accessoriesJson) : (veh.accessoriesJson as any) || [];
+        } catch { accs = []; }
         const accsCost = accs.reduce((sum: number, curr: any) => sum + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
         const contractTotal = veh.listPrice.toNumber() + (veh.plateCost ? veh.plateCost.toNumber() : 0) + accsCost;
 

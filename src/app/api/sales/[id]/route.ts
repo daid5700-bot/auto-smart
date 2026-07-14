@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { requireAuth } from "@/lib/guard";
 import { releaseReservedStock, restoreStockOnce, type ReturnSourceItem } from "@/lib/inventory-cancellation";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
@@ -43,8 +44,12 @@ async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: st
 
 // GET /api/sales/[id] — retrieve a single vehicle details
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });
     const branchId = getActiveBranchId();
 
     const vehicle = await prisma.vehicle.findFirst({
@@ -106,8 +111,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 // PATCH /api/sales/[id] — update vehicle details
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });
     const body = await req.json();
     const branchId = getActiveBranchId();
 
@@ -445,8 +454,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE /api/sales/[id] — delete vehicle
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });
     const branchId = getActiveBranchId();
 
     const currentVehicle = await prisma.vehicle.findFirst({
