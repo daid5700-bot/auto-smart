@@ -23,6 +23,8 @@ export default function DocumentsPage() {
   const modal = useModal();
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -32,6 +34,39 @@ export default function DocumentsPage() {
   const [saleTypeFilter, setSaleTypeFilter] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
   const [retailCount, setRetailCount] = useState<number | null>(null);
   const [wholesaleCount, setWholesaleCount] = useState<number | null>(null);
+
+  // Date filter
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [activePreset, setActivePreset] = useState<"today" | "week" | "month" | null>(null);
+
+  const applyPreset = (preset: "today" | "week" | "month") => {
+    const now = new Date();
+    const toISO = (d: Date) => d.toISOString().slice(0, 10);
+    if (preset === "today") {
+      setDateFrom(toISO(now));
+      setDateTo(toISO(now));
+    } else if (preset === "week") {
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+      setDateFrom(toISO(startOfWeek));
+      setDateTo(toISO(now));
+    } else if (preset === "month") {
+      setDateFrom(toISO(new Date(now.getFullYear(), now.getMonth(), 1)));
+      setDateTo(toISO(now));
+    }
+    setActivePreset(preset);
+    setPage(1);
+  };
+
+  const clearDateFilter = () => {
+    setDateFrom("");
+    setDateTo("");
+    setActivePreset(null);
+    setPage(1);
+  };
+
+  const hasDateFilter = !!dateFrom || !!dateTo;
 
   // Payment & Detail Modal State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -109,10 +144,20 @@ export default function DocumentsPage() {
     }
   };
 
-  const fetchData = async (targetPage = 1, append = false) => {
+  const fetchData = async (targetPage = 1, append = false, from = dateFrom, to = dateTo) => {
     try {
-      append ? setLoadingMore(true) : setLoading(true);
-      const data = await fetchWithDedup(`/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}`);
+      const isFirstLoad = vehicles.length === 0 && targetPage === 1 && !searchQuery && !from && !to;
+      if (append) {
+        setLoadingMore(true);
+      } else if (isFirstLoad) {
+        setInitialLoading(true);
+      } else {
+        setTableLoading(true);
+      }
+      let url = `/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}`;
+      if (from) url += `&dateFrom=${from}`;
+      if (to) url += `&dateTo=${to}`;
+      const data = await fetchWithDedup(url);
       setVehicles((prev) => append ? [...prev, ...(data.vehicles || [])] : (data.vehicles || []));
       setTotalPages(data.pagination?.totalPages || 1);
       setPage(targetPage);
@@ -126,14 +171,16 @@ export default function DocumentsPage() {
       console.error(e);
     } finally {
       setLoading(false);
+      setInitialLoading(false);
       setLoadingMore(false);
+      setTableLoading(false);
     }
   };
 
   useEffect(() => {
-    const timer = window.setTimeout(() => fetchData(1, false), 300);
+    const timer = window.setTimeout(() => fetchData(1, false, dateFrom, dateTo), 300);
     return () => window.clearTimeout(timer);
-  }, [saleTypeFilter, searchQuery]);
+  }, [saleTypeFilter, searchQuery, dateFrom, dateTo]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -158,11 +205,11 @@ export default function DocumentsPage() {
     const onScroll = () => {
       if (loading || loadingMore || page >= totalPages) return;
       const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 360;
-      if (nearBottom) fetchData(page + 1, true);
+      if (nearBottom) fetchData(page + 1, true, dateFrom, dateTo);
     };
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery]);
+  }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery, dateFrom, dateTo]);
 
   const parseAccessories = (val: any): Accessory[] => {
     try {
@@ -339,25 +386,6 @@ export default function DocumentsPage() {
 
   return (
     <div className="space-y-6 stagger">
-      {/* Page Header */}
-      <div className="flex items-center justify-between pb-5 border-b border-border flex-wrap gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Quản trị bán hàng
-          </p>
-          <h2 className="text-3xl font-extrabold tracking-tight mt-1">
-            Hồ sơ & Thủ tục
-          </h2>
-          </div>
-
-        <Link
-          href="/sales/documents/new"
-          className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all inline-flex items-center gap-2"
-        >
-          <Plus size={16} /> Tạo Hồ sơ mới
-        </Link>
-      </div>
-
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border mb-4">
         <button
@@ -401,44 +429,74 @@ export default function DocumentsPage() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-          <input
-            type="text"
-            placeholder="Tìm theo số khung (VIN), dòng xe, tên hoặc SĐT khách hàng..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/30 outline-none shadow-sm"
-          />
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3 shrink-0 w-full sm:w-auto justify-end">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider shrink-0">Trạng thái:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm h-10"
-            >
-              <option value="ALL">Tất cả xe thủ tục</option>
-              <option value="RESERVED">Đã Đặt Cọc</option>
-              <option value="SOLD">Đã Bán</option>
-            </select>
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mb-4 w-full">
+        {/* Left Side: Search & Options */}
+        <div className="flex flex-wrap items-center gap-3 flex-1">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+            <input
+              type="text"
+              placeholder="Tìm theo số khung (VIN), dòng xe, tên hoặc SĐT khách hàng..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/30 outline-none shadow-sm"
+            />
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider shrink-0">Thủ tục biển:</span>
-            <select
-              value={plateFilter}
-              onChange={(e) => setPlateFilter(e.target.value)}
-              className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm h-10"
-            >
-              <option value="ALL">Tất cả thủ tục</option>
-              <option value="PENDING">Chờ nộp thuế (Đợi biển)</option>
-              <option value="TAX_PAID">Đã nộp thuế trước bạ</option>
-              <option value="PLATE_DONE">Đã bấm biển & Bàn giao xe</option>
-            </select>
+          {/* Trạng thái */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm h-10 shrink-0"
+          >
+            <option value="ALL">Tất cả trạng thái</option>
+            <option value="RESERVED">Đã Đặt Cọc</option>
+            <option value="SOLD">Đã Bán</option>
+          </select>
+
+          {/* Thủ tục biển */}
+          <select
+            value={plateFilter}
+            onChange={(e) => setPlateFilter(e.target.value)}
+            className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm h-10 shrink-0"
+          >
+            <option value="ALL">Tất cả thủ tục biển</option>
+            <option value="PENDING">Chờ nộp thuế (Đợi biển)</option>
+            <option value="TAX_PAID">Đã nộp thuế trước bạ</option>
+            <option value="PLATE_DONE">Đã bấm biển & Bàn giao xe</option>
+          </select>
+        </div>
+
+        {/* Right Side: Date Range & Presets */}
+        <div className="flex flex-wrap items-center gap-2 justify-end shrink-0">
+          {/* Date range picker */}
+          <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-2 h-10 shrink-0">
+            <input type="date" value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setActivePreset(null); setPage(1); }}
+              className="text-sm font-semibold bg-transparent outline-none text-foreground cursor-pointer" />
+            <span className="text-muted-foreground text-xs font-medium px-1">—</span>
+            <input type="date" value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setActivePreset(null); setPage(1); }}
+              className="text-sm font-semibold bg-transparent outline-none text-foreground cursor-pointer" />
+          </div>
+
+          {/* Presets */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {(["today", "week", "month"] as const).map((key) => (
+              <button key={key} onClick={() => applyPreset(key)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all h-10 ${
+                  activePreset === key ? "border-primary bg-primary text-white" : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
+                }`}>
+                {key === "today" ? "Hôm nay" : key === "week" ? "Tuần này" : "Tháng này"}
+              </button>
+            ))}
+            {hasDateFilter && (
+              <button onClick={clearDateFilter}
+                className="px-2.5 py-2 rounded-xl text-xs font-bold border border-rose-500/30 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-all flex items-center gap-1 h-10">
+                <X size={11} /> Xóa lọc
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -446,8 +504,18 @@ export default function DocumentsPage() {
 
 
       {/* Vehicles Procedures Table */}
-      {saleTypeFilter === "WHOLESALE" ? (
-        <div className="space-y-4">
+      <div className="relative">
+        {tableLoading && (
+          <div className="absolute inset-0 z-10 bg-card/60 backdrop-blur-[1px] flex items-center justify-center rounded-xl pointer-events-none">
+            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2 shadow-md">
+              <Loader2 size={14} className="animate-spin text-primary" />
+              <span className="text-xs font-semibold text-muted-foreground">Đang tải...</span>
+            </div>
+          </div>
+        )}
+
+        {saleTypeFilter === "WHOLESALE" ? (
+          <div className="space-y-4">
           {groupedWholesale.map((group: any) => (
             <div key={group.id} className="glass-card rounded-2xl p-6 border border-border bg-card shadow-sm hover:shadow-md transition-all duration-300">
               {/* Card Header */}
@@ -565,7 +633,7 @@ export default function DocumentsPage() {
           ))}
           {groupedWholesale.length === 0 && (
             <div className="glass-card rounded-xl p-12 text-center text-muted-foreground italic border border-border">
-              {loading ? (
+              {initialLoading ? (
                 <div className="flex items-center justify-center gap-2 text-primary font-bold">
                   <Loader2 className="w-5 h-5 animate-spin" /> Đang tải danh sách hồ sơ bán buôn...
                 </div>
@@ -721,7 +789,7 @@ export default function DocumentsPage() {
               {filteredVehicles.length === 0 && (
                 <tr>
                   <td colSpan={8} className="p-12 text-center text-muted-foreground italic">
-                    {loading ? (
+                    {initialLoading ? (
                       <div className="flex items-center justify-center gap-2 text-primary font-bold">
                         <Loader2 className="w-5 h-5 animate-spin" /> Đang tải danh sách hồ sơ xe...
                       </div>
@@ -735,6 +803,7 @@ export default function DocumentsPage() {
           </table>
         </div>
       )}
+      </div>
 
       {loadingMore && (
         <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-muted-foreground">

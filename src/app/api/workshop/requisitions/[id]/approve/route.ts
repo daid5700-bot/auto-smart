@@ -86,7 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           }
         });
 
-        // Luôn lấy giá bán lẻ phụ tùng làm giá
+        // Giá bán lẻ dùng để lập hóa đơn (tính tiền khách) và ghi nhận vào kho
         const retailPrice = Number(product.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
         const unitPrice = retailPrice;
         const totalPrice = unitPrice * itemQty;
@@ -124,14 +124,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             });
           }
 
-          // Create StockMovement (EXPORT)
+          // Create StockMovement (EXPORT) — dùng giá bán lẻ
           await tx.stockMovement.create({
             data: {
               productId: product.id,
               type: "EXPORT",
               quantity: itemQty,
               unitCost: unitPrice,
-              totalCost: unitPrice * itemQty,
+              totalCost: totalPrice,
               reason: `Xuất kho duyệt phụ tùng cho RO #${requisition.repairOrderId}`,
               relatedRoId: requisition.repairOrderId,
               createdBy: "Thủ kho",
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               type: "EXPORT_GIFT",
               quantity: itemQty,
               unitCost: unitPrice,
-              totalCost: unitPrice * itemQty,
+              totalCost: totalPrice,
               reason: `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${requisition.vehicle?.vin || requisition.vehicleId}`,
               vehicleId: requisition.vehicleId,
               createdBy: "Thủ kho",

@@ -138,7 +138,7 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
       {isOpen && (
         <ModalPortal>
           <div 
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in"
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in"
             onMouseDown={(e) => e.target === e.currentTarget && handleCancel()}
           >
             <div className="w-full max-w-md bg-card/95 border border-border/80 rounded-2xl p-6 shadow-2xl animate-scale-up relative overflow-hidden flex flex-col gap-4">

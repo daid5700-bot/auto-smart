@@ -341,11 +341,6 @@ export default function RemindersPage() {
 
   return (
     <div className="space-y-6 stagger">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold">Lịch chăm sóc khách hàng</h2>
-      </div>
-
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Overdue */}

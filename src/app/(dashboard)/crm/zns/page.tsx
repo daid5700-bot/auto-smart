@@ -100,12 +100,6 @@ export default function ZnsPage() {
 
   return (
     <div className="space-y-6 stagger">
-      {/* Page Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Lịch sử gửi Zalo ZNS</h2>
-        </div>
-      </div>
 
       <div className="space-y-4 animate-fade-in">
         {/* Search Box */}

@@ -119,11 +119,6 @@ export default function WorkshopCustomersPage() {
 
   return (
     <div className="space-y-6 stagger">
-      <div className="flex items-center justify-between pb-5 border-b border-border flex-wrap gap-4">
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tight">Khách hàng sửa chữa (Công nợ)</h2>
-        </div>
-      </div>
 
       <div className="flex gap-3 max-w-md">
         <div className="relative flex-1">

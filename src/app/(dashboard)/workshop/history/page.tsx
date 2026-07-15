@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { formatCurrency, formatDate, statusText, statusBadge, parseSymptoms } from "@/lib/utils";
-import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle } from "lucide-react";
+import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle, CalendarDays } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useModal } from "@/components/ModalProvider";
 
@@ -9,12 +9,45 @@ import { useModal } from "@/components/ModalProvider";
 export default function HistoryPage() {
   const modal = useModal();
   const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [submittingDelivery, setSubmittingDelivery] = useState<string | null>(null);
+
+  // Date filter state
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [activePreset, setActivePreset] = useState<"today" | "week" | "month" | null>(null);
+
+  // Quick date presets
+  const applyPreset = (preset: "today" | "week" | "month") => {
+    const now = new Date();
+    const toISO = (d: Date) => d.toISOString().slice(0, 10);
+    if (preset === "today") {
+      setDateFrom(toISO(now));
+      setDateTo(toISO(now));
+    } else if (preset === "week") {
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+      setDateFrom(toISO(startOfWeek));
+      setDateTo(toISO(now));
+    } else if (preset === "month") {
+      setDateFrom(toISO(new Date(now.getFullYear(), now.getMonth(), 1)));
+      setDateTo(toISO(now));
+    }
+    setActivePreset(preset);
+    setPage(1);
+  };
+
+  const clearDateFilter = () => {
+    setDateFrom("");
+    setDateTo("");
+    setActivePreset(null);
+    setPage(1);
+  };
 
   const handleDeliverOrder = async (orderId: string) => {
     const confirmed = await modal.confirm({
@@ -50,9 +83,17 @@ export default function HistoryPage() {
     }
   };
 
-  const fetchData = async (pageVal = 1, searchVal = "") => {
+  const fetchData = async (pageVal = 1, searchVal = "", from = "", to = "") => {
+    // First load: show full-page spinner. Subsequent: only overlay on table.
+    if (orders.length === 0 && pageVal === 1 && !searchVal && !from && !to) {
+      setInitialLoading(true);
+    } else {
+      setTableLoading(true);
+    }
     try {
-      const url = `/api/workshop?page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}`;
+      let url = `/api/workshop?page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}`;
+      if (from) url += `&dateFrom=${from}`;
+      if (to) url += `&dateTo=${to}`;
       const res = await fetch(url);
       const data = await res.json();
       setOrders(data.repairOrders || []);
@@ -62,21 +103,22 @@ export default function HistoryPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setTableLoading(false);
     }
   };
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, dateFrom, dateTo]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      fetchData(page, search);
+      fetchData(page, search, dateFrom, dateTo);
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [page, search]);
+  }, [page, search, dateFrom, dateTo]);
 
   const filteredOrders = orders;
 
@@ -86,7 +128,10 @@ export default function HistoryPage() {
     return `RO-${yyyymmdd}-${id}`;
   };
 
-  if (loading) {
+  // Check if a date filter is active
+  const hasDateFilter = !!dateFrom || !!dateTo;
+
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -96,23 +141,80 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6 stagger">
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-5 border-b border-border gap-4">
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tight">Lịch sử sửa chữa xe</h2>
+
+      {/* Search + Date filter — single row */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm kiếm biển số, dòng xe, tên khách, SĐT hoặc ID..."
+            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+
+        {/* Right group: date range + presets + clear */}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Date range */}
+          <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setActivePreset(null); setPage(1); }}
+              className="text-sm font-semibold bg-transparent outline-none text-foreground cursor-pointer"
+            />
+            <span className="text-muted-foreground text-xs font-medium px-1">—</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setActivePreset(null); setPage(1); }}
+              className="text-sm font-semibold bg-transparent outline-none text-foreground cursor-pointer"
+            />
           </div>
+
+          {/* Quick preset buttons */}
+          {([
+            { label: "Hôm nay", key: "today" as const },
+            { label: "Tuần này", key: "week" as const },
+            { label: "Tháng này", key: "month" as const },
+          ] as const).map(({ label, key }) => (
+            <button
+              key={key}
+              onClick={() => applyPreset(key)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                activePreset === key
+                  ? "border-primary bg-primary text-white"
+                  : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+
+          {/* Clear filter button */}
+          {hasDateFilter && (
+            <button
+              onClick={clearDateFilter}
+              className="px-2.5 py-2 rounded-xl text-xs font-bold border border-rose-500/30 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-all flex items-center gap-1"
+            >
+              <X size={11} /> Xóa lọc
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="relative w-full max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Tìm kiếm biển số, dòng xe, tên khách, SĐT hoặc ID..."
-          className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
-        />
-      </div>
-
-      <div className="glass-card rounded-2xl overflow-hidden border border-border/40">
+      <div className="relative glass-card rounded-2xl overflow-hidden border border-border/40">
+        {/* Subtle loading overlay on table only */}
+        {tableLoading && (
+          <div className="absolute inset-0 z-10 bg-card/60 backdrop-blur-[1px] flex items-center justify-center rounded-2xl pointer-events-none">
+            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2 shadow-md">
+              <Loader2 size={14} className="animate-spin text-primary" />
+              <span className="text-xs font-semibold text-muted-foreground">Đang tải...</span>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="data-table w-full text-left border-collapse">
             <thead>
@@ -208,7 +310,7 @@ export default function HistoryPage() {
         </div>
 
         {/* Pagination */}
-        {!loading && totalPages > 1 && (
+        {!initialLoading && totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
             <p className="text-xs text-muted-foreground">
               Trang <span className="font-semibold text-foreground">{page}</span> / <span className="font-semibold text-foreground">{totalPages}</span>

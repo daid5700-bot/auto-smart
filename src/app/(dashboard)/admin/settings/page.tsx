@@ -10,8 +10,15 @@ export default function SettingsPage() {
 
   const [leaseRate, setLeaseRate] = useState("7.9");
   const [pointsRate, setPointsRate] = useState("1");
+  const [zaloAppId, setZaloAppId] = useState("");
+  const [zaloAppSecret, setZaloAppSecret] = useState("");
+  
   const [zaloAccessToken, setZaloAccessToken] = useState("");
   const [zaloRefreshToken, setZaloRefreshToken] = useState("");
+  
+  // Track initial values to check if they are dirty before saving
+  const [initialZaloAccessToken, setInitialZaloAccessToken] = useState("");
+  const [initialZaloRefreshToken, setInitialZaloRefreshToken] = useState("");
 
   useEffect(() => {
     fetch("/api/config")
@@ -20,8 +27,12 @@ export default function SettingsPage() {
         if (data.config) {
           setLeaseRate(data.config.lease_rate || "7.9");
           setPointsRate(data.config.points_rate || "1");
+          setZaloAppId(data.config.ZALO_APP_ID || "");
+          setZaloAppSecret(data.config.ZALO_APP_SECRET || "");
           setZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
           setZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
+          setInitialZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
+          setInitialZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
         }
       })
       .catch(() => setError("Không thể tải cấu hình"))
@@ -33,18 +44,33 @@ export default function SettingsPage() {
     setSaving(true);
     setError("");
     try {
+      const payload: Record<string, string> = {
+        lease_rate: leaseRate,
+        points_rate: pointsRate,
+        ZALO_APP_ID: zaloAppId,
+        ZALO_APP_SECRET: zaloAppSecret,
+      };
+
+      // Only save tokens if they were manually edited/dirty to avoid overwriting background-refreshed tokens
+      if (zaloAccessToken !== initialZaloAccessToken) {
+        payload.ZALO_OA_ACCESS_TOKEN = zaloAccessToken;
+      }
+      if (zaloRefreshToken !== initialZaloRefreshToken) {
+        payload.ZALO_REFRESH_TOKEN = zaloRefreshToken;
+      }
+
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lease_rate: leaseRate,
-          points_rate: pointsRate,
-          ZALO_OA_ACCESS_TOKEN: zaloAccessToken,
-          ZALO_REFRESH_TOKEN: zaloRefreshToken,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Lỗi lưu cấu hình");
+      
+      // Update initial values so they are clean again
+      setInitialZaloAccessToken(zaloAccessToken);
+      setInitialZaloRefreshToken(zaloRefreshToken);
+      
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
@@ -122,6 +148,34 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <h3 className="font-bold border-b border-border/40 pb-2">3. Cấu hình Zalo API</h3>
           <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+                  Zalo App ID
+                </label>
+                <input
+                  type="text"
+                  value={zaloAppId}
+                  onChange={(e) => setZaloAppId(e.target.value)}
+                  placeholder="Nhập Zalo App ID..."
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+                  Zalo App Secret Key
+                </label>
+                <input
+                  type="password"
+                  value={zaloAppSecret}
+                  onChange={(e) => setZaloAppSecret(e.target.value)}
+                  placeholder="Nhập Zalo App Secret..."
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
                 Zalo Access Token

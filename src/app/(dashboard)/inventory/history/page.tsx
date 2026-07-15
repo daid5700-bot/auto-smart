@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
-import { Loader2, DollarSign, X, Edit3, Eye, Search } from "lucide-react";
+import { Loader2, DollarSign, X, Edit3, Eye, Search, Calendar, CalendarDays } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
 
 function InventoryHistoryContent() {
@@ -14,7 +14,8 @@ function InventoryHistoryContent() {
   const initialMovementId = searchParams.get("movementId") ? parseInt(searchParams.get("movementId")!) : null;
 
   const [history, setHistory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
@@ -24,6 +25,26 @@ function InventoryHistoryContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Date filter
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [activePreset, setActivePreset] = useState<"today" | "week" | "month" | null>(null);
+
+  const applyPreset = (preset: "today" | "week" | "month") => {
+    const now = new Date();
+    const toISO = (d: Date) => d.toISOString().slice(0, 10);
+    if (preset === "today") { setDateFrom(toISO(now)); setDateTo(toISO(now)); }
+    else if (preset === "week") {
+      const s = new Date(now); s.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+      setDateFrom(toISO(s)); setDateTo(toISO(now));
+    } else { setDateFrom(toISO(new Date(now.getFullYear(), now.getMonth(), 1))); setDateTo(toISO(now)); }
+    setActivePreset(preset);
+    setCurrentPage(1);
+  };
+
+  const clearDateFilter = () => { setDateFrom(""); setDateTo(""); setActivePreset(null); setCurrentPage(1); };
+  const hasDateFilter = !!dateFrom || !!dateTo;
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -97,25 +118,23 @@ function InventoryHistoryContent() {
     return `${prefix}-${cleanDate}`;
   };
 
-  const fetchMovements = async (p: number, currentTab = activeTab) => {
+  const fetchMovements = async (p: number, currentTab = activeTab, from = dateFrom, to = dateTo) => {
+    const isFirstLoad = history.length === 0 && p === 1 && !debouncedSearch && !from && !to;
+    if (isFirstLoad) setInitialLoading(true); else setTableLoading(true);
     try {
-      setLoading(true);
       const typeParam = currentTab === "ALL" ? "" : `&type=${currentTab}`;
-      const data = await fetchWithDedup(`/api/inventory/movements?page=${p}&limit=50&search=${encodeURIComponent(debouncedSearch)}${typeParam}`);
+      const dateParam = `${from ? `&dateFrom=${from}` : ""}${to ? `&dateTo=${to}` : ""}`;
+      const data = await fetchWithDedup(`/api/inventory/movements?page=${p}&limit=50&search=${encodeURIComponent(debouncedSearch)}${typeParam}${dateParam}`);
       setHistory(data.movements || []);
-      if (data.pagination) {
-        setTotalPages(data.pagination.totalPages || 1);
-      }
-      // Always update counts from server (they're scoped to branch+search, not tab)
-      if (data.counts) {
-        setTabCounts(data.counts);
-      }
+      if (data.pagination) setTotalPages(data.pagination.totalPages || 1);
+      if (data.counts) setTabCounts(data.counts);
       return data.movements || [];
     } catch (e) {
       console.error("Lỗi tải lịch sử kho:", e);
       return [];
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setTableLoading(false);
     }
   };
 
@@ -132,7 +151,7 @@ function InventoryHistoryContent() {
         }
       }
     });
-  }, [currentPage, debouncedSearch, activeTab]);
+  }, [currentPage, debouncedSearch, activeTab, dateFrom, dateTo]);
 
   const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
 
@@ -181,9 +200,6 @@ function InventoryHistoryContent() {
 
   return (
     <div className="mx-auto space-y-6 stagger">
-      <div>
-        <h2 className="text-3xl font-black tracking-tight">Lịch sử phiếu kho</h2>
-      </div>
 
       <div className="flex overflow-x-auto no-scrollbar border-b border-border mb-4 mt-2">
         <button 
@@ -215,7 +231,7 @@ function InventoryHistoryContent() {
         </button>
       </div>
 
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
@@ -226,9 +242,45 @@ function InventoryHistoryContent() {
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"
           />
         </div>
+
+        {/* Right group: date range + presets + clear */}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-2">
+            <input type="date" value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setActivePreset(null); setCurrentPage(1); }}
+              className="text-sm font-semibold bg-transparent outline-none text-foreground cursor-pointer" />
+            <span className="text-muted-foreground text-xs font-medium px-1">—</span>
+            <input type="date" value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setActivePreset(null); setCurrentPage(1); }}
+              className="text-sm font-semibold bg-transparent outline-none text-foreground cursor-pointer" />
+          </div>
+          {(["today", "week", "month"] as const).map((key) => (
+            <button key={key} onClick={() => applyPreset(key)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                activePreset === key ? "border-primary bg-primary text-white" : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
+              }`}>
+              {key === "today" ? "Hôm nay" : key === "week" ? "Tuần này" : "Tháng này"}
+            </button>
+          ))}
+          {hasDateFilter && (
+            <button onClick={clearDateFilter}
+              className="px-2.5 py-2 rounded-xl text-xs font-bold border border-rose-500/30 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-all flex items-center gap-1">
+              <X size={11} /> Xóa lọc
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="border border-border bg-card overflow-hidden rounded-xl">
+      <div className="relative border border-border bg-card overflow-hidden rounded-xl">
+        {/* Table overlay loading */}
+        {tableLoading && (
+          <div className="absolute inset-0 z-10 bg-card/60 backdrop-blur-[1px] flex items-center justify-center rounded-xl pointer-events-none">
+            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2 shadow-md">
+              <Loader2 size={14} className="animate-spin text-primary" />
+              <span className="text-xs font-semibold text-muted-foreground">Đang tải...</span>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto min-h-[530px]">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-secondary/30 border-b border-border">
@@ -245,7 +297,7 @@ function InventoryHistoryContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {loading ? (
+              {initialLoading ? (
                 <tr>
                   <td colSpan={9} className="text-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />

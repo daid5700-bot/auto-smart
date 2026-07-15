@@ -98,7 +98,50 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // Sliding Session: Refresh cookies max-age (86400s = 24h) on every active request
+  const isProd = process.env.NODE_ENV === "production";
+  if (userRoleCookie) {
+    response.cookies.set("user_role", userRoleCookie, {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: false,
+      sameSite: "lax",
+      secure: isProd,
+    });
+  }
+  const userIdCookie = request.cookies.get("user_id")?.value;
+  if (userIdCookie) {
+    response.cookies.set("user_id", userIdCookie, {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isProd,
+    });
+  }
+  if (allowedBranchesCookie) {
+    response.cookies.set("allowed_branches", allowedBranchesCookie, {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isProd,
+    });
+  }
+  const activeBranchIdStr = request.cookies.get("active_branch_id")?.value;
+  if (activeBranchIdStr) {
+    response.cookies.set("active_branch_id", activeBranchIdStr, {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: false,
+      sameSite: "lax",
+      secure: isProd,
+    });
+  }
+
+  return response;
 }
 
 export const config = {

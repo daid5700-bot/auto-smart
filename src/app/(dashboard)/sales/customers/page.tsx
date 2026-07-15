@@ -126,17 +126,6 @@ export default function SalesCustomerDebtsPage() {
 
   return (
     <div className="space-y-6 stagger">
-      <div className="flex items-center justify-between pb-5 border-b border-border flex-wrap gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Kinh doanh xe
-          </p>
-          <h1 className="text-3xl font-black text-foreground tracking-tight mt-1 flex items-center gap-3">
-            <Users className="text-primary w-8 h-8" />
-            Khách hàng & Công nợ xe
-          </h1>
-        </div>
-      </div>
 
       <div className="flex items-center justify-between mb-4">
         <div className="relative w-full max-w-sm">

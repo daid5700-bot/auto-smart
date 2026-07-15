@@ -67,6 +67,16 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Date range filter
+  const dateFrom = searchParams.get("dateFrom");
+  const dateTo = searchParams.get("dateTo");
+  if (dateFrom || dateTo) {
+    whereClause.createdAt = {
+      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+      ...(dateTo ? { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : {}),
+    };
+  }
+
   // Run independent queries in parallel for speed
   const [repairOrders, totalROs, technicians] = await Promise.all([
     prisma.repairOrder.findMany({

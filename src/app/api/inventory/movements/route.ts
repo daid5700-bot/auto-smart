@@ -34,6 +34,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Date range filter
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
+    if (dateFrom || dateTo) {
+      where.createdAt = {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo ? { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : {}),
+      };
+    }
+
     // Base filter applies branch and search query
     const baseFilter = { ...where };
 

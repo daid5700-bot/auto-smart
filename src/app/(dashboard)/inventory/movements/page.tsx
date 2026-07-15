@@ -296,9 +296,6 @@ export default function MovementsPage() {
 
   return (
     <div className=" mx-auto space-y-6 stagger">
-      <div>
-        <h2 className="text-3xl font-black tracking-tight">Lệnh xuất nhập kho</h2>
-      </div>
 
       <div className="border border-border bg-card shadow-sm rounded-xl relative z-20">
         {/* Tabs */}

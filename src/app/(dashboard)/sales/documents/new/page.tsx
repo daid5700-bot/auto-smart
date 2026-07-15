@@ -381,20 +381,6 @@ export default function NewDocumentPage() {
 
   return (
     <div className="w-full space-y-6 stagger pb-12">
-      {/* Page Header */}
-      <div className="flex items-center gap-3 pb-5 border-b border-border">
-        <button
-          onClick={() => router.push("/sales/documents")}
-          className="p-2 bg-secondary/40 hover:bg-secondary rounded-xl text-muted-foreground hover:text-foreground transition-all active:scale-95"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2">
-            Tạo mới Hồ sơ & Thủ tục xe
-          </h2>
-        </div>
-      </div>
 
       {/* Main Form */}
       <form onSubmit={handleSubmit} className="space-y-5 pb-6">

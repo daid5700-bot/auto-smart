@@ -156,6 +156,16 @@ export async function GET(req: NextRequest) {
     where.status = { not: "CANCELLED" };
   }
 
+  // Date range filter
+  const dateFrom = searchParams.get("dateFrom");
+  const dateTo = searchParams.get("dateTo");
+  if (dateFrom || dateTo) {
+    where.createdAt = {
+      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+      ...(dateTo ? { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : {}),
+    };
+  }
+
   // Run heavy queries in parallel
   const [vehicles, total, statusGroups, colorsGroup] = await Promise.all([
     prisma.vehicle.findMany({
@@ -427,6 +437,7 @@ export async function POST(req: NextRequest) {
             reason: `Xuất phụ kiện bán kèm xe VIN: ${v.vin}`,
             branchId: branchId,
             createdBy: "Hệ thống (Bán Xe)",
+            vehicleId: v.id,
           }
         });
         pendingExportBranchId = pendingOrder.branchId;

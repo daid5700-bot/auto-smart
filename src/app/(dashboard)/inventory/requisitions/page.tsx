@@ -380,40 +380,34 @@ export default function UnifiedRequisitionsApprovalPage() {
 
   return (
     <div className="space-y-6 stagger pb-12">
-      {/* Header section with two-level tab bar */}
-      <div className="flex flex-col gap-4 border-b border-border pb-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Duyệt yêu cầu xuất kho</h2>
-          </div>
-
-          {/* Pending/History Toggle */}
-          <div className="flex items-center bg-secondary/35 border border-border p-1 rounded-xl shrink-0 self-start md:self-auto">
-            <button
-              onClick={() => setActiveTab("PENDING")}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === "PENDING"
-                  ? "bg-card text-foreground shadow-sm font-bold border border-border/50"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Chờ duyệt ({activePendingCount})
-            </button>
-            <button
-              onClick={() => setActiveTab("HISTORY")}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === "HISTORY"
-                  ? "bg-card text-foreground shadow-sm font-bold border border-border/50"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Lịch sử ({activeHistoryCount})
-            </button>
-          </div>
+      {/* Header section with tab bars on a single row */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
+        {/* Pending/History Toggle */}
+        <div className="flex items-center bg-secondary/35 border border-border p-1 rounded-xl shrink-0">
+          <button
+            onClick={() => setActiveTab("PENDING")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === "PENDING"
+                ? "bg-card text-foreground shadow-sm font-bold border border-border/50"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Chờ duyệt ({activePendingCount})
+          </button>
+          <button
+            onClick={() => setActiveTab("HISTORY")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === "HISTORY"
+                ? "bg-card text-foreground shadow-sm font-bold border border-border/50"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Lịch sử ({activeHistoryCount})
+          </button>
         </div>
 
         {/* Source tab selector: Workshop vs Vehicle Accessories */}
-        <div className="flex items-center gap-2 border-t border-border/40 pt-4">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setSourceTab("WORKSHOP")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all border ${
@@ -574,7 +568,7 @@ export default function UnifiedRequisitionsApprovalPage() {
                           <button
                             disabled={processingId !== null}
                             onClick={() => handleWorkshopApprove(req.id)}
-                            className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
                           >
                             {processingId === req.id ? (
                               <Loader2 size={13} className="animate-spin" />
@@ -715,7 +709,7 @@ export default function UnifiedRequisitionsApprovalPage() {
                         <button
                           disabled={processingId !== null}
                           onClick={() => handleVehicleGroupApprove(order)}
-                          className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
                         >
                           {processingId === (order.paidOrderId || order.giftRequisitionId) ? (
                             <Loader2 size={13} className="animate-spin" />
