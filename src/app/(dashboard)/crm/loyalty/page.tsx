@@ -37,11 +37,15 @@ export default function LoyaltyPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [customerPage, setCustomerPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const CUSTOMER_PAGE_SIZE = 10;
 
   // Form State
   const [customerId, setCustomerId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [pointsToRedeem, setPointsToRedeem] = useState<number | "">(10);
   const [description, setDescription] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -51,6 +55,7 @@ export default function LoyaltyPage() {
       const res = await fetch("/api/crm?tab=customers&limit=200&allBranches=true");
       const data = await res.json();
       setCustomers(data.customers || []);
+      setCustomerPage(1);
     } catch (e) {
       console.error(e);
     } finally {
@@ -90,6 +95,14 @@ export default function LoyaltyPage() {
 
   const handleRedeem = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!customerId) {
+      await modal.alert({
+        title: "Thiếu khách hàng",
+        message: "Vui lòng chọn một khách hàng từ danh sách gợi ý.",
+        type: "warning",
+      });
+      return;
+    }
     const confirmed = await modal.confirm({
       title: "Xác nhận quy đổi điểm",
       message: `Bạn có chắc chắn muốn quy đổi ${pointsToRedeem} điểm cho khách hàng này?`,
@@ -108,6 +121,8 @@ export default function LoyaltyPage() {
       const successMessage = `Quy đổi điểm thành công! Khách hàng được giảm giá ${formatCurrency(discount)} trên hóa đơn.`;
       setSuccessMsg(successMessage);
       setCustomerId("");
+      setCustomerSearch("");
+      setCustomerPickerOpen(false);
       setPointsToRedeem(10);
       setDescription("");
       await modal.alert({
@@ -133,6 +148,19 @@ export default function LoyaltyPage() {
   }
 
   const filteredTransactions = transactions;
+  const customerTotalPages = Math.max(1, Math.ceil(customers.length / CUSTOMER_PAGE_SIZE));
+  const paginatedCustomers = customers.slice(
+    (customerPage - 1) * CUSTOMER_PAGE_SIZE,
+    customerPage * CUSTOMER_PAGE_SIZE,
+  );
+  const customerOptions = customers
+    .filter((c) => {
+      const query = customerSearch.trim().toLowerCase();
+      if (!query) return true;
+      return c.name.toLowerCase().includes(query) || c.phone.includes(query);
+    })
+    // Search locally on the already loaded list; never call the API per keystroke.
+    .slice(0, 10);
 
   return (
     <div className="space-y-6 stagger">
@@ -148,12 +176,45 @@ export default function LoyaltyPage() {
           <form onSubmit={handleRedeem} className="space-y-4 pt-2">
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Chọn khách hàng</label>
-              <select required value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none">
-                <option value="">-- Chọn khách hàng --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} - {c.phone} (Điểm: {c.loyaltyPoints})</option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  required
+                  value={customerSearch}
+                  onChange={(e) => {
+                    setCustomerSearch(e.target.value);
+                    setCustomerId("");
+                    setCustomerPickerOpen(true);
+                  }}
+                  onFocus={() => setCustomerPickerOpen(true)}
+                  onBlur={() => setTimeout(() => setCustomerPickerOpen(false), 150)}
+                  placeholder="Tìm theo tên hoặc số điện thoại..."
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                {customerPickerOpen && (
+                  <div className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto bg-card border border-border rounded-xl shadow-lg">
+                    {customerOptions.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">Không tìm thấy khách hàng</div>
+                    ) : (
+                      customerOptions.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setCustomerId(String(c.id));
+                            setCustomerSearch(`${c.name} - ${c.phone}`);
+                            setCustomerPickerOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-secondary/60 transition-colors"
+                        >
+                          <span className="block text-sm font-semibold">{c.name}</span>
+                          <span className="block text-xs text-muted-foreground">{c.phone} · {c.loyaltyPoints} điểm</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase">Số điểm quy đổi</label>
@@ -191,7 +252,7 @@ export default function LoyaltyPage() {
               </tr>
             </thead>
             <tbody>
-              {customers.map((c: any) => (
+              {paginatedCustomers.map((c: any) => (
                 <tr key={c.id}>
                   <td className="font-semibold">{c.name}</td>
                   <td>{c.phone}</td>
@@ -201,6 +262,60 @@ export default function LoyaltyPage() {
               ))}
             </tbody>
           </table>
+          {customerTotalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
+              <p className="text-xs text-muted-foreground">
+                Trang <span className="font-semibold text-foreground">{customerPage}</span> / <span className="font-semibold text-foreground">{customerTotalPages}</span>
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCustomerPage(1)}
+                  disabled={customerPage === 1}
+                  className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  «
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerPage((current) => Math.max(current - 1, 1))}
+                  disabled={customerPage === 1}
+                  className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ‹
+                </button>
+                {Array.from({ length: Math.min(5, customerTotalPages) }, (_, i) => {
+                  const p = Math.max(1, Math.min(customerPage - 2, customerTotalPages - 4)) + i;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setCustomerPage(p)}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold border ${p === customerPage ? "border-primary bg-primary text-white" : "border-border hover:bg-secondary/40"}`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setCustomerPage((current) => Math.min(current + 1, customerTotalPages))}
+                  disabled={customerPage === customerTotalPages}
+                  className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ›
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerPage(customerTotalPages)}
+                  disabled={customerPage === customerTotalPages}
+                  className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

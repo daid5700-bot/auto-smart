@@ -106,6 +106,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [hydrated, isAuth, user, displayBranches, branchesLoaded, activeBranch, router]);
 
+  // Handle expired/revoked sessions for every dashboard API request.
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const originalFetch = window.fetch.bind(window);
+    let redirectingToLogin = false;
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await originalFetch(input, init);
+      const requestUrl = typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+
+      // Login itself must keep returning its normal validation errors.
+      if (!requestUrl.includes("/api/auth/login") && (response.status === 401 || response.status === 403)) {
+        const payload = await response.clone().json().catch(() => null) as { error?: string } | null;
+        const errorText = payload?.error || "";
+        const isSessionError = response.status === 401 || /phiên đăng nhập|vô hiệu hóa|không còn tồn tại|session/i.test(errorText);
+
+        if (isSessionError && !redirectingToLogin) {
+          redirectingToLogin = true;
+          logout();
+          toast.error("Phiên đăng nhập không còn hiệu lực", "Vui lòng đăng nhập lại để tiếp tục.");
+          router.replace("/login");
+        }
+      }
+
+      return response;
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [hydrated, logout, router]);
+
   // Command Palette keyboard shortcut: Cmd+K or Ctrl+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

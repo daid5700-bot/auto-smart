@@ -37,23 +37,50 @@ export async function GET(req: NextRequest) {
   if (tab === "customers") {
     // FIX #6: Filter out soft-deleted customers
     const search = req.nextUrl.searchParams.get("search") || "";
-    const baseWhere = {
-      isDeleted: false,
-      ...(search ? {
+    const customerCategory = req.nextUrl.searchParams.get("category") || "";
+    const customerFilters: any[] = [{ isDeleted: false }];
+
+    // A customer may work with multiple branches. The relation used for
+    // branch membership must match the selected customer category.
+    if (branchId) {
+      const branchRelations = customerCategory === "service"
+        ? [{ repairOrders: { some: { branchId } } }]
+        : customerCategory === "purchase"
+          ? [{ vehicles: { some: { branchId } } }]
+          : [
+              { branchId },
+              { vehicles: { some: { branchId } } },
+              { repairOrders: { some: { branchId } } },
+              { inventoryOrders: { some: { branchId } } },
+              { leads: { some: { branchId } } },
+              { znsLogs: { some: { branchId } } },
+              { loyaltyTx: { some: { branchId } } },
+            ];
+
+      customerFilters.push({
+        OR: branchRelations,
+      });
+    }
+
+    if (search) {
+      customerFilters.push({
         OR: [
           { name: { contains: search, mode: "insensitive" } },
           { phone: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
           ...(/^\d+$/.test(search.trim()) ? [{ id: parseInt(search.trim(), 10) }] : []),
         ],
-      } : {}),
-    } as any;
+      });
+    }
+
+    const baseWhere = { AND: customerFilters } as any;
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where: baseWhere,
         include: {
           vehicles: true,
           repairOrders: true,
+          branch: true,
         },
         orderBy: { totalSpent: "desc" },
         skip,
@@ -82,7 +109,8 @@ export async function GET(req: NextRequest) {
         totalAmount: Number(ro.totalAmount || 0),
         paidAmount: Number(ro.paidAmount || 0),
         debtAmount: Number(ro.debtAmount || 0)
-      })) || []
+      })) || [],
+      branch: c.branch ? { id: c.branch.id, name: c.branch.name } : null,
     }));
     return NextResponse.json({ customers: serializedCustomers, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }

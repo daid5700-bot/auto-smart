@@ -40,7 +40,9 @@ export default function CustomersPage() {
   const fetchData = async (targetPage = 1, append = false) => {
     try {
       append ? setLoadingMore(true) : setLoading(true);
-      const res = await fetch(`/api/crm?tab=customers&page=${targetPage}&limit=20&search=${encodeURIComponent(searchTerm)}`);
+      const allBranchesQuery = activeTab === "all" ? "&allBranches=true" : "";
+      const categoryQuery = activeTab === "all" ? "" : `&category=${activeTab}`;
+      const res = await fetch(`/api/crm?tab=customers&page=${targetPage}&limit=20&search=${encodeURIComponent(searchTerm)}${allBranchesQuery}${categoryQuery}`);
       const data = await res.json();
       setCustomers((prev) => append ? [...prev, ...(data.customers || [])] : (data.customers || []));
       setTotalPages(data.pagination?.totalPages || 1);
@@ -56,7 +58,7 @@ export default function CustomersPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => fetchData(1, false), 300);
     return () => window.clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, activeTab]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -217,31 +219,27 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6 stagger">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Danh sách khách hàng</h2>
-          </div>
-        <div className="flex items-center gap-3">
-          <button onClick={handleOpenAdd} className="gradient-success text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all w-fit">
-            <Plus size={16} /> Thêm Khách hàng
-          </button>
-          <div className="flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm text-muted-foreground">
-            <Users size={14} />
-            <span>Tổng số: {filteredCustomers.length} / {customers.length}</span>
-          </div>
-        </div>
-      </div>
-
       {/* Filter Toolbar */}
       <div className="flex flex-col gap-4">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo họ tên, số điện thoại, biển số xe hoặc ID..."
-            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
-          />
+        <div className="flex items-center gap-4 w-full">
+          <div className="relative flex-1 min-w-0">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm theo họ tên, số điện thoại, biển số xe hoặc ID..."
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-nowrap shrink-0">
+            <button onClick={handleOpenAdd} className="gradient-success text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all whitespace-nowrap">
+              <Plus size={16} /> Thêm Khách hàng
+            </button>
+            <div className="flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm text-muted-foreground whitespace-nowrap">
+              <Users size={14} />
+              <span>Tổng số: {filteredCustomers.length} / {customers.length}</span>
+            </div>
+          </div>
         </div>
 
         {/* Filter categories tabs */}
@@ -292,6 +290,7 @@ export default function CustomersPage() {
             Đã lâu chưa quay lại (&gt; 90 ngày)
           </button>
         </div>
+
       </div>
 
       <div className="glass-card rounded-xl overflow-hidden">
