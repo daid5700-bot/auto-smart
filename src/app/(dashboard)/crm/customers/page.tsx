@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Users, Loader2, Search, Filter, Award, CalendarClock, Car, Plus, Edit, Trash2, X } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
+import { useAuth } from "@/lib/store";
 
 
 const SRC: Record<string, string> = {
@@ -14,6 +15,7 @@ const SRC: Record<string, string> = {
 
 export default function CustomersPage() {
   const modal = useModal();
+  const { activeBranch } = useAuth();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -23,6 +25,9 @@ export default function CustomersPage() {
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "vip" | "service" | "purchase" | "inactive">("all");
+  const customerCache = useRef(new Map<string, { customers: any[]; totalPages: number; page: number }>());
+  const activeRequest = useRef<AbortController | null>(null);
+  const requestSequence = useRef(0);
 
   // Modal State for CRUD
   const [modalOpen, setModalOpen] = useState(false);
@@ -38,27 +43,56 @@ export default function CustomersPage() {
   });
 
   const fetchData = async (targetPage = 1, append = false) => {
+    const branchKey = activeBranch?.id ? String(activeBranch.id) : "all";
+    const cacheKey = `${branchKey}:${activeTab}:${searchTerm.trim().toLowerCase()}:${targetPage}`;
+    const cached = customerCache.current.get(cacheKey);
+
+    if (cached) {
+      activeRequest.current?.abort();
+      requestSequence.current += 1;
+      setCustomers((prev) => append ? [...prev, ...cached.customers] : cached.customers);
+      setTotalPages(cached.totalPages);
+      setPage(cached.page);
+      setLoading(false);
+      setLoadingMore(false);
+      return;
+    }
+
+    if (!append) {
+      activeRequest.current?.abort();
+    }
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const requestId = ++requestSequence.current;
+
     try {
       append ? setLoadingMore(true) : setLoading(true);
       const allBranchesQuery = activeTab === "all" ? "&allBranches=true" : "";
       const categoryQuery = activeTab === "all" ? "" : `&category=${activeTab}`;
-      const res = await fetch(`/api/crm?tab=customers&page=${targetPage}&limit=20&search=${encodeURIComponent(searchTerm)}${allBranchesQuery}${categoryQuery}`);
+      const res = await fetch(`/api/crm?tab=customers&page=${targetPage}&limit=20&search=${encodeURIComponent(searchTerm)}${allBranchesQuery}${categoryQuery}`, { signal: controller.signal });
       const data = await res.json();
-      setCustomers((prev) => append ? [...prev, ...(data.customers || [])] : (data.customers || []));
-      setTotalPages(data.pagination?.totalPages || 1);
+      if (requestId !== requestSequence.current) return;
+
+      const nextCustomers = data.customers || [];
+      const nextTotalPages = data.pagination?.totalPages || 1;
+      customerCache.current.set(cacheKey, { customers: nextCustomers, totalPages: nextTotalPages, page: targetPage });
+      setCustomers((prev) => append ? [...prev, ...nextCustomers] : nextCustomers);
+      setTotalPages(nextTotalPages);
       setPage(targetPage);
     } catch (e) {
-      console.error(e);
+      if ((e as Error).name !== "AbortError") console.error(e);
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (requestId === requestSequence.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   };
 
   useEffect(() => {
     const timer = window.setTimeout(() => fetchData(1, false), 300);
     return () => window.clearTimeout(timer);
-  }, [searchTerm, activeTab]);
+  }, [searchTerm, activeTab, activeBranch?.id]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -68,7 +102,7 @@ export default function CustomersPage() {
     };
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, [loading, loadingMore, page, totalPages, searchTerm]);
+  }, [loading, loadingMore, page, totalPages, searchTerm, activeTab, activeBranch?.id]);
 
   const handleDeleteCustomer = async (id: number) => {
     const confirmed = await modal.confirm({
@@ -83,6 +117,7 @@ export default function CustomersPage() {
       setLoading(true);
       const res = await fetch(`/api/crm/${id}?type=customer`, { method: "DELETE" });
       if (res.ok) {
+        customerCache.current.clear();
         await modal.alert({
           title: "Thành công",
           message: "Đã xóa khách hàng thành công!",
@@ -160,6 +195,7 @@ export default function CustomersPage() {
 
       if (res.ok) {
         setModalOpen(false);
+        customerCache.current.clear();
         await modal.alert({
           title: "Thành công",
           message: editingId ? "Đã cập nhật thông tin khách hàng thành công!" : "Đã thêm khách hàng mới thành công!",
@@ -293,7 +329,7 @@ export default function CustomersPage() {
 
       </div>
 
-      <div className="glass-card rounded-xl overflow-hidden">
+      <div className="glass-card rounded-xl overflow-hidden relative" aria-busy={loading}>
         <table className="data-table">
           <thead>
             <tr>
@@ -365,6 +401,13 @@ export default function CustomersPage() {
             )}
           </tbody>
         </table>
+        {loading && customers.length > 0 && (
+          <div className="absolute inset-0 flex items-start justify-center pt-6 bg-card/20 backdrop-blur-[1px] pointer-events-none">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-sm text-xs text-muted-foreground font-semibold">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> Đang cập nhật...
+            </div>
+          </div>
+        )}
       </div>
       {loadingMore && (
         <div className="flex justify-center py-4 text-muted-foreground text-xs font-semibold">

@@ -67,6 +67,8 @@ export default function WorkshopPage() {
     laborCost: number | "";
     partsCost: number | "";
     customerId: string;
+    customerName: string;
+    customerPhone: string;
     carCondition: string;
   }>({
     plateNumber: "",
@@ -78,6 +80,8 @@ export default function WorkshopPage() {
     laborCost: "",
     partsCost: "",
     customerId: "", // auto-populated for demo
+    customerName: "",
+    customerPhone: "",
     carCondition: "",
   });
 
@@ -280,7 +284,9 @@ export default function WorkshopPage() {
       technicianId: data?.technicians?.[0]?.id?.toString() || "",
       laborCost: "",
       partsCost: "",
-      customerId: data?.customers?.[0]?.id?.toString() || "1",
+      customerId: "",
+      customerName: "",
+      customerPhone: "",
       carCondition: "",
     });
     setModalOpen(true);
@@ -298,6 +304,8 @@ export default function WorkshopPage() {
       laborCost: Number(ro.laborCost),
       partsCost: Number(ro.partsCost),
       customerId: ro.customerId?.toString() || "",
+      customerName: ro.customer?.name || "",
+      customerPhone: ro.customer?.phone || "",
       carCondition: ro.photos?.[0] || "",
     });
     setModalOpen(true);
@@ -318,7 +326,9 @@ export default function WorkshopPage() {
         laborCost: Number(formData.laborCost),
         partsCost: Number(formData.partsCost),
         technicianId: formData.technicianId ? parseInt(formData.technicianId) : null,
-        customerId: formData.customerId ? parseInt(formData.customerId) : 1,
+        customerId: formData.customerId ? parseInt(formData.customerId) : undefined,
+        customerName: formData.customerName.trim() || undefined,
+        customerPhone: formData.customerPhone.trim() || undefined,
         photos: formData.carCondition ? [formData.carCondition] : [],
       };
 
@@ -680,12 +690,37 @@ export default function WorkshopPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Chỉ định Khách hàng</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Khách hàng có sẵn</label>
                   <select value={formData.customerId} onChange={(e) => setFormData({ ...formData, customerId: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
+                    <option value="">-- Khách hàng mới / chưa chọn --</option>
                     {customers.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
                   </select>
                 </div>
               </div>
+              {!formData.customerId && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Tên khách hàng mới</label>
+                    <input
+                      required
+                      value={formData.customerName}
+                      onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                      className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      placeholder="Nguyễn Văn A"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại mới</label>
+                    <input
+                      required
+                      value={formData.customerPhone}
+                      onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                      className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      placeholder="0901234567"
+                    />
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giao KTV</label>

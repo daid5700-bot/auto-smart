@@ -122,9 +122,47 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const branchId = getActiveBranchId();
+    let customerId = body.customerId ? Number(body.customerId) : null;
+
+    // The inline workshop form can create a new customer when no existing
+    // customer is selected.
+    if (!customerId && body.customerName && body.customerPhone) {
+      const phone = String(body.customerPhone).trim();
+      const name = String(body.customerName).trim();
+      const existingCustomer = await prisma.customer.findUnique({ where: { phone } });
+
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
+        await prisma.customer.update({
+          where: { id: existingCustomer.id },
+          data: {
+            name,
+            ...(branchId && !existingCustomer.branchId ? { branchId } : {}),
+          },
+        });
+      } else {
+        const newCustomer = await prisma.customer.create({
+          data: {
+            name,
+            phone,
+            branchId,
+            vehiclePlates: body.plateNumber ? [body.plateNumber] : [],
+          },
+        });
+        customerId = newCustomer.id;
+      }
+    }
+
+    if (!customerId) {
+      return NextResponse.json(
+        { error: "Vui lòng chọn khách hàng hoặc nhập tên và số điện thoại khách hàng mới." },
+        { status: 400 },
+      );
+    }
+
     const ro = await prisma.repairOrder.create({
       data: {
-        customerId: body.customerId,
+        customerId,
         plateNumber: body.plateNumber,
         vehicleModel: body.vehicleModel,
         kmIn: body.kmIn || 0,
