@@ -21,11 +21,12 @@ export default function CustomersPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCustomers, setTotalCustomers] = useState(0);
   
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "vip" | "service" | "purchase" | "inactive">("all");
-  const customerCache = useRef(new Map<string, { customers: any[]; totalPages: number; page: number }>());
+  const customerCache = useRef(new Map<string, { customers: any[]; total: number; totalPages: number; page: number }>());
   const activeRequest = useRef<AbortController | null>(null);
   const requestSequence = useRef(0);
 
@@ -51,6 +52,7 @@ export default function CustomersPage() {
       activeRequest.current?.abort();
       requestSequence.current += 1;
       setCustomers((prev) => append ? [...prev, ...cached.customers] : cached.customers);
+      setTotalCustomers(cached.total);
       setTotalPages(cached.totalPages);
       setPage(cached.page);
       setLoading(false);
@@ -74,9 +76,11 @@ export default function CustomersPage() {
       if (requestId !== requestSequence.current) return;
 
       const nextCustomers = data.customers || [];
+      const nextTotal = data.pagination?.total || 0;
       const nextTotalPages = data.pagination?.totalPages || 1;
-      customerCache.current.set(cacheKey, { customers: nextCustomers, totalPages: nextTotalPages, page: targetPage });
+      customerCache.current.set(cacheKey, { customers: nextCustomers, total: nextTotal, totalPages: nextTotalPages, page: targetPage });
       setCustomers((prev) => append ? [...prev, ...nextCustomers] : nextCustomers);
+      setTotalCustomers(nextTotal);
       setTotalPages(nextTotalPages);
       setPage(targetPage);
     } catch (e) {
@@ -221,37 +225,8 @@ export default function CustomersPage() {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
-  // Filter logic
-  const filteredCustomers = customers.filter((c) => {
-    // Search filter
-    const matchesSearch =
-      !searchTerm ||
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.phone.includes(searchTerm) ||
-      (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (c.vehiclePlates && c.vehiclePlates.some((plate: string) => plate.toLowerCase().includes(searchTerm.toLowerCase())));
-
-    if (!matchesSearch) return false;
-
-    // Tab filter
-    if (activeTab === "vip") {
-      return Number(c.totalSpent) >= 20000000 || (c.tags && c.tags.includes("VIP"));
-    }
-    if (activeTab === "service") {
-      return c.repairOrders && c.repairOrders.length > 0;
-    }
-    if (activeTab === "purchase") {
-      return c.vehicles && c.vehicles.length > 0;
-    }
-    if (activeTab === "inactive") {
-      if (!c.lastVisit) return true;
-      const diffTime = Math.abs(new Date().getTime() - new Date(c.lastVisit).getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays >= 90;
-    }
-
-    return true;
-  });
+  // Search, category and branch filtering are performed by PostgreSQL before pagination.
+  const filteredCustomers = customers;
 
   return (
     <div className="space-y-6 stagger">
@@ -273,7 +248,7 @@ export default function CustomersPage() {
             </button>
             <div className="flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm text-muted-foreground whitespace-nowrap">
               <Users size={14} />
-              <span>Tổng số: {filteredCustomers.length} / {customers.length}</span>
+              <span>Tổng số: {customers.length} / {totalCustomers}</span>
             </div>
           </div>
         </div>

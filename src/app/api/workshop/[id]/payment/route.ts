@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/guard";
+import { getActiveBranchId } from "@/lib/branch";
+import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
+import { paymentSchema } from "@/lib/validation/payment";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const guard = await requireAuth(req, ["ADMIN", "WORKSHOP"]);
+  if (!guard.ok) return guard.response;
+
   try {
     const id = parseInt(params.id);
-    const { amount } = await req.json();
-    
-    const paymentDelta = Number(amount);
-    if (isNaN(paymentDelta) || paymentDelta < 0) {
-      return NextResponse.json({ error: "Số tiền không hợp lệ" }, { status: 400 });
-    }
+    if (!Number.isInteger(id) || id <= 0) throw new ApiError("ID không hợp lệ", 400, "INVALID_ID");
+    const { amount: paymentDelta } = await parseJson(req, paymentSchema);
+    const branchId = getActiveBranchId();
 
-    const ro = await prisma.repairOrder.findUnique({
-      where: { id },
+    const ro = await prisma.repairOrder.findFirst({
+      where: { id, ...(branchId ? { branchId } : {}) },
       include: { customer: true }
     });
 
-    if (!ro) return NextResponse.json({ error: "Không tìm thấy lệnh sửa chữa" }, { status: 404 });
+    if (!ro) throw new ApiError("Không tìm thấy lệnh sửa chữa tại chi nhánh này", 404, "REPAIR_ORDER_NOT_FOUND");
 
     const oldPaidAmount = ro.paidAmount.toNumber();
     const oldDebtAmount = ro.debtAmount.toNumber();
@@ -49,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             referenceType: "REPAIR_ORDER",
             note: pType === "INCOME" ? `Thu tiền lệnh sửa chữa RO-${ro.id}` : `Hoàn tiền lệnh sửa chữa RO-${ro.id}`,
             branchId: ro.branchId,
-            createdBy: "system"
+            createdBy: String(guard.userId)
           }
         });
       }
@@ -79,7 +83,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     };
 
     return NextResponse.json(serializedRo);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error, "WORKSHOP_PAYMENT", "Không thể ghi nhận thanh toán");
   }
 }

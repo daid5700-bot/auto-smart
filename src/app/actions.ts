@@ -4,6 +4,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 import { cookies } from "next/headers";
 import { verifyRole } from "@/lib/auth";
+import { customerBelongsToBranch, ensureCustomerBranch } from "@/lib/customer-branch";
 
 // ===== INVENTORY LOGIC =====
 
@@ -635,53 +636,66 @@ export async function sendZNSMock(phone: string, templateId: string, payload: an
 }
 
 export async function redeemPointsDb(data: { customerId: number; points: number; description?: string }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+  if (!Number.isInteger(data.customerId) || data.customerId <= 0) throw new Error("Khách hàng không hợp lệ");
+  if (!Number.isInteger(data.points) || data.points <= 0) throw new Error("Số điểm quy đổi không hợp lệ");
+
   const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
   if (!customer) throw new Error("Khách hàng không tồn tại");
   const branchId = getActiveBranchId();
-  if (customer.loyaltyPoints < data.points) throw new Error("Không đủ điểm tích lũy");
+  const activityBranchId = branchId || customer.branchId;
 
-  const updated = await prisma.customer.update({
-    where: { id: data.customerId },
-    data: { loyaltyPoints: { decrement: data.points } },
-  });
-
-  // Ghi log giao dịch điểm (audit trail)
   const defaultDesc = `Đổi ${data.points} điểm thành ${(data.points * 1000).toLocaleString("vi-VN")}đ giảm giá hóa đơn`;
-  await prisma.loyaltyTransaction.create({
-    data: {
-      customerId: data.customerId,
-      type: "REDEEM",
-      points: -data.points,
-      description: data.description ? `${data.description} (${defaultDesc})` : defaultDesc,
-      branchId: branchId || customer.branchId,
-    },
-  });
+  await prisma.$transaction(async (tx) => {
+    const deducted = await tx.customer.updateMany({
+      where: { id: data.customerId, loyaltyPoints: { gte: data.points } },
+      data: { loyaltyPoints: { decrement: data.points } },
+    });
+    if (deducted.count !== 1) throw new Error("Không đủ điểm tích lũy");
 
-  await prisma.znsLog.create({
-    data: {
-      customerId: data.customerId,
-      phone: customer.phone,
-      messageType: "PROMO",
-      content: `Khách hàng ${customer.name} đã đổi thành công ${data.points} điểm tích lũy thành giảm giá hóa đơn!`,
-      status: "SENT",
-      branchId: branchId || customer.branchId,
-    },
+    await ensureCustomerBranch(data.customerId, activityBranchId, tx);
+    await tx.loyaltyTransaction.create({
+      data: {
+        customerId: data.customerId,
+        type: "REDEEM",
+        points: -data.points,
+        description: data.description ? `${data.description} (${defaultDesc})` : defaultDesc,
+        branchId: activityBranchId,
+      },
+    });
+
+    await tx.znsLog.create({
+      data: {
+        customerId: data.customerId,
+        phone: customer.phone,
+        messageType: "PROMO",
+        content: `Khách hàng ${customer.name} đã đổi thành công ${data.points} điểm tích lũy thành giảm giá hóa đơn!`,
+        status: "SENT",
+        branchId: activityBranchId,
+      },
+    });
   });
 
   return data.points * 1000; // 1 point = 1,000 VND
 }
 
 export async function sendOilChangeReminderAction(data: { customerId: number; phone: string; plateNumber: string }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+
   const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
   if (!customer) throw new Error("Khách hàng không tồn tại");
   const branchId = getActiveBranchId();
-  if (branchId && customer.branchId !== branchId) {
+  if (!(await customerBelongsToBranch(data.customerId, branchId))) {
     throw new Error("Khách hàng không thuộc chi nhánh hiện tại");
   }
 
   const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
   const lastRo = await prisma.repairOrder.findFirst({
-    where: { customerId: data.customerId },
+    where: { customerId: data.customerId, ...(branchId ? { branchId } : {}) },
     orderBy: { createdAt: "desc" },
   });
 
@@ -724,7 +738,7 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
       content: `Nhắc lịch: Xe ${data.plateNumber} của quý khách đã đến kỳ thay dầu nhớt định kỳ. Vui lòng liên hệ Xe Máy Toàn Thắng để đặt lịch hẹn!`,
       status,
       error: errorMsg,
-      branchId: customer.branchId,
+      branchId: branchId || customer.branchId,
     },
   });
 
@@ -1053,8 +1067,16 @@ export async function sendCustomZnsAction(data: {
   templateId?: string;
   content: string;
 }) {
+  const cookieStore = cookies();
+  const userRole = await verifyRole(cookieStore.get("user_role")?.value);
+  if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+
   const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
   if (!customer) throw new Error("Khách hàng không tồn tại");
+  const activeBranchId = getActiveBranchId();
+  if (!(await customerBelongsToBranch(data.customerId, activeBranchId))) {
+    throw new Error("Khách hàng không thuộc chi nhánh hiện tại");
+  }
 
   let status = "SUCCESS";
   let errorMsg: string | null = null;
@@ -1062,7 +1084,7 @@ export async function sendCustomZnsAction(data: {
   if (data.templateId) {
     // Compile template data dynamically for Zalo ZNS
     const lastRo = await prisma.repairOrder.findFirst({
-      where: { customerId: data.customerId },
+      where: { customerId: data.customerId, ...(activeBranchId ? { branchId: activeBranchId } : {}) },
       orderBy: { createdAt: "desc" },
     });
     const plate = lastRo?.plateNumber || customer.vehiclePlates?.[0] || "N/A";
@@ -1148,7 +1170,7 @@ export async function sendCustomZnsAction(data: {
       content: data.content,
       status,
       error: errorMsg,
-      branchId: customer.branchId,
+      branchId: activeBranchId || customer.branchId,
     },
   });
 

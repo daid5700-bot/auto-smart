@@ -4,40 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 import { requireAuth } from "@/lib/guard";
-
-// Helper to find or upsert a Customer
-async function getOrCreateCustomer(name: string, phone: string, birthdayStr?: string, branchId?: number | null) {
-  if (!phone || !name) return null;
-
-  let birthday: Date | null = null;
-  if (birthdayStr) {
-    birthday = new Date(birthdayStr);
-  }
-
-  const existing = await prisma.customer.findUnique({
-    where: { phone }
-  });
-
-  if (existing) {
-    return prisma.customer.update({
-      where: { id: existing.id },
-      data: {
-        name,
-        ...(birthday ? { birthday } : {})
-      }
-    });
-  } else {
-    return prisma.customer.create({
-      data: {
-        name,
-        phone,
-        source: "WALKIN",
-        birthday,
-        branchId
-      }
-    });
-  }
-}
+import { getOrCreateCustomerForBranch } from "@/lib/customer-branch";
+import { handleApiError, parseJson } from "@/lib/api-response";
+import { createVehicleSchema } from "@/lib/validation/sales";
+import { parseItemArray } from "@/lib/sales/vehicle-update";
 
 // Helper to expand unaccented Vietnamese search terms
 function expandVietnameseKeyword(keyword: string): string[] {
@@ -338,7 +308,7 @@ export async function POST(req: NextRequest) {
   if (!guard.ok) return guard.response;
 
   try {
-    const body = await req.json();
+    const body = await parseJson(req, createVehicleSchema);
     const branchId = body.branchId !== undefined ? (body.branchId ? Number(body.branchId) : null) : getActiveBranchId();
 
 
@@ -364,7 +334,12 @@ export async function POST(req: NextRequest) {
 
     let customerId: number | null = null;
     if (customerPhone && customerName) {
-      const customer = await getOrCreateCustomer(customerName, customerPhone, customerBirthday, branchId);
+      const customer = await getOrCreateCustomerForBranch({
+        name: customerName,
+        phone: customerPhone,
+        birthday: customerBirthday,
+        branchId,
+      });
       if (customer) {
         customerId = customer.id;
       }
@@ -372,7 +347,8 @@ export async function POST(req: NextRequest) {
 
     const parsedListPrice = Number(listPrice) || 0;
     const parsedPlateCost = plateCost !== undefined ? Number(plateCost) : 0;
-    const accessories = JSON.parse(accessoriesJson || "[]");
+    const accessories = parseItemArray(accessoriesJson || "[]");
+    const normalizedAccessoriesJson = JSON.stringify(accessories);
     const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
     const initialDebtAmount = parsedListPrice + parsedPlateCost + accCost;
 
@@ -398,7 +374,7 @@ export async function POST(req: NextRequest) {
           bankStatus: bankStatus || "NONE",
           plateStatus: plateStatus || "PENDING",
           plateCost: parsedPlateCost,
-          accessoriesJson: accessoriesJson || "[]",
+          accessoriesJson: normalizedAccessoriesJson,
           debtAmount: initialDebtAmount,
           notes: notes || null,
           warehouse: warehouse || null,
@@ -444,7 +420,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Xử lý quà tặng phụ tùng
-      const giftItems = body.giftItemsJson ? JSON.parse(body.giftItemsJson) : [];
+      const giftItems = parseItemArray(body.giftItemsJson || "[]");
       if (giftItems.length > 0 && branchId) {
         await tx.partsRequisition.create({
           data: {
@@ -488,8 +464,7 @@ export async function POST(req: NextRequest) {
     };
 
     return NextResponse.json(serializedVehicle, { status: 201 });
-  } catch (error: any) {
-    console.error("POST /api/sales error details:", error);
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return handleApiError(error, "API_SALES_CREATE", "Không thể tạo hồ sơ xe");
   }
 }

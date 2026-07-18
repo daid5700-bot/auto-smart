@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/guard";
+import { getActiveBranchId } from "@/lib/branch";
+import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
+import { paymentSchema } from "@/lib/validation/payment";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const guard = await requireAuth(req);
@@ -8,24 +11,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   try {
     const id = parseInt(params.id);
-    if (isNaN(id) || id <= 0) {
-      return NextResponse.json({ error: "ID xe không hợp lệ" }, { status: 400 });
-    }
+    if (!Number.isInteger(id) || id <= 0) throw new ApiError("ID xe không hợp lệ", 400, "INVALID_ID");
+    const { amount: paymentDelta } = await parseJson(req, paymentSchema);
+    const branchId = getActiveBranchId();
 
-    const { amount } = await req.json();
-
-    // `amount` is the ADDITIONAL payment delta (not absolute total paid)
-    const paymentDelta = Number(amount);
-    if (isNaN(paymentDelta) || paymentDelta <= 0) {
-      return NextResponse.json({ error: "Số tiền phải lớn hơn 0" }, { status: 400 });
-    }
-
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { id },
+    const vehicle = await prisma.vehicle.findFirst({
+      where: { id, ...(branchId ? { branchId } : {}) },
       include: { customer: true }
     });
 
-    if (!vehicle) return NextResponse.json({ error: "Không tìm thấy xe" }, { status: 404 });
+    if (!vehicle) throw new ApiError("Không tìm thấy xe tại chi nhánh này", 404, "VEHICLE_NOT_FOUND");
 
     // Calculate total bill for the vehicle
     let accessories: any[] = [];
@@ -71,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             referenceType: "VEHICLE_SALE",
             note: pType === "INCOME" ? `Thu tiền hồ sơ bán xe ${vehicle.vin}` : `Hoàn tiền hồ sơ bán xe ${vehicle.vin}`,
             branchId: vehicle.branchId,
-            createdBy: "system"
+            createdBy: String(guard.userId)
           }
         });
       }
@@ -101,7 +96,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     };
 
     return NextResponse.json(serializedVehicle);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error, "VEHICLE_PAYMENT", "Không thể ghi nhận thanh toán");
   }
 }

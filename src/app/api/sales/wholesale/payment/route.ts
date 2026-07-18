@@ -1,33 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/guard";
+import { getActiveBranchId } from "@/lib/branch";
+import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
+import { wholesalePaymentSchema } from "@/lib/validation/payment";
 
 export async function PATCH(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
-    const { vehicleIds, amount } = await req.json();
-
-    if (!Array.isArray(vehicleIds) || vehicleIds.length === 0) {
-      return NextResponse.json({ error: "Danh sách xe không hợp lệ" }, { status: 400 });
-    }
-
-    const paymentDelta = Number(amount);
-    if (isNaN(paymentDelta) || paymentDelta < 0) {
-      return NextResponse.json({ error: "Số tiền không hợp lệ" }, { status: 400 });
-    }
+    const { vehicleIds, amount: paymentDelta } = await parseJson(req, wholesalePaymentSchema);
+    const activeBranchId = getActiveBranchId();
 
     // Fetch all vehicles in the wholesale group
     const vehicles = await prisma.vehicle.findMany({
-      where: { id: { in: vehicleIds } },
+      where: { id: { in: vehicleIds }, ...(activeBranchId ? { branchId: activeBranchId } : {}) },
       include: { customer: true }
     });
 
-    if (vehicles.length === 0) {
-      return NextResponse.json({ error: "Không tìm thấy xe nào" }, { status: 404 });
+    if (vehicles.length !== vehicleIds.length) {
+      throw new ApiError(
+        "Một hoặc nhiều xe không tồn tại hoặc không thuộc chi nhánh hiện tại",
+        404,
+        "VEHICLE_NOT_FOUND",
+      );
+    }
+    if (vehicles.some((vehicle) => vehicle.status === "CANCELLED")) {
+      throw new ApiError("Không thể thanh toán cho hồ sơ xe đã hủy", 409, "VEHICLE_CANCELLED");
     }
 
     // Validate all vehicles belong to the same customer to prevent debt mis-assignment
     const uniqueCustomerIds = new Set(vehicles.map(v => v.customerId));
-    if (uniqueCustomerIds.size > 1) {
-      return NextResponse.json({ error: "Các xe trong lô không cùng một khách hàng. Vui lòng kiểm tra lại." }, { status: 400 });
+    if (uniqueCustomerIds.size > 1 || vehicles[0].customerId === null) {
+      throw new ApiError("Các xe trong lô phải thuộc cùng một khách hàng", 400, "CUSTOMER_MISMATCH");
     }
 
     // Check if they all belong to the same customer
@@ -35,26 +41,18 @@ export async function PATCH(req: NextRequest) {
     const branchId = vehicles[0].branchId;
     const customerName = vehicles[0].customer?.name || "Khách mua buôn";
 
-    // Calculate total prices for each vehicle and group total
+    // Snapshot the balances used to distribute the payment deterministically.
     const vehiclePricing = vehicles.map(v => {
-      const accessories = typeof v.accessoriesJson === "string" ? JSON.parse(v.accessoriesJson) : (v.accessoriesJson as any) || [];
-      const accCost = accessories.reduce((acc: number, curr: any) => acc + (Number(curr.price) * (Number(curr.quantity) || 1)), 0);
-      const totalPrice = v.listPrice.toNumber() + (v.plateCost ? v.plateCost.toNumber() : 0) + accCost;
       return {
         id: v.id,
-        vin: v.vin,
-        totalPrice,
         oldDebt: v.debtAmount.toNumber(),
         oldPaid: v.paidAmount.toNumber()
       };
     });
 
-    const groupTotalPrice = vehiclePricing.reduce((sum, v) => sum + v.totalPrice, 0);
     const oldGroupDebt = vehiclePricing.reduce((sum, v) => sum + v.oldDebt, 0);
-    const oldGroupPaid = vehiclePricing.reduce((sum, v) => sum + v.oldPaid, 0);
 
     const actualPaymentDelta = Math.min(paymentDelta, oldGroupDebt);
-    const newGroupPaid = oldGroupPaid + actualPaymentDelta;
     const newGroupDebt = oldGroupDebt - actualPaymentDelta;
     const diffPaid = actualPaymentDelta;
     const debtDelta = newGroupDebt - oldGroupDebt;
@@ -79,6 +77,7 @@ export async function PATCH(req: NextRequest) {
         status
       };
     });
+    const updatesByVehicleId = new Map(updates.map((update) => [update.id, update]));
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Update each vehicle
@@ -109,7 +108,7 @@ export async function PATCH(req: NextRequest) {
               ? `Thu tiền thanh toán lô xe bán buôn của khách hàng ${customerName}` 
               : `Hoàn tiền lô xe bán buôn của khách hàng ${customerName}`,
             branchId,
-            createdBy: "system"
+            createdBy: String(guard.userId)
           }
         });
       }
@@ -120,7 +119,7 @@ export async function PATCH(req: NextRequest) {
         let totalSpentChange = 0;
 
         for (const v of vehicles) {
-          const update = updates.find(u => u.id === v.id)!;
+          const update = updatesByVehicleId.get(v.id)!;
           const wasActive = ["RESERVED", "SOLD"].includes(v.status);
           const isNowActive = ["RESERVED", "SOLD"].includes(update.status);
 
@@ -165,8 +164,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error("Error in wholesale payment PATCH:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error, "WHOLESALE_PAYMENT", "Không thể ghi nhận thanh toán lô xe");
   }
 }

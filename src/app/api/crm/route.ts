@@ -3,18 +3,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { requireAuth } from "@/lib/guard";
+import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
+import { ensureCustomerBranch } from "@/lib/customer-branch";
+import { crmQuerySchema, createCrmEntrySchema } from "@/lib/validation/crm";
+import {
+  buildCustomerWhere,
+  customerSummarySelect,
+  serializeCustomerSummary,
+} from "@/lib/crm/customer-query";
 
 // GET /api/crm — leads, customers, zns logs
-export async function GET(req: NextRequest) {
+async function getCrmData(req: NextRequest) {
   const guard = await requireAuth(req);
   if (!guard.ok) return guard.response;
 
-  const tab = req.nextUrl.searchParams.get("tab") || "leads";
-  const allBranches = req.nextUrl.searchParams.get("allBranches") === "true";
+  const query = crmQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
+  const { tab, search, category: customerCategory } = query;
+  const allBranches = query.allBranches && tab === "customers";
   const branchId = allBranches ? null : getActiveBranchId();
 
-  const page = Math.max(1, parseInt(req.nextUrl.searchParams.get("page") || "1"));
-  const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") || "50")));
+  const page = query.page;
+  const limit = tab === "reminders" ? query.limit : Math.min(100, query.limit);
   const skip = (page - 1) * limit;
 
   if (tab === "leads") {
@@ -35,83 +44,22 @@ export async function GET(req: NextRequest) {
   }
 
   if (tab === "customers") {
-    // FIX #6: Filter out soft-deleted customers
-    const search = req.nextUrl.searchParams.get("search") || "";
-    const customerCategory = req.nextUrl.searchParams.get("category") || "";
-    const customerFilters: any[] = [{ isDeleted: false }];
-
-    // A customer may work with multiple branches. The relation used for
-    // branch membership must match the selected customer category.
-    if (branchId) {
-      const branchRelations = customerCategory === "service"
-        ? [{ repairOrders: { some: { branchId } } }]
-        : customerCategory === "purchase"
-          ? [{ vehicles: { some: { branchId } } }]
-          : [
-              { branchId },
-              { vehicles: { some: { branchId } } },
-              { repairOrders: { some: { branchId } } },
-              { inventoryOrders: { some: { branchId } } },
-              { leads: { some: { branchId } } },
-              { znsLogs: { some: { branchId } } },
-              { loyaltyTx: { some: { branchId } } },
-            ];
-
-      customerFilters.push({
-        OR: branchRelations,
-      });
-    }
-
-    if (search) {
-      customerFilters.push({
-        OR: [
-          { name: { contains: search, mode: "insensitive" } },
-          { phone: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          ...(/^\d+$/.test(search.trim()) ? [{ id: parseInt(search.trim(), 10) }] : []),
-        ],
-      });
-    }
-
-    const baseWhere = { AND: customerFilters } as any;
+    const baseWhere = buildCustomerWhere({
+      branchId,
+      category: customerCategory,
+      search,
+    });
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where: baseWhere,
-        include: {
-          vehicles: true,
-          repairOrders: true,
-          branch: true,
-        },
+        select: customerSummarySelect,
         orderBy: { totalSpent: "desc" },
         skip,
         take: limit,
       }),
       prisma.customer.count({ where: baseWhere })
     ]);
-    const serializedCustomers = customers.map((c: any) => ({
-      ...c,
-      totalSpent: Number(c.totalSpent || 0),
-      totalDebt: Number(c.totalDebt || 0),
-      vehicles: c.vehicles?.map((v: any) => ({
-        ...v,
-        importPrice: v.importPrice ? Number(v.importPrice) : null,
-        listPrice: v.listPrice ? Number(v.listPrice) : 0,
-        floorPrice: v.floorPrice ? Number(v.floorPrice) : 0,
-        paidAmount: v.paidAmount ? Number(v.paidAmount) : 0,
-        debtAmount: v.debtAmount ? Number(v.debtAmount) : 0,
-        plateCost: v.plateCost ? Number(v.plateCost) : null
-      })) || [],
-      repairOrders: c.repairOrders?.map((ro: any) => ({
-        ...ro,
-        laborCost: Number(ro.laborCost || 0),
-        partsCost: Number(ro.partsCost || 0),
-        discountAmount: Number(ro.discountAmount || 0),
-        totalAmount: Number(ro.totalAmount || 0),
-        paidAmount: Number(ro.paidAmount || 0),
-        debtAmount: Number(ro.debtAmount || 0)
-      })) || [],
-      branch: c.branch ? { id: c.branch.id, name: c.branch.name } : null,
-    }));
+    const serializedCustomers = customers.map(serializeCustomerSummary);
     return NextResponse.json({ customers: serializedCustomers, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
   }
 
@@ -125,7 +73,8 @@ export async function GET(req: NextRequest) {
     });
 
     // Fetch up to 500 most recent active customers (configurable via ?limit=N, max 1000)
-    const reminderLimit = Math.min(1000, Math.max(50, parseInt(req.nextUrl.searchParams.get("limit") || "500")));
+    const requestedReminderLimit = req.nextUrl.searchParams.has("limit") ? query.limit : 500;
+    const reminderLimit = Math.min(1000, Math.max(50, requestedReminderLimit));
     const customers = await prisma.customer.findMany({
       where: {
         isDeleted: false,
@@ -266,7 +215,6 @@ export async function GET(req: NextRequest) {
 
 
   if (tab === "zns") {
-    const search = req.nextUrl.searchParams.get("search") || "";
     const baseWhere = {
       ...(branchId ? { branchId } : {}),
       ...(search ? {
@@ -294,7 +242,6 @@ export async function GET(req: NextRequest) {
   }
 
   if (tab === "loyalty") {
-    const search = req.nextUrl.searchParams.get("search") || "";
     const baseWhere = {
       type: "REDEEM",
       ...(branchId ? { branchId } : {}),
@@ -341,30 +288,43 @@ export async function GET(req: NextRequest) {
   });
 }
 
+export async function GET(req: NextRequest) {
+  try {
+    return await getCrmData(req);
+  } catch (error) {
+    return handleApiError(error, "API_CRM_GET", "Không thể tải dữ liệu CRM");
+  }
+}
+
 // POST /api/crm — create lead or customer
 export async function POST(req: NextRequest) {
   const guard = await requireAuth(req);
   if (!guard.ok) return guard.response;
 
   try {
-    const body = await req.json();
+    const body = await parseJson(req, createCrmEntrySchema);
     const branchId = getActiveBranchId();
     if (body.type === "customer") {
-      if (!body.name || !body.name.trim()) throw new Error("Tên khách hàng không được để trống");
-      if (!body.phone || !/^0[0-9]{9}$/.test(body.phone)) throw new Error("Số điện thoại không hợp lệ");
-
-      const customer = await prisma.customer.create({
-        data: {
-          name: body.name,
-          phone: body.phone,
-          email: body.email || null,
-          address: body.address || null,
-          source: body.source || "WALKIN",
-          birthday: body.birthday ? new Date(body.birthday) : null,
-          vehiclePlates: body.vehiclePlates ? (typeof body.vehiclePlates === "string" ? body.vehiclePlates.split(",").map((p: string) => p.trim()) : body.vehiclePlates) : [],
-          tags: body.tags ? (typeof body.tags === "string" ? body.tags.split(",").map((t: string) => t.trim()) : body.tags) : [],
-          branchId,
-        } as any
+      const customer = await prisma.$transaction(async (tx) => {
+        const created = await tx.customer.create({
+          data: {
+            name: body.name,
+            phone: body.phone,
+            email: body.email || null,
+            address: body.address || null,
+            source: body.source,
+            birthday: body.birthday ? new Date(body.birthday) : null,
+            vehiclePlates: body.vehiclePlates
+              ? (typeof body.vehiclePlates === "string" ? body.vehiclePlates.split(",").map((p) => p.trim()).filter(Boolean) : body.vehiclePlates)
+              : [],
+            tags: body.tags
+              ? (typeof body.tags === "string" ? body.tags.split(",").map((t) => t.trim()).filter(Boolean) : body.tags)
+              : [],
+            branchId,
+          },
+        });
+        await ensureCustomerBranch(created.id, branchId, tx);
+        return created;
       });
       const serializedCustomer = {
         ...customer,
@@ -377,7 +337,7 @@ export async function POST(req: NextRequest) {
         data: {
           name: body.name,
           phone: body.phone,
-          source: body.source || "WALKIN",
+          source: body.source,
           interest: body.interest,
           notes: body.notes,
           assignedToId: body.assignedToId,
@@ -386,8 +346,13 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json(lead, { status: 201 });
     }
-  } catch (error: any) {
-    if (error.code === 'P2002') return NextResponse.json({ error: "Số điện thoại này đã được đăng ký" }, { status: 400 });
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    if ((error as { code?: string })?.code === "P2002") {
+      return handleApiError(
+        new ApiError("Số điện thoại này đã được đăng ký", 409, "PHONE_EXISTS"),
+        "API_CRM_POST",
+      );
+    }
+    return handleApiError(error, "API_CRM_POST", "Không thể lưu dữ liệu CRM");
   }
 }

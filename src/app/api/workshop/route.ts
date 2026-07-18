@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { requireAuth } from "@/lib/guard";
+import { ensureCustomerBranch, getOrCreateCustomerForBranch } from "@/lib/customer-branch";
+import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
+import { createInlineRepairOrderSchema } from "@/lib/validation/workshop";
 
 const serializeRepairOrder = (ro: any) => {
   if (!ro) return null;
@@ -120,45 +123,34 @@ export async function POST(req: NextRequest) {
   if (!guard.ok) return guard.response;
 
   try {
-    const body = await req.json();
+    const body = await parseJson(req, createInlineRepairOrderSchema);
     const branchId = getActiveBranchId();
+    if (!branchId) {
+      throw new ApiError("Không xác định được chi nhánh hiện tại", 400, "BRANCH_REQUIRED");
+    }
     let customerId = body.customerId ? Number(body.customerId) : null;
 
     // The inline workshop form can create a new customer when no existing
     // customer is selected.
     if (!customerId && body.customerName && body.customerPhone) {
-      const phone = String(body.customerPhone).trim();
-      const name = String(body.customerName).trim();
-      const existingCustomer = await prisma.customer.findUnique({ where: { phone } });
-
-      if (existingCustomer) {
-        customerId = existingCustomer.id;
-        await prisma.customer.update({
-          where: { id: existingCustomer.id },
-          data: {
-            name,
-            ...(branchId && !existingCustomer.branchId ? { branchId } : {}),
-          },
-        });
-      } else {
-        const newCustomer = await prisma.customer.create({
-          data: {
-            name,
-            phone,
-            branchId,
-            vehiclePlates: body.plateNumber ? [body.plateNumber] : [],
-          },
-        });
-        customerId = newCustomer.id;
-      }
+      const customer = await getOrCreateCustomerForBranch({
+        name: body.customerName,
+        phone: body.customerPhone,
+        branchId,
+        vehiclePlate: body.plateNumber,
+      });
+      customerId = customer?.id ?? null;
     }
 
     if (!customerId) {
-      return NextResponse.json(
-        { error: "Vui lòng chọn khách hàng hoặc nhập tên và số điện thoại khách hàng mới." },
-        { status: 400 },
+      throw new ApiError(
+        "Vui lòng chọn khách hàng hoặc nhập tên và số điện thoại khách hàng mới.",
+        400,
+        "CUSTOMER_REQUIRED",
       );
     }
+
+    await ensureCustomerBranch(customerId, branchId);
 
     const ro = await prisma.repairOrder.create({
       data: {
@@ -170,7 +162,7 @@ export async function POST(req: NextRequest) {
         photos: body.photos || [],
         status: body.status || "DOING",
         technicianId: body.technicianId,
-        createdById: body.createdById,
+        createdById: guard.userId,
         laborCost: body.laborCost || 0,
         partsCost: body.partsCost || 0,
         totalAmount: (body.laborCost || 0) + (body.partsCost || 0),
@@ -185,8 +177,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(serializeRepairOrder(ro), { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return handleApiError(error, "API_WORKSHOP_CREATE", "Không thể tạo lệnh sửa chữa");
   }
 }
 

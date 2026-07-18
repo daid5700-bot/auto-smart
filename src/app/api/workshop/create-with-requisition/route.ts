@@ -3,11 +3,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
+import { getOrCreateCustomerForBranch } from "@/lib/customer-branch";
+import { requireAuth } from "@/lib/guard";
+import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
+import {
+  createRepairOrderWithRequisitionSchema,
+  parseServiceDiscounts,
+} from "@/lib/validation/workshop";
 
 // POST /api/workshop/create-with-requisition
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req, ["ADMIN", "WORKSHOP"]);
+  if (!guard.ok) return guard.response;
+
   try {
-    const body = await req.json();
+    const body = await parseJson(req, createRepairOrderWithRequisitionSchema);
     const branchId = getActiveBranchId();
     if (!branchId) {
       return NextResponse.json({ error: "Không xác định được chi nhánh hiện tại" }, { status: 400 });
@@ -22,23 +32,13 @@ export async function POST(req: NextRequest) {
       symptoms,
       carCondition,
       technicianId,
-      createdById,
       laborCost,
-      items, // array of { productId, quantity, unitPrice }
+      items: parsedItems, // array of { productId, quantity, unitPrice }
       pointsToRedeem,
       discountPercent,
       birthday,
     } = body;
-
-    if (!phone) {
-      return NextResponse.json({ error: "Thiếu số điện thoại khách hàng" }, { status: 400 });
-    }
-    if (!customerName) {
-      return NextResponse.json({ error: "Thiếu tên khách hàng" }, { status: 400 });
-    }
-    if (!plateNumber) {
-      return NextResponse.json({ error: "Thiếu biển số xe" }, { status: 400 });
-    }
+    const items = parsedItems ?? [];
 
       // 1. Calculate parts total cost
       let calculatedPartsCost = 0;
@@ -46,17 +46,7 @@ export async function POST(req: NextRequest) {
         calculatedPartsCost += Number(item.unitPrice) * Number(item.quantity);
       }
 
-      let serviceDiscountPercent = 0;
-      let partsDiscountPercent = 0;
-      if (symptoms) {
-        try {
-          const parsed = JSON.parse(symptoms);
-          if (parsed && typeof parsed === "object") {
-            serviceDiscountPercent = Number(parsed.serviceDiscountPercent) || 0;
-            partsDiscountPercent = Number(parsed.partsDiscountPercent) || 0;
-          }
-        } catch {}
-      }
+      const { serviceDiscountPercent, partsDiscountPercent } = parseServiceDiscounts(symptoms);
 
       const laborCostNum = Number(laborCost) || 0;
       const serviceDiscountAmount = Math.round(laborCostNum * (serviceDiscountPercent / 100));
@@ -69,41 +59,23 @@ export async function POST(req: NextRequest) {
       const finalTotalAmount = Math.max(0, rawTotal - totalDiscountAmount - pointsDiscount);
 
     // 2. Find or create/update customer (OUTSIDE transaction to avoid deadlocks)
-    let customer = await prisma.customer.findUnique({
+    const existingCustomer = await prisma.customer.findUnique({
       where: { phone },
     });
 
-    let finalCustomerId: number;
-    if (customer) {
-      let updatedPlates = [...customer.vehiclePlates];
-      if (plateNumber && !updatedPlates.includes(plateNumber)) {
-        updatedPlates.push(plateNumber);
-      }
-
-      customer = await prisma.customer.update({
-        where: { id: customer.id },
-        data: {
-          name: customerName,
-          vehiclePlates: updatedPlates,
-          ...(birthday ? { birthday: new Date(birthday) } : {}),
-        },
-      });
-      finalCustomerId = customer.id;
-    } else {
-      if (actualPointsToRedeem > 0) {
-        throw new Error("Khách hàng mới chưa có điểm tích lũy để quy đổi.");
-      }
-      const newCustomer = await prisma.customer.create({
-        data: {
-          name: customerName,
-          phone,
-          vehiclePlates: plateNumber ? [plateNumber] : [],
-          branchId,
-          ...(birthday ? { birthday: new Date(birthday) } : {}),
-        },
-      });
-      finalCustomerId = newCustomer.id;
+    if (!existingCustomer && actualPointsToRedeem > 0) {
+      throw new ApiError("Khách hàng mới chưa có điểm tích lũy để quy đổi.", 400, "INSUFFICIENT_POINTS");
     }
+
+    const customer = await getOrCreateCustomerForBranch({
+      name: customerName,
+      phone,
+      branchId,
+      birthday,
+      vehiclePlate: plateNumber,
+    });
+    if (!customer) throw new ApiError("Không thể tạo khách hàng cho lệnh sửa chữa.", 400, "CUSTOMER_REQUIRED");
+    const finalCustomerId = customer.id;
 
     // Create the Repair Order and Requisition inside a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -111,7 +83,11 @@ export async function POST(req: NextRequest) {
       if (actualPointsToRedeem > 0) {
         const currentCust = await tx.customer.findUnique({ where: { id: finalCustomerId } });
         if (!currentCust || currentCust.loyaltyPoints < actualPointsToRedeem) {
-          throw new Error(`Khách hàng chỉ có ${currentCust?.loyaltyPoints || 0} điểm, không đủ để quy đổi ${actualPointsToRedeem} điểm.`);
+          throw new ApiError(
+            `Khách hàng chỉ có ${currentCust?.loyaltyPoints || 0} điểm, không đủ để quy đổi ${actualPointsToRedeem} điểm.`,
+            400,
+            "INSUFFICIENT_POINTS",
+          );
         }
         await tx.customer.update({
           where: { id: finalCustomerId },
@@ -132,7 +108,7 @@ export async function POST(req: NextRequest) {
           symptoms: symptoms || "",
           status,
           technicianId: technicianId ? Number(technicianId) : null,
-          createdById: createdById ? Number(createdById) : null,
+          createdById: guard.userId,
           laborCost: laborCostNum,
           partsCost: calculatedPartsCost,
           discountPercent: serviceDiscountPercent,
@@ -228,8 +204,7 @@ export async function POST(req: NextRequest) {
     };
 
     return NextResponse.json(serializeRepairOrder(result), { status: 201 });
-  } catch (error: any) {
-    console.error("Failed to create RO with requisition:", error);
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return handleApiError(error, "API_WORKSHOP_CREATE_WITH_REQUISITION", "Không thể tạo lệnh sửa chữa");
   }
 }

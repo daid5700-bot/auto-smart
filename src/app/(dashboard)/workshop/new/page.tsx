@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown, X, User } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Loader2, AlertCircle, ChevronDown, X, User } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
-import { useAuth } from "@/lib/store";
 import { Portal } from "@/components/Portal";
 import { useModal } from "@/components/ModalProvider";
+import { RepairOrderSummary } from "@/components/workshop/RepairOrderSummary";
 
 interface RequisitionItemInput {
   productId: string;
@@ -22,7 +22,6 @@ interface ServiceInput {
 
 export default function NewRepairOrderPage() {
   const router = useRouter();
-  const { user } = useAuth();
   const modal = useModal();
 
   // Data sources
@@ -316,7 +315,6 @@ export default function NewRepairOrderPage() {
         symptoms: symptomsJson,
         carCondition,
         technicianId: technicianId || undefined,
-        createdById: user?.id,
         laborCost: totalServiceCost,
         items: items.map((i) => ({
           productId: parseInt(i.productId),
@@ -852,122 +850,26 @@ export default function NewRepairOrderPage() {
 
         {/* Summary sidebar (Right side) */}
         <div className="space-y-6">
-          <div className="glass-card rounded-2xl p-5 space-y-6 border-l-4 border-l-primary flex flex-col justify-between min-h-[300px]">
-            <div className="space-y-4">
-              <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">TÓM TẮT BÁO GIÁ</p>
-                <h3 className="text-base font-bold tracking-tight mt-0.5">Báo giá sơ bộ (ước tính)</h3>
-              </div>
-
-              <div className="space-y-3.5 pt-4 border-t border-border/40">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Tiền công thợ:</span>
-                  <span className="text-sm font-semibold">{formatCurrency(totalServiceCost)}</span>
-                </div>
-                {serviceDiscountAmount > 0 && (
-                  <div className="flex items-center justify-between text-[11px] text-destructive bg-destructive/5 border border-destructive/15 px-2.5 py-1.5 rounded-lg">
-                    <span className="font-semibold">Giảm giá công thợ ({serviceDiscountPercent}%):</span>
-                    <span className="font-bold">-{formatCurrency(serviceDiscountAmount)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Tiền phụ tùng:</span>
-                  <span className="text-sm font-semibold">{formatCurrency(partsCostTotal)}</span>
-                </div>
-                {partsDiscountAmount > 0 && (
-                  <div className="flex items-center justify-between text-[11px] text-destructive bg-destructive/5 border border-destructive/15 px-2.5 py-1.5 rounded-lg">
-                    <span className="font-semibold">Giảm giá phụ tùng ({partsDiscountPercent}%):</span>
-                    <span className="font-bold">-{formatCurrency(partsDiscountAmount)}</span>
-                  </div>
-                )}
-
-                {selectedCustomerId && customerLoyaltyPoints > 0 && (
-                  <div className="pt-3 border-t border-dashed border-border/40 space-y-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-muted-foreground">Điểm tích lũy hiện có:</span>
-                      <span className="font-bold text-amber-600">{customerLoyaltyPoints} điểm ({formatCurrency(customerLoyaltyPoints * 1000)})</span>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase">Quy đổi điểm giảm giá</label>
-                      <div className="relative flex items-center">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={pointsToRedeem}
-                          onChange={(e) => {
-                            const cleanVal = e.target.value.replace(/\D/g, "");
-                            if (cleanVal === "") {
-                              setPointsToRedeem("");
-                            } else {
-                              const maxPoints = Math.max(0, Math.floor((subtotal - totalDiscountAmount) / 1000));
-                              const numVal = Math.min(customerLoyaltyPoints, maxPoints, parseInt(cleanVal, 10));
-                              setPointsToRedeem(numVal > 0 ? numVal : "");
-                            }
-                          }}
-                          className="w-full px-2.5 py-1.5 bg-secondary/30 border border-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-primary font-bold text-primary"
-                          placeholder={`Tối đa: ${Math.min(customerLoyaltyPoints, Math.max(0, Math.floor((subtotal - totalDiscountAmount) / 1000)))}`}
-                        />
-                        <span className="absolute right-2 text-[10px] font-bold text-muted-foreground">Điểm</span>
-                      </div>
-                    </div>
-                    {Number(pointsToRedeem) > 0 && (
-                      <div className="flex items-center justify-between text-xs text-success bg-success/5 border border-success/15 p-2 rounded-lg">
-                        <span className="font-semibold">Chiết khấu đổi điểm:</span>
-                        <span className="font-bold">-{formatCurrency(pointsDiscountAmount)}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {totalDiscountAmount + pointsDiscountAmount > 0 && (
-                  <div className="pt-2.5 border-t border-dashed border-border/40 flex items-center justify-between text-[11px] font-bold text-destructive">
-                    <span>Tổng tiền được giảm:</span>
-                    <span>-{formatCurrency(totalDiscountAmount + pointsDiscountAmount)}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/40 font-bold">
-                  <span className="text-xs text-muted-foreground">Tổng thanh toán:</span>
-                  <span className="text-lg font-black text-primary tracking-tight">{formatCurrency(finalTotal)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2.5 border-t border-border/40 pt-4 mt-4 text-[11px] text-muted-foreground/80">
-              <div className="flex justify-between">
-                <span>Số dòng phụ tùng:</span>
-                <span className="font-bold text-foreground">{items.length} dòng</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Tổng đơn vị phụ tùng:</span>
-                <span className="font-bold text-foreground">{totalPartsQuantity} đơn vị</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-6 border-t border-border/40">
-              <button
-                type="button"
-                onClick={() => router.push("/workshop")}
-                className="flex-1 px-4 py-2.5 border border-border hover:bg-secondary/40 rounded-xl text-xs font-semibold transition-colors text-center"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="flex-1 gradient-primary text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:opacity-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-1.5 transition-all"
-              >
-                {submitting ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <>
-                    <Sparkles size={13} /> Lưu lệnh
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+          <RepairOrderSummary
+            totalServiceCost={totalServiceCost}
+            serviceDiscountPercent={serviceDiscountPercent}
+            serviceDiscountAmount={serviceDiscountAmount}
+            partsCostTotal={partsCostTotal}
+            partsDiscountPercent={partsDiscountPercent}
+            partsDiscountAmount={partsDiscountAmount}
+            selectedCustomerId={selectedCustomerId}
+            customerLoyaltyPoints={customerLoyaltyPoints}
+            pointsToRedeem={pointsToRedeem}
+            onPointsToRedeemChange={setPointsToRedeem}
+            subtotal={subtotal}
+            totalDiscountAmount={totalDiscountAmount}
+            pointsDiscountAmount={pointsDiscountAmount}
+            finalTotal={finalTotal}
+            itemLineCount={items.length}
+            totalPartsQuantity={totalPartsQuantity}
+            submitting={submitting}
+            onCancel={() => router.push("/workshop")}
+          />
         </div>
       </form>
 

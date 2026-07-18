@@ -2,9 +2,16 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { ensureCustomerBranch, getOrCreateCustomerForBranch } from "@/lib/customer-branch";
+import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
+import { requireAuth } from "@/lib/guard";
+import { createInventoryOrderSchema } from "@/lib/validation/inventory";
 
 // GET /api/inventory/orders
 export async function GET(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const { searchParams } = req.nextUrl;
     const page = parseInt(searchParams.get("page") || "1");
@@ -64,16 +71,20 @@ export async function GET(req: NextRequest) {
         totalPages: Math.ceil(total / limit)
       }
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error, "INVENTORY_ORDERS_GET", "Không thể tải danh sách đơn kho");
   }
 }
 
 // POST /api/inventory/orders
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
-    const body = await req.json();
+    const body = await parseJson(req, createInventoryOrderSchema);
     const branchId = getActiveBranchId();
+    if (!branchId) throw new ApiError("Không xác định được chi nhánh hiện tại", 400, "BRANCH_REQUIRED");
     const userName = req.cookies.get("user_name")?.value || "System";
 
     // Build the inventory order
@@ -82,6 +93,9 @@ export async function POST(req: NextRequest) {
     // Calculate total amount
     const totalAmount = items.reduce((sum: number, item: any) => sum + (Number(item.quantity) * Number(item.unitPrice)), 0);
     const paidAmount = Number(body.paidAmount || 0);
+    if (paidAmount > totalAmount) {
+      throw new ApiError("Số tiền đã trả không được lớn hơn tổng đơn hàng", 400, "OVERPAYMENT");
+    }
     const debtAmount = Math.max(0, totalAmount - paidAmount);
     const status = debtAmount <= 0 ? "PAID" : "DEBT";
 
@@ -89,7 +103,7 @@ export async function POST(req: NextRequest) {
     const code = `PX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const order = await prisma.$transaction(async (tx) => {
-      let finalCustomerId = customerId ? parseInt(customerId) : null;
+      let finalCustomerId = customerId || null;
       
       if (finalCustomerId && address) {
         await tx.customer.update({
@@ -100,28 +114,19 @@ export async function POST(req: NextRequest) {
       
       // Auto-create customer if phone & name provided but no ID
       if (!finalCustomerId && body.phone && body.customerName) {
-        const existingCust = await tx.customer.findUnique({
-          where: { phone: body.phone }
-        });
-        if (existingCust) {
-          finalCustomerId = existingCust.id;
-          if (address && !existingCust.address) {
-            await tx.customer.update({
-              where: { id: existingCust.id },
-              data: { address }
-            });
-          }
-        } else {
-          const newCustomer = await tx.customer.create({
-            data: {
-              phone: body.phone,
-              name: body.customerName,
-              address: address || null,
-              branchId,
-            }
-          });
-          finalCustomerId = newCustomer.id;
+        const customer = await getOrCreateCustomerForBranch({
+          name: body.customerName,
+          phone: body.phone,
+          branchId,
+          address,
+        }, tx);
+        if (customer) {
+          finalCustomerId = customer.id;
         }
+      }
+
+      if (finalCustomerId) {
+        await ensureCustomerBranch(finalCustomerId, branchId, tx);
       }
 
       const newOrder = await tx.inventoryOrder.create({
@@ -152,8 +157,8 @@ export async function POST(req: NextRequest) {
       });
 
       // Fetch all required product branches in a single query
-      const targetBranchId = branchId || 1;
-      const productIds = items.map((i: any) => parseInt(i.productId || i.id));
+      const targetBranchId = branchId;
+      const productIds = items.map((item) => item.productId);
       const productBranches = await tx.productBranch.findMany({
         where: {
           branchId: targetBranchId,
@@ -167,7 +172,7 @@ export async function POST(req: NextRequest) {
 
       // Validation and update phase sequentially with row locking
       for (const item of items) {
-        const pId = parseInt(item.productId || item.id);
+        const pId = item.productId;
         const pb = pbMap.get(pId);
         
         if (!pb) {
@@ -232,7 +237,7 @@ export async function POST(req: NextRequest) {
     };
 
     return NextResponse.json(serializedOrder, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error) {
+    return handleApiError(error, "INVENTORY_ORDERS_CREATE", "Không thể tạo đơn kho");
   }
 }

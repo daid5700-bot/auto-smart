@@ -10,17 +10,17 @@ datasource db {
 
 // ========== AUTH ==========
 model User {
-  id            Int       @id @default(autoincrement())
-  name          String
-  email         String    @unique
-  password      String
-  role          Role      @default(SALES)
-  avatar        String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  repairOrders  RepairOrder[] @relation("CreatedBy")
-  leads         Lead[]
-  branches      UserBranch[]
+  id           Int           @id @default(autoincrement())
+  name         String
+  email        String        @unique
+  password     String
+  role         Role          @default(SALES)
+  avatar       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  repairOrders RepairOrder[] @relation("CreatedBy")
+  leads        Lead[]
+  branches     UserBranch[]
 }
 
 enum Role {
@@ -41,51 +41,52 @@ model UserBranch {
 }
 
 model Branch {
-  id           Int           @id @default(autoincrement())
-  code         String?
-  name         String
-  address      String?
-  phone        String?
-  logoUrl      String?
-  users        UserBranch[]
-  productBranches ProductBranch[]
-  repairOrders RepairOrder[]
-  leads        Lead[]
-  vehicles     Vehicle[]
-  technicians  Technician[]
-  customers    Customer[]
-  znsLogs      ZnsLog[]
-  loyaltyTx    LoyaltyTransaction[]
-  partsRequisitions PartsRequisition[]
-  inventoryOrders InventoryOrder[]
+  id                  Int                  @id @default(autoincrement())
+  code                String?
+  name                String
+  address             String?
+  phone               String?
+  logoUrl             String?
+  users               UserBranch[]
+  productBranches     ProductBranch[]
+  repairOrders        RepairOrder[]
+  leads               Lead[]
+  vehicles            Vehicle[]
+  technicians         Technician[]
+  customers           Customer[]
+  customerBranches    CustomerBranch[]
+  znsLogs             ZnsLog[]
+  loyaltyTx           LoyaltyTransaction[]
+  partsRequisitions   PartsRequisition[]
+  inventoryOrders     InventoryOrder[]
   paymentTransactions PaymentTransaction[]
-  stockMovements StockMovement[]
-  isDeleted    Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  stockMovements      StockMovement[]
+  isDeleted           Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 // ========== INVENTORY ==========
 model Product {
-  id               Int           @id @default(autoincrement())
-  sku              String        @unique
-  name             String
-  parentId         Int?
-  parent           Product?      @relation("ProductHierarchy", fields: [parentId], references: [id])
-  children         Product[]     @relation("ProductHierarchy")
-  category         String        @default("General")
-  unit             String        // Chai, Cái, Bộ...
-  conversionUnit   String?       // Thùng, Thanh...
-  conversionFactor Int           @default(1)
-  status           String        @default("ACTIVE")
-  prices           Price[]
-  stockMovements   StockMovement[]
-  orderItems       OrderItem[]
+  id                    Int                    @id @default(autoincrement())
+  sku                   String                 @unique
+  name                  String
+  parentId              Int?
+  parent                Product?               @relation("ProductHierarchy", fields: [parentId], references: [id])
+  children              Product[]              @relation("ProductHierarchy")
+  category              String                 @default("General")
+  unit                  String // Chai, Cái, Bộ...
+  conversionUnit        String? // Thùng, Thanh...
+  conversionFactor      Int                    @default(1)
+  status                String                 @default("ACTIVE")
+  prices                Price[]
+  stockMovements        StockMovement[]
+  orderItems            OrderItem[]
   partsRequisitionItems PartsRequisitionItem[]
-  productBranches  ProductBranch[]
-  isDeleted        Boolean       @default(false)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  productBranches       ProductBranch[]
+  isDeleted             Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   @@index([sku])
   @@index([parentId])
@@ -93,17 +94,17 @@ model Product {
 }
 
 model ProductBranch {
-  id               Int       @id @default(autoincrement())
-  productId        Int
-  product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  branchId         Int
-  branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  stockCount       Decimal     @default(0)
-  reservedStock    Decimal     @default(0)
-  stockMin         Decimal     @default(0)
-  stockMax         Decimal     @default(100)
-  movingAvgCost    Decimal     @default(0)
-  lastImportDate   DateTime?
+  id             Int       @id @default(autoincrement())
+  productId      Int
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId       Int
+  branch         Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  stockCount     Decimal   @default(0)
+  reservedStock  Decimal   @default(0)
+  stockMin       Decimal   @default(0)
+  stockMax       Decimal   @default(100)
+  movingAvgCost  Decimal   @default(0)
+  lastImportDate DateTime?
 
   @@unique([productId, branchId])
   @@index([productId])
@@ -111,33 +112,33 @@ model ProductBranch {
 }
 
 model Price {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   productId Int
-  type      String   // RETAIL, WHOLESALE, INSURANCE
+  type      String // RETAIL, WHOLESALE, INSURANCE
   amount    Decimal
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, type])
 }
 
 model StockMovement {
-  id            Int      @id @default(autoincrement())
-  productId     Int
-  product       Product  @relation(fields: [productId], references: [id])
-  type          String   // IMPORT, EXPORT
-  quantity      Decimal
-  unitCost      Decimal  @default(0)
-  totalCost     Decimal  @default(0)
-  reason        String?
-  relatedRoId   Int?
+  id               Int             @id @default(autoincrement())
+  productId        Int
+  product          Product         @relation(fields: [productId], references: [id])
+  type             String // IMPORT, EXPORT
+  quantity         Decimal
+  unitCost         Decimal         @default(0)
+  totalCost        Decimal         @default(0)
+  reason           String?
+  relatedRoId      Int?
   inventoryOrderId Int?
-  inventoryOrder InventoryOrder? @relation(fields: [inventoryOrderId], references: [id], onDelete: Cascade)
-  vehicleId     Int?
-  vehicle       Vehicle? @relation(fields: [vehicleId], references: [id])
-  branchId      Int?
-  branch        Branch?  @relation(fields: [branchId], references: [id])
-  createdBy     String
-  createdAt     DateTime @default(now())
+  inventoryOrder   InventoryOrder? @relation(fields: [inventoryOrderId], references: [id], onDelete: Cascade)
+  vehicleId        Int?
+  vehicle          Vehicle?        @relation(fields: [vehicleId], references: [id])
+  branchId         Int?
+  branch           Branch?         @relation(fields: [branchId], references: [id])
+  createdBy        String
+  createdAt        DateTime        @default(now())
 
   @@index([productId])
   @@index([createdAt])
@@ -146,83 +147,86 @@ model StockMovement {
 }
 
 model InventoryOrder {
-  id            Int             @id @default(autoincrement())
-  code          String          @unique
-  customerId    Int?
-  customer      Customer?       @relation(fields: [customerId], references: [id])
-  type          String          // EXPORT_RETAIL, EXPORT_WHOLESALE, INTERNAL
-  totalAmount   Decimal         @default(0)
-  paidAmount    Decimal         @default(0)
-  debtAmount    Decimal         @default(0)
-  status        String          @default("PAID") // PAID, DEBT, CANCELLED
-  reason        String?
-  vehicleId     Int?
-  vehicle       Vehicle?        @relation(fields: [vehicleId], references: [id])
-  movements     StockMovement[]
-  branchId      Int?
-  branch        Branch?         @relation(fields: [branchId], references: [id])
-  createdBy     String
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id          Int             @id @default(autoincrement())
+  code        String          @unique
+  customerId  Int?
+  customer    Customer?       @relation(fields: [customerId], references: [id])
+  type        String // EXPORT_RETAIL, EXPORT_WHOLESALE, INTERNAL
+  totalAmount Decimal         @default(0)
+  paidAmount  Decimal         @default(0)
+  debtAmount  Decimal         @default(0)
+  status      String          @default("PAID") // PAID, DEBT, CANCELLED
+  reason      String?
+  vehicleId   Int?
+  vehicle     Vehicle?        @relation(fields: [vehicleId], references: [id])
+  movements   StockMovement[]
+  branchId    Int?
+  branch      Branch?         @relation(fields: [branchId], references: [id])
+  createdBy   String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([customerId])
   @@index([branchId])
   @@index([createdAt])
+  @@index([branchId, status, createdAt])
 }
 
 // ========== WORKSHOP ==========
 model Technician {
-  id              Int              @id @default(autoincrement())
-  code            String           @unique
-  name            String
-  phone           String?
-  status          String           @default("IDLE") // IDLE, WORKING
-  repairOrders    RepairOrder[]
-  branchId        Int?
-  branch          Branch?          @relation(fields: [branchId], references: [id])
-  createdAt       DateTime         @default(now())
+  id           Int           @id @default(autoincrement())
+  code         String        @unique
+  name         String
+  phone        String?
+  status       String        @default("IDLE") // IDLE, WORKING
+  repairOrders RepairOrder[]
+  branchId     Int?
+  branch       Branch?       @relation(fields: [branchId], references: [id])
+  createdAt    DateTime      @default(now())
 
   @@index([branchId])
 }
 
 model RepairOrder {
-  id            Int           @id @default(autoincrement())
-  customerId    Int
-  customer      Customer      @relation(fields: [customerId], references: [id])
-  plateNumber   String
-  vehicleModel  String?
-  kmIn          Int           @default(0)
-  symptoms      String?
-  status        String        @default("PENDING") // PENDING, DIAGNOSING, DOING, WAITING_PARTS, DONE, DELIVERED
-  technicianId  Int?
-  technician    Technician?   @relation(fields: [technicianId], references: [id])
-  createdById   Int?
-  createdBy     User?         @relation("CreatedBy", fields: [createdById], references: [id])
-  items         OrderItem[]
-  laborCost     Decimal       @default(0)
-  partsCost     Decimal       @default(0)
-  discountPercent Int         @default(0)
-  discountAmount  Decimal     @default(0)
-  serviceDiscountPercent Int   @default(0)
-  partsDiscountPercent   Int   @default(0)
-  servicesJson          Json?
-  totalAmount   Decimal       @default(0)
-  paidAmount    Decimal       @default(0)
-  debtAmount    Decimal       @default(0)
-  photos        String[]
-  completedAt   DateTime?
-  isDeleted     Boolean       @default(false)
-  partsRequisitions PartsRequisition[]
-  branchId      Int?
-  branch        Branch?       @relation(fields: [branchId], references: [id])
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                     Int                @id @default(autoincrement())
+  customerId             Int
+  customer               Customer           @relation(fields: [customerId], references: [id])
+  plateNumber            String
+  vehicleModel           String?
+  kmIn                   Int                @default(0)
+  symptoms               String?
+  status                 String             @default("PENDING") // PENDING, DIAGNOSING, DOING, WAITING_PARTS, DONE, DELIVERED
+  technicianId           Int?
+  technician             Technician?        @relation(fields: [technicianId], references: [id])
+  createdById            Int?
+  createdBy              User?              @relation("CreatedBy", fields: [createdById], references: [id])
+  items                  OrderItem[]
+  laborCost              Decimal            @default(0)
+  partsCost              Decimal            @default(0)
+  discountPercent        Int                @default(0)
+  discountAmount         Decimal            @default(0)
+  serviceDiscountPercent Int                @default(0)
+  partsDiscountPercent   Int                @default(0)
+  servicesJson           Json?
+  totalAmount            Decimal            @default(0)
+  paidAmount             Decimal            @default(0)
+  debtAmount             Decimal            @default(0)
+  photos                 String[]
+  completedAt            DateTime?
+  isDeleted              Boolean            @default(false)
+  partsRequisitions      PartsRequisition[]
+  branchId               Int?
+  branch                 Branch?            @relation(fields: [branchId], references: [id])
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   @@index([plateNumber])
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
   @@index([branchId])
+  @@index([branchId, isDeleted, status, createdAt])
+  @@index([customerId, branchId, createdAt])
 }
 
 model OrderItem {
@@ -235,136 +239,160 @@ model OrderItem {
   unitPrice     Decimal
   totalPrice    Decimal
 
+  @@unique([repairOrderId, productId])
   @@index([repairOrderId])
   @@index([productId])
-  @@unique([repairOrderId, productId])
 }
 
 // ========== VEHICLE SALES ==========
 model Vehicle {
-  id              Int      @id @default(autoincrement())
-  vin             String   @unique
-  sku             String?
-  engineNumber    String?
-  importPrice     Decimal?  @default(0)
-  importDate      DateTime? @default(now())
-  stockCount      String?
-  model           String
-  variant         String?
-  color           String?
-  year            Int
-  status          String   @default("AVAILABLE") // AVAILABLE, RESERVED, INCOMING, SOLD
-  listPrice       Decimal
-  floorPrice      Decimal
-  paidAmount      Decimal   @default(0)
-  debtAmount      Decimal   @default(0)
-  image           String?
-  customerId      Int?
-  customer        Customer? @relation(fields: [customerId], references: [id])
-  bankStatus      String?
-  plateStatus     String?
-  plateCost       Decimal?  @default(0)
-  accessoriesJson Json?     @default("[]")
-  saleType        String    @default("RETAIL") // RETAIL, WHOLESALE
-  notes           String?
-  warehouse       String?
-  branchId        Int?
-  branch          Branch?   @relation(fields: [branchId], references: [id])
+  id                Int                @id @default(autoincrement())
+  vin               String             @unique
+  sku               String?
+  engineNumber      String?
+  importPrice       Decimal?           @default(0)
+  importDate        DateTime?          @default(now())
+  stockCount        String?
+  model             String
+  variant           String?
+  color             String?
+  year              Int
+  status            String             @default("AVAILABLE") // AVAILABLE, RESERVED, INCOMING, SOLD
+  listPrice         Decimal
+  floorPrice        Decimal
+  paidAmount        Decimal            @default(0)
+  debtAmount        Decimal            @default(0)
+  image             String?
+  customerId        Int?
+  customer          Customer?          @relation(fields: [customerId], references: [id])
+  bankStatus        String?
+  plateStatus       String?
+  plateCost         Decimal?           @default(0)
+  accessoriesJson   Json?              @default("[]")
+  saleType          String             @default("RETAIL") // RETAIL, WHOLESALE
+  notes             String?
+  warehouse         String?
+  branchId          Int?
+  branch            Branch?            @relation(fields: [branchId], references: [id])
   partsRequisitions PartsRequisition[]
-  inventoryOrders InventoryOrder[]
-  stockMovements  StockMovement[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  inventoryOrders   InventoryOrder[]
+  stockMovements    StockMovement[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([vin])
   @@index([status])
   @@index([branchId])
+  @@index([branchId, status, updatedAt])
+  @@index([customerId, branchId])
 }
 
 // ========== CRM ==========
 model Customer {
-  id             Int              @id @default(autoincrement())
-  name           String
-  phone          String           @unique
-  email          String?
-  address        String?
-  source         String           @default("WALKIN") // FACEBOOK, WEBSITE, WALKIN, REFERRAL
-  loyaltyPoints  Int              @default(0)
-  totalSpent     Decimal          @default(0)
-  totalDebt      Decimal          @default(0)
-  lastVisit      DateTime?
-  birthday       DateTime?
-  vehiclePlates  String[]
-  tags           String[]
-  repairOrders   RepairOrder[]
-  inventoryOrders InventoryOrder[]
-  vehicles       Vehicle[]
-  leads          Lead[]
-  znsLogs        ZnsLog[]
-  loyaltyTx      LoyaltyTransaction[]
-  branchId       Int?
-  branch         Branch?          @relation(fields: [branchId], references: [id])
-  isDeleted      Boolean          @default(false)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id               Int                  @id @default(autoincrement())
+  name             String
+  phone            String               @unique
+  email            String?
+  address          String?
+  source           String               @default("WALKIN") // FACEBOOK, WEBSITE, WALKIN, REFERRAL
+  loyaltyPoints    Int                  @default(0)
+  totalSpent       Decimal              @default(0)
+  totalDebt        Decimal              @default(0)
+  lastVisit        DateTime?
+  birthday         DateTime?
+  vehiclePlates    String[]
+  tags             String[]
+  repairOrders     RepairOrder[]
+  inventoryOrders  InventoryOrder[]
+  vehicles         Vehicle[]
+  leads            Lead[]
+  znsLogs          ZnsLog[]
+  loyaltyTx        LoyaltyTransaction[]
+  customerBranches CustomerBranch[]
+  branchId         Int?
+  branch           Branch?              @relation(fields: [branchId], references: [id])
+  isDeleted        Boolean              @default(false)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
   @@index([phone])
   @@index([lastVisit])
   @@index([branchId])
+  @@index([branchId, isDeleted, totalSpent])
+  @@index([isDeleted, totalSpent])
+}
+
+/// Explicit branch membership for customers who transact at more than one branch.
+/// Customer.branchId remains the original/home branch for backward compatibility.
+model CustomerBranch {
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  branchId    Int
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@id([customerId, branchId])
+  @@index([branchId, lastSeenAt])
 }
 
 model Lead {
-  id            Int      @id @default(autoincrement())
-  customerId    Int?
-  customer      Customer? @relation(fields: [customerId], references: [id])
-  name          String
-  phone         String
-  source        String   @default("WALKIN")
-  status        String   @default("NEW") // NEW, CONSULTING, POTENTIAL, CONVERTED, LOST
-  interest      String?
-  assignedToId  Int?
-  assignedTo    User?    @relation(fields: [assignedToId], references: [id])
-  notes         String?
-  branchId      Int?
-  branch        Branch?   @relation(fields: [branchId], references: [id])
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           Int       @id @default(autoincrement())
+  customerId   Int?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  name         String
+  phone        String
+  source       String    @default("WALKIN")
+  status       String    @default("NEW") // NEW, CONSULTING, POTENTIAL, CONVERTED, LOST
+  interest     String?
+  assignedToId Int?
+  assignedTo   User?     @relation(fields: [assignedToId], references: [id])
+  notes        String?
+  branchId     Int?
+  branch       Branch?   @relation(fields: [branchId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status])
   @@index([createdAt])
   @@index([branchId])
+  @@index([branchId, status, createdAt])
 }
 
 model ZnsLog {
-  id            Int      @id @default(autoincrement())
-  customerId    Int
-  customer      Customer @relation(fields: [customerId], references: [id])
-  phone         String
-  messageType   String   // THANK_YOU, BIRTHDAY, MAINTENANCE, PROMOTION
-  templateId    String?
-  content       String
-  status        String   @default("PENDING") // PENDING, SENT, DELIVERED, FAILED
-  error         String?
-  branchId      Int?
-  branch        Branch?  @relation(fields: [branchId], references: [id])
-  sentAt        DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id])
+  phone       String
+  messageType String // THANK_YOU, BIRTHDAY, MAINTENANCE, PROMOTION
+  templateId  String?
+  content     String
+  status      String   @default("PENDING") // PENDING, SENT, DELIVERED, FAILED
+  error       String?
+  branchId    Int?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  sentAt      DateTime @default(now())
 
   @@index([branchId])
+  @@index([branchId, sentAt])
+  @@index([customerId, templateId, sentAt])
 }
 
 model LoyaltyTransaction {
-  id            Int      @id @default(autoincrement())
-  customerId    Int
-  customer      Customer @relation(fields: [customerId], references: [id])
-  type          String   // EARN, REDEEM
-  points        Int
-  description   String?
-  relatedRoId   Int?
-  branchId      Int?
-  branch        Branch?  @relation(fields: [branchId], references: [id])
-  createdAt     DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id])
+  type        String // EARN, REDEEM
+  points      Int
+  description String?
+  relatedRoId Int?
+  branchId    Int?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  createdAt   DateTime @default(now())
 
   @@index([branchId])
+  @@index([branchId, createdAt])
+  @@index([customerId, type, relatedRoId])
 }
 
 model PartsRequisition {
@@ -384,6 +412,7 @@ model PartsRequisition {
   @@index([repairOrderId])
   @@index([vehicleId])
   @@index([branchId])
+  @@index([branchId, status, createdAt])
 }
 
 model PartsRequisitionItem {
@@ -410,10 +439,10 @@ model PaymentTransaction {
   id            Int      @id @default(autoincrement())
   code          String   @unique
   amount        Decimal
-  method        String   // CASH, BANK_TRANSFER
-  type          String   // INCOME, EXPENSE
-  referenceId   Int?     // RO ID, INVENTORY ORDER ID, VEHICLE ID
-  referenceType String?  // REPAIR_ORDER, INVENTORY_ORDER, VEHICLE_SALE
+  method        String // CASH, BANK_TRANSFER
+  type          String // INCOME, EXPENSE
+  referenceId   Int? // RO ID, INVENTORY ORDER ID, VEHICLE ID
+  referenceType String? // REPAIR_ORDER, INVENTORY_ORDER, VEHICLE_SALE
   note          String?
   branchId      Int?
   branch        Branch?  @relation(fields: [branchId], references: [id])
@@ -425,4 +454,5 @@ model PaymentTransaction {
   @@index([branchId])
   @@index([createdAt])
   @@index([referenceId, referenceType])
+  @@index([branchId, isDeleted, createdAt])
 }
