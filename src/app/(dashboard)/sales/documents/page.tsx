@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { 
   Loader2, FileText, Plus, Edit, Trash2, Search, User, 
-  Sparkles, Wrench, Check, Car, DollarSign, X, Eye
+  Sparkles, Wrench, Check, Car, DollarSign, X, Eye, TicketPercent, Calendar
 } from "lucide-react";
-import { fetchWithDedup, formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useModal } from "@/components/ModalProvider";
+import { ModalPortal } from "@/components/modal-portal";
+import { CustomSelect } from "@/components/CustomSelect";
 
 
 interface Accessory {
@@ -34,6 +36,9 @@ export default function DocumentsPage() {
   const [saleTypeFilter, setSaleTypeFilter] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
   const [retailCount, setRetailCount] = useState<number | null>(null);
   const [wholesaleCount, setWholesaleCount] = useState<number | null>(null);
+  const [discountFilter, setDiscountFilter] = useState("ALL");
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  const activeSalesRequest = useRef<AbortController | null>(null);
 
   // Date filter
   const [dateFrom, setDateFrom] = useState("");
@@ -145,6 +150,9 @@ export default function DocumentsPage() {
   };
 
   const fetchData = async (targetPage = 1, append = false, from = dateFrom, to = dateTo) => {
+    activeSalesRequest.current?.abort();
+    const controller = new AbortController();
+    activeSalesRequest.current = controller;
     try {
       const isFirstLoad = vehicles.length === 0 && targetPage === 1 && !searchQuery && !from && !to;
       if (append) {
@@ -154,10 +162,13 @@ export default function DocumentsPage() {
       } else {
         setTableLoading(true);
       }
-      let url = `/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}`;
+      let url = `/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}&includeCounts=${targetPage === 1 ? "true" : "false"}`;
       if (from) url += `&dateFrom=${from}`;
       if (to) url += `&dateTo=${to}`;
-      const data = await fetchWithDedup(url);
+      if (discountFilter !== "ALL") url += `&discount=${discountFilter}`;
+      const response = await fetch(url, { signal: controller.signal });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không thể tải hồ sơ bán xe");
       setVehicles((prev) => append ? [...prev, ...(data.vehicles || [])] : (data.vehicles || []));
       setTotalPages(data.pagination?.totalPages || 1);
       setPage(targetPage);
@@ -167,20 +178,37 @@ export default function DocumentsPage() {
       if (data.wholesaleCount !== undefined) {
         setWholesaleCount(data.wholesaleCount);
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.name === "AbortError") return;
       console.error(e);
     } finally {
-      setLoading(false);
-      setInitialLoading(false);
-      setLoadingMore(false);
-      setTableLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setInitialLoading(false);
+        setLoadingMore(false);
+        setTableLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     const timer = window.setTimeout(() => fetchData(1, false, dateFrom, dateTo), 300);
-    return () => window.clearTimeout(timer);
-  }, [saleTypeFilter, searchQuery, dateFrom, dateTo]);
+    return () => {
+      window.clearTimeout(timer);
+      activeSalesRequest.current?.abort();
+    };
+  }, [saleTypeFilter, searchQuery, dateFrom, dateTo, discountFilter]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/discounts?scope=SALES", { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data) => setDiscounts(data.discounts || []))
+      .catch((error) => {
+        if (error?.name !== "AbortError") console.error(error);
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -209,7 +237,7 @@ export default function DocumentsPage() {
     };
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery, dateFrom, dateTo]);
+  }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery, dateFrom, dateTo, discountFilter]);
 
   const parseAccessories = (val: any): Accessory[] => {
     try {
@@ -428,73 +456,135 @@ export default function DocumentsPage() {
         </button>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mb-4 w-full">
-        {/* Left Side: Search & Options */}
-        <div className="flex flex-wrap items-center gap-3 flex-1">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+      {/* Modern & Balanced Filter Card */}
+      <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-sm space-y-3.5 mb-5">
+        {/* Row 1: 4 Equal Columns Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center">
+          {/* Col 1: Search */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
             <input
               type="text"
-              placeholder="Tìm theo số khung (VIN), dòng xe, tên hoặc SĐT khách hàng..."
+              placeholder="Tìm VIN, dòng xe, tên hoặc SĐT..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/30 outline-none shadow-sm"
+              className="w-full pl-10 pr-4 h-9 bg-background border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
             />
           </div>
 
-          {/* Trạng thái */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm h-10 shrink-0"
-          >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="RESERVED">Đã Đặt Cọc</option>
-            <option value="SOLD">Đã Bán</option>
-          </select>
-
-          {/* Thủ tục biển */}
-          <select
-            value={plateFilter}
-            onChange={(e) => setPlateFilter(e.target.value)}
-            className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/30 outline-none shadow-sm h-10 shrink-0"
-          >
-            <option value="ALL">Tất cả thủ tục biển</option>
-            <option value="PENDING">Chờ nộp thuế (Đợi biển)</option>
-            <option value="TAX_PAID">Đã nộp thuế trước bạ</option>
-            <option value="PLATE_DONE">Đã bấm biển & Bàn giao xe</option>
-          </select>
-        </div>
-
-        {/* Right Side: Date Range & Presets */}
-        <div className="flex flex-wrap items-center gap-2 justify-end shrink-0">
-          {/* Date range picker */}
-          <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-2 h-10 shrink-0">
-            <input type="date" value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setActivePreset(null); setPage(1); }}
-              className="text-sm font-semibold bg-transparent outline-none text-foreground cursor-pointer" />
-            <span className="text-muted-foreground text-xs font-medium px-1">—</span>
-            <input type="date" value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setActivePreset(null); setPage(1); }}
-              className="text-sm font-semibold bg-transparent outline-none text-foreground cursor-pointer" />
+          {/* Col 2: Trạng thái */}
+          <div>
+            <CustomSelect
+              value={statusFilter}
+              onChange={(val) => setStatusFilter(val)}
+              options={[
+                { value: "ALL", label: "Tất cả trạng thái" },
+                { value: "RESERVED", label: "Đã Đặt Cọc", badge: "Đã cọc", badgeVariant: "warning" },
+                { value: "SOLD", label: "Đã Bán", badge: "Đã bán", badgeVariant: "success" },
+              ]}
+              size="sm"
+            />
           </div>
 
-          {/* Presets */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Col 3: Thủ tục biển */}
+          <div>
+            <CustomSelect
+              value={plateFilter}
+              onChange={(val) => setPlateFilter(val)}
+              options={[
+                { value: "ALL", label: "Tất cả thủ tục biển" },
+                { value: "PENDING", label: "Chờ nộp thuế (Đợi biển)", badge: "Chờ thuế", badgeVariant: "warning" },
+                { value: "TAX_PAID", label: "Đã nộp thuế trước bạ", badge: "Nộp thuế", badgeVariant: "info" },
+                { value: "PLATE_DONE", label: "Đã bấm biển & Bàn giao xe", badge: "Bàn giao", badgeVariant: "success" },
+              ]}
+              size="sm"
+            />
+          </div>
+
+          {/* Col 4: Giảm giá */}
+          <div>
+            <CustomSelect
+              id="sales-discount-filter"
+              value={discountFilter}
+              onChange={(val) => {
+                setDiscountFilter(val);
+                setPage(1);
+              }}
+              options={[
+                { value: "ALL", label: "Tất cả giảm giá" },
+                { value: "ANY", label: "Có sử dụng giảm giá" },
+                { value: "NONE", label: "Không sử dụng giảm giá" },
+                ...discounts.map((d) => ({
+                  value: d.id,
+                  label: `${d.code} — ${d.name}`,
+                })),
+              ]}
+              size="sm"
+            />
+          </div>
+        </div>
+
+        {/* Row 2: Date Filters (Left: Presets, Right: Custom Date Range & Reset) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/40">
+          {/* Left: Quick Time Presets */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1 shrink-0">Thời gian:</span>
+            <button
+              onClick={clearDateFilter}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                !hasDateFilter && !activePreset
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border/60 bg-secondary/20 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+              }`}
+            >
+              Tất cả
+            </button>
             {(["today", "week", "month"] as const).map((key) => (
-              <button key={key} onClick={() => applyPreset(key)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all h-10 ${
-                  activePreset === key ? "border-primary bg-primary text-white" : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
-                }`}>
+              <button
+                key={key}
+                onClick={() => applyPreset(key)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  activePreset === key
+                    ? "border-primary bg-primary text-white shadow-sm"
+                    : "border-border/60 bg-secondary/20 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                }`}
+              >
                 {key === "today" ? "Hôm nay" : key === "week" ? "Tuần này" : "Tháng này"}
               </button>
             ))}
-            {hasDateFilter && (
-              <button onClick={clearDateFilter}
-                className="px-2.5 py-2 rounded-xl text-xs font-bold border border-rose-500/30 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-all flex items-center gap-1 h-10">
-                <X size={11} /> Xóa lọc
+          </div>
+
+          {/* Right: Date Range Picker & Clear Button */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-background border border-border rounded-xl px-3 py-1.5 text-xs shadow-xs">
+              <Calendar size={13} className="text-muted-foreground shrink-0" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setActivePreset(null); setPage(1); }}
+                className="bg-transparent outline-none font-semibold text-foreground cursor-pointer text-xs"
+              />
+              <span className="text-muted-foreground text-xs px-0.5">—</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setActivePreset(null); setPage(1); }}
+                className="bg-transparent outline-none font-semibold text-foreground cursor-pointer text-xs"
+              />
+            </div>
+
+            {(hasDateFilter || statusFilter !== "ALL" || plateFilter !== "ALL" || discountFilter !== "ALL" || searchQuery) && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("ALL");
+                  setPlateFilter("ALL");
+                  setDiscountFilter("ALL");
+                  clearDateFilter();
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold border border-rose-500/30 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-all flex items-center gap-1.5 shrink-0"
+              >
+                <X size={12} /> Xóa lọc
               </button>
             )}
           </div>
@@ -581,6 +671,12 @@ export default function DocumentsPage() {
                           <div className="text-[10px] text-muted-foreground mt-0.5">
                             {v.variant ? `${v.variant} • ` : ""}{v.color || "Khác"}{v.year ? ` • ${v.year}` : ""}
                           </div>
+                          {Number(v.discountAmount || 0) > 0 && (
+                            <div className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-success">
+                              <TicketPercent size={11} />
+                              {v.appliedDiscountCode || "Giảm giá"}: -{formatCurrency(Number(v.discountAmount))}
+                            </div>
+                          )}
                         </div>
                         
                         <div className="flex justify-end items-center gap-1.5 mt-3 pt-2 border-t border-border/30">
@@ -749,6 +845,12 @@ export default function DocumentsPage() {
                         <div className="text-[10px] text-muted-foreground font-semibold">
                           Còn nợ: <span className="text-rose-600 font-bold">{formatCurrency(Number(v.debtAmount || 0))}</span>
                         </div>
+                        {Number(v.discountAmount || 0) > 0 && (
+                          <div className="text-[10px] text-success font-bold inline-flex items-center gap-1">
+                            <TicketPercent size={10} />
+                            {v.appliedDiscountCode || "Giảm giá"}: -{formatCurrency(Number(v.discountAmount))}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="p-4 text-center">
@@ -813,63 +915,66 @@ export default function DocumentsPage() {
 
       {/* Payment Modal */}
       {paymentModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-bold">Cập nhật thanh toán</h3>
-              <button onClick={() => setPaymentModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={submitPayment} className="p-6 space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground mb-1">Khách hàng</p>
-                <p className="font-bold">{selectedVehicle.customer?.name} ({selectedVehicle.customer?.phone})</p>
-              </div>
-              <div className="flex justify-between items-center bg-secondary/20 p-3 rounded-xl border border-border">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">Tổng tiền xe</p>
-                  <p className="font-bold text-foreground">{formatCurrency(Number(selectedVehicle.paidAmount || 0) + Number(selectedVehicle.debtAmount || 0))}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-semibold text-muted-foreground">Còn nợ</p>
-                  <p className="font-bold text-rose-600">{formatCurrency(Number(selectedVehicle.debtAmount || 0))}</p>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase">
-                    Khách trả thêm
-                  </label>
-                  <button 
-                    type="button" 
-                    onClick={() => setPaymentAmount(selectedVehicle.debtAmount?.toString() || "0")}
-                    className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
-                  >
-                    Trả toàn bộ
-                  </button>
-                </div>
-                <NumericInput
-                  required
-                  value={paymentAmount}
-                  onChange={setPaymentAmount}
-                  className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                />
-              </div>
-              <div className="flex gap-3 justify-end pt-4 border-t border-border mt-4">
-                <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
-                <button disabled={submittingPayment} type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
-                  {submittingPayment ? "Đang xử lý..." : "Cập nhật"}
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <h3 className="text-lg font-bold">Cập nhật thanh toán</h3>
+                <button onClick={() => setPaymentModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <X size={20} />
                 </button>
               </div>
-            </form>
+              <form onSubmit={submitPayment} className="p-6 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">Khách hàng</p>
+                  <p className="font-bold">{selectedVehicle.customer?.name} ({selectedVehicle.customer?.phone})</p>
+                </div>
+                <div className="flex justify-between items-center bg-secondary/20 p-3 rounded-xl border border-border">
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Tổng tiền xe</p>
+                    <p className="font-bold text-foreground">{formatCurrency(Number(selectedVehicle.paidAmount || 0) + Number(selectedVehicle.debtAmount || 0))}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-muted-foreground">Còn nợ</p>
+                    <p className="font-bold text-rose-600">{formatCurrency(Number(selectedVehicle.debtAmount || 0))}</p>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase">
+                      Khách trả thêm
+                    </label>
+                    <button 
+                      type="button" 
+                      onClick={() => setPaymentAmount(selectedVehicle.debtAmount?.toString() || "0")}
+                      className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
+                    >
+                      Trả toàn bộ
+                    </button>
+                  </div>
+                  <NumericInput
+                    required
+                    value={paymentAmount}
+                    onChange={setPaymentAmount}
+                    className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                  />
+                </div>
+                <div className="flex gap-3 justify-end pt-4 border-t border-border mt-4">
+                  <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
+                  <button disabled={submittingPayment} type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                    {submittingPayment ? "Đang xử lý..." : "Cập nhật"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Detail Modal */}
       {detailModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-2xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/10">
               <div className="flex items-center gap-2">
@@ -1040,6 +1145,25 @@ export default function DocumentsPage() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground">Tổng tiền xe</p>
                   <p className="font-black text-primary text-lg">{formatCurrency(Number(selectedVehicle.paidAmount || 0) + Number(selectedVehicle.debtAmount || 0))}</p>
+                  {Number(selectedVehicle.discountAmount || 0) > 0 && (
+                    <div className="mt-1 text-[11px] font-semibold text-success">
+                      <div className="inline-flex items-center gap-1">
+                        <TicketPercent size={11} />
+                        {selectedVehicle.appliedDiscountCode || "Giảm giá"} — {selectedVehicle.appliedDiscountName || "Ưu đãi"}
+                      </div>
+                      <div>
+                        Giá niêm yết {formatCurrency(Number(selectedVehicle.originalListPrice || selectedVehicle.listPrice || 0))}
+                        {" • "}Giảm {formatCurrency(Number(selectedVehicle.discountAmount))}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {selectedVehicle.appliedDiscountType === "PERCENTAGE"
+                          ? `Loại: ${Number(selectedVehicle.appliedDiscountValue || 0)}% giá xe`
+                          : selectedVehicle.appliedDiscountType === "FIXED_AMOUNT"
+                            ? "Loại: Số tiền cố định"
+                            : "Loại: Dữ liệu giảm giá cũ"}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="text-right flex gap-6">
                   <div>
@@ -1061,6 +1185,7 @@ export default function DocumentsPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

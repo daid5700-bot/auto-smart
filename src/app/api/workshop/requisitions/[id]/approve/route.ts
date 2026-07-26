@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
+import { calculateSnapshotDiscount } from "@/lib/discounts";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const requisitionId = parseInt(params.id);
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const requisitionId = parseInt((await params).id);
 
   if (isNaN(requisitionId)) {
     return NextResponse.json({ error: "ID yêu cầu không hợp lệ" }, { status: 400 });
@@ -199,7 +200,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         let totalDiscountAmount = 0;
         let discountPercentVal = 0;
-        if (isJson) {
+        const snapshotDiscountAmount = calculateSnapshotDiscount(requisition.repairOrder, {
+          subtotal: laborCost + partsCost,
+          serviceSubtotal: laborCost,
+          partsSubtotal: partsCost,
+        });
+        if (snapshotDiscountAmount !== null) {
+          totalDiscountAmount = snapshotDiscountAmount;
+          discountPercentVal =
+            requisition.repairOrder.appliedDiscountType === "PERCENTAGE"
+              ? Number(requisition.repairOrder.appliedDiscountValue || 0)
+              : 0;
+        } else if (requisition.repairOrder.appliedDiscountType === "LEGACY") {
+          totalDiscountAmount = Number(requisition.repairOrder.discountAmount || 0);
+          discountPercentVal = Number(requisition.repairOrder.discountPercent || 0);
+        } else if (isJson) {
           const serviceDiscountAmount = Math.round(laborCost * (serviceDiscountPercent / 100));
           const partsDiscountAmount = Math.round(partsCost * (partsDiscountPercent / 100));
           totalDiscountAmount = serviceDiscountAmount + partsDiscountAmount;

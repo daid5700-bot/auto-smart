@@ -3,14 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { verifyRole } from "@/lib/auth";
 
 // PATCH /api/branches/[id] — update branch details (Admin only)
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     const body = await req.json();
 
     const branch = await prisma.branch.update({
@@ -31,14 +31,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/branches/[id] — delete branch (Admin only)
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
 
     // Safety checks: check if branch has related data
     const [productsCount, ordersCount, leadsCount, vehiclesCount, usersCount] = await Promise.all([

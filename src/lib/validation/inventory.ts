@@ -22,3 +22,19 @@ export const createInventoryOrderSchema = z.object({
     });
   }
 });
+
+const optionalVehicleModelSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((value) => {
+    if (typeof value !== "string") return null;
+
+    const normalized = value.trim().replace(/\s+/g, " ");
+    return normalized || null;
+  })
+  .refine((value) => value === null || value.length <= 120, {
+    message: "Tên xe không được vượt quá 120 ký tự.",
+  });
+
+export function parseOptionalVehicleModel(value: unknown) {
+  return optionalVehicleModelSchema.parse(value);
+}

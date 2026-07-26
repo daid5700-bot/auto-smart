@@ -16,16 +16,17 @@ import {
   syncGiftRequisition,
 } from "@/lib/sales/vehicle-update";
 import { updateVehicleSchema } from "@/lib/validation/sales";
+import { applyDiscountCode, discountSnapshotData } from "@/lib/discounts";
 
 // GET /api/sales/[id] — retrieve a single vehicle details
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAuth(req);
   if (!guard.ok) return guard.response;
 
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     if (isNaN(id) || id <= 0) return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const vehicle = await prisma.vehicle.findFirst({
       where: {
@@ -61,7 +62,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       ...vehicle,
       importPrice: vehicle.importPrice ? Number(vehicle.importPrice) : null,
       listPrice: vehicle.listPrice ? Number(vehicle.listPrice) : 0,
+      originalListPrice: vehicle.originalListPrice === null ? null : Number(vehicle.originalListPrice),
       floorPrice: vehicle.floorPrice ? Number(vehicle.floorPrice) : 0,
+      discountAmount: Number(vehicle.discountAmount || 0),
+      appliedDiscountValue: Number(vehicle.appliedDiscountValue || 0),
+      appliedDiscountMaxAmount:
+        vehicle.appliedDiscountMaxAmount === null
+          ? null
+          : Number(vehicle.appliedDiscountMaxAmount),
       paidAmount: vehicle.paidAmount ? Number(vehicle.paidAmount) : 0,
       debtAmount: vehicle.debtAmount ? Number(vehicle.debtAmount) : 0,
       plateCost: vehicle.plateCost ? Number(vehicle.plateCost) : null,
@@ -85,15 +93,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // PATCH /api/sales/[id] — update vehicle details
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const guard = await requireAuth(req);
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAuth(req, ["ADMIN", "SALES"]);
   if (!guard.ok) return guard.response;
 
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     if (isNaN(id) || id <= 0) return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });
     const body = await parseJson(req, updateVehicleSchema);
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const currentVehicle = await prisma.vehicle.findFirst({
       where: {
@@ -103,6 +111,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!currentVehicle) {
       return NextResponse.json({ error: "Thông tin xe không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
+    }
+    if (
+      body.branchId !== undefined
+      && body.branchId !== null
+      && Number(body.branchId) !== currentVehicle.branchId
+    ) {
+      return NextResponse.json(
+        { error: "Không thể chuyển hồ sơ xe sang cơ sở khác qua API này." },
+        { status: 400 },
+      );
     }
 
     const { vin, giftItemsJson, customerName, customerPhone, customerBirthday, customerAddress } = body;
@@ -134,17 +152,44 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
     }
 
-    const updateData = buildVehicleUpdateData(currentVehicle, body, customerId);
-    const { accessories, accessoriesCost, debtAmount } = calculateUpdatedVehicleAmounts(
-      currentVehicle,
-      updateData,
-    );
-    updateData.debtAmount = debtAmount;
-    normalizeCancelledVin(currentVehicle, updateData);
-
     let requisitionEventBranchId: number | null | undefined = null;
+    const hasDiscountSelection = Object.prototype.hasOwnProperty.call(body, "discountCodeId");
+    const originalListPrice = Number(
+      currentVehicle.originalListPrice
+      ?? (body.listPrice !== undefined ? body.listPrice : currentVehicle.listPrice),
+    );
 
     const vehicle = await prisma.$transaction(async (tx) => {
+      const updateData = buildVehicleUpdateData(currentVehicle, body, customerId);
+
+      if (hasDiscountSelection) {
+        if (body.discountCodeId) {
+          const appliedDiscount = await applyDiscountCode(tx, {
+            discountCodeId: Number(body.discountCodeId),
+            branchId: currentVehicle.branchId || branchId || 0,
+            scope: "SALES",
+            subtotal: originalListPrice,
+            incrementUsage: currentVehicle.discountCodeId !== Number(body.discountCodeId),
+          });
+          Object.assign(updateData, discountSnapshotData(appliedDiscount), {
+            originalListPrice,
+            listPrice: Math.max(0, originalListPrice - appliedDiscount.amount),
+          });
+        } else {
+          Object.assign(updateData, discountSnapshotData(null), {
+            originalListPrice,
+            listPrice: originalListPrice,
+          });
+        }
+      }
+
+      const { accessories, accessoriesCost, debtAmount } = calculateUpdatedVehicleAmounts(
+        currentVehicle,
+        updateData,
+      );
+      updateData.debtAmount = debtAmount;
+      normalizeCancelledVin(currentVehicle, updateData);
+
       const v = await tx.vehicle.update({
         where: { id },
         data: updateData,
@@ -173,7 +218,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       ...vehicle,
       importPrice: vehicle.importPrice ? Number(vehicle.importPrice) : null,
       listPrice: vehicle.listPrice ? Number(vehicle.listPrice) : 0,
+      originalListPrice: vehicle.originalListPrice === null ? null : Number(vehicle.originalListPrice),
       floorPrice: vehicle.floorPrice ? Number(vehicle.floorPrice) : 0,
+      discountAmount: Number(vehicle.discountAmount || 0),
+      appliedDiscountValue: Number(vehicle.appliedDiscountValue || 0),
+      appliedDiscountMaxAmount:
+        vehicle.appliedDiscountMaxAmount === null
+          ? null
+          : Number(vehicle.appliedDiscountMaxAmount),
       paidAmount: vehicle.paidAmount ? Number(vehicle.paidAmount) : 0,
       debtAmount: vehicle.debtAmount ? Number(vehicle.debtAmount) : 0,
       plateCost: vehicle.plateCost ? Number(vehicle.plateCost) : null
@@ -186,14 +238,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/sales/[id] — delete vehicle
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAuth(req);
   if (!guard.ok) return guard.response;
 
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     if (isNaN(id) || id <= 0) return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const currentVehicle = await prisma.vehicle.findFirst({
       where: {

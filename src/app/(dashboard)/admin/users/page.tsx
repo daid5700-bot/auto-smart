@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Users, Loader2, ShieldAlert, Plus, Edit, Trash2, X, Key } from "lucide-react";
 import { roleName, roleColor, UserRole } from "@/config/rbac";
 import { useModal } from "@/components/ModalProvider";
+import { ModalPortal } from "@/components/modal-portal";
+import { CustomSelect } from "@/components/CustomSelect";
 
 
 export default function UsersPage() {
@@ -234,83 +236,107 @@ export default function UsersPage() {
 
       {/* CRUD User Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-bold">{editingId ? "Cập nhật tài khoản" : "Tạo tài khoản mới"}</h3>
-              <button onClick={() => setModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Họ và tên nhân viên</label>
-                <input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: Đỗ Thế Kỷ" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Địa chỉ Email</label>
-                <input type="email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: nhanvien@autosmart.vn" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
-                  {editingId ? "Mật khẩu mới (Để trống nếu giữ nguyên)" : "Mật khẩu ban đầu"}
-                </label>
-                <input type="password" required={!editingId} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder={editingId ? "••••••••" : "Mật khẩu để đăng nhập"} />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Quyền hạn truy cập</label>
-                <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                  <option value="ADMIN">Quản trị viên (Full Access)</option>
-                  <option value="WAREHOUSE">Nhân viên Kho phụ tùng</option>
-                  <option value="WORKSHOP">Cố vấn / KTV Xưởng dịch vụ</option>
-                  <option value="SALES">Nhân viên Kinh doanh xe</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Cơ sở phụ trách</label>
-                <div className="grid grid-cols-2 gap-2 p-3 bg-secondary/20 border border-border rounded-xl max-h-32 overflow-y-auto">
-                  {branches.map((b: any) => {
-                    const checked = formData.branchIds.includes(b.id);
-                    return (
-                      <label key={b.id} className="flex items-center gap-2 text-xs font-medium cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({ ...formData, branchIds: [...formData.branchIds, b.id] });
-                            } else {
-                              setFormData({
-                                ...formData,
-                                branchIds: formData.branchIds.filter((id) => id !== b.id),
-                              });
-                            }
-                          }}
-                          className="rounded border-border text-primary focus:ring-primary/20 w-3.5 h-3.5"
-                        />
-                        {b.name}
-                      </label>
-                    );
-                  })}
-                  {branches.length === 0 && (
-                    <span className="text-muted-foreground italic text-xs col-span-2 text-center py-2">
-                      Đang tải danh sách cơ sở...
-                    </span>
-                  )}
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in">
+            <div className="w-full max-w-lg bg-card border border-border/80 rounded-3xl overflow-hidden shadow-2xl animate-slide-in-bottom">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border/80 bg-secondary/10">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-primary/10 text-primary rounded-2xl border border-primary/20">
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-foreground">
+                      {editingId ? "Cập nhật tài khoản nhân viên" : "Tạo tài khoản nhân viên mới"}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {editingId ? "Phân quyền truy cập và gán chi nhánh hoạt động" : "Nhập đầy đủ thông tin tài khoản và chi nhánh quản lý"}
+                    </p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary/80 rounded-full transition-colors"
+                >
+                  <X size={18} />
+                </button>
               </div>
 
-              <div className="flex gap-3 justify-end pt-4">
-                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
-                <button type="submit" className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90">Lưu lại</button>
-              </div>
-            </form>
+              <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Họ và tên nhân viên <span className="text-destructive">*</span></label>
+                  <input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="VD: Đỗ Thế Kỷ" />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Địa chỉ Email <span className="text-destructive">*</span></label>
+                  <input type="email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="VD: nhanvien@autosmart.vn" />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">
+                    {editingId ? "Mật khẩu mới (Để trống nếu giữ nguyên)" : "Mật khẩu ban đầu *"}
+                  </label>
+                  <input type="password" required={!editingId} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder={editingId ? "••••••••" : "Nhập mật khẩu để đăng nhập"} />
+                </div>
+
+                <div className="pt-2 border-t border-border/40">
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Quyền hạn truy cập <span className="text-destructive">*</span></label>
+                  <CustomSelect
+                    value={formData.role}
+                    onChange={(val) => setFormData({ ...formData, role: val as UserRole })}
+                    options={[
+                      { value: "ADMIN", label: "Quản trị viên (Full Access)", badge: "Admin", badgeVariant: "danger" },
+                      { value: "WAREHOUSE", label: "Nhân viên Kho phụ tùng", badge: "Kho", badgeVariant: "warning" },
+                      { value: "WORKSHOP", label: "Cố vấn / KTV Xưởng dịch vụ", badge: "Xưởng", badgeVariant: "info" },
+                      { value: "SALES", label: "Nhân viên Kinh doanh xe", badge: "Kinh doanh", badgeVariant: "success" },
+                    ]}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Cơ sở phụ trách</label>
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-secondary/20 border border-border rounded-xl max-h-36 overflow-y-auto">
+                    {branches.map((b: any) => {
+                      const checked = formData.branchIds.includes(b.id);
+                      return (
+                        <label key={b.id} className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none p-1.5 hover:bg-secondary/40 rounded-lg transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({ ...formData, branchIds: [...formData.branchIds, b.id] });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  branchIds: formData.branchIds.filter((id) => id !== b.id),
+                                });
+                              }
+                            }}
+                            className="rounded border-border text-primary focus:ring-primary/20 w-4 h-4"
+                          />
+                          {b.name}
+                        </label>
+                      );
+                    })}
+                    {branches.length === 0 && (
+                      <span className="text-muted-foreground italic text-xs col-span-2 text-center py-2">
+                        Đang tải danh sách cơ sở...
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 justify-end pt-3 border-t border-border/80">
+                  <button type="button" onClick={() => setModalOpen(false)} className="px-5 py-2.5 border border-border rounded-xl text-xs font-bold hover:bg-secondary/60 transition-all">Hủy bỏ</button>
+                  <button type="submit" className="gradient-primary text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-md shadow-primary/20">Lưu thông tin</button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

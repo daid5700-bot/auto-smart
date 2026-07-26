@@ -4,7 +4,7 @@ import { getActiveBranchId } from "@/lib/branch";
 
 export async function GET(req: NextRequest) {
   try {
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     const searchParams = req.nextUrl.searchParams;
     
     const page = parseInt(searchParams.get("page") || "1");

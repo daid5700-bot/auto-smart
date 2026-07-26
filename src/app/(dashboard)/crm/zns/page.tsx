@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDate } from "@/lib/utils";
 import { 
   Loader2, 
@@ -9,42 +9,56 @@ import {
   Clock, 
   Search
 } from "lucide-react";
+import { CustomSelect } from "@/components/CustomSelect";
 
 export default function ZnsPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [logsSearch, setLogsSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "SUCCESS" | "FAILED">("ALL");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const activeRequest = useRef<AbortController | null>(null);
 
-  const fetchData = async (pageVal = 1, searchVal = "") => {
+  const fetchData = async (pageVal = 1, searchVal = "", statusVal = statusFilter) => {
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     try {
-      const res = await fetch(`/api/crm?tab=zns&page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}`);
+      const res = await fetch(
+        `/api/crm?tab=zns&page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}&status=${statusVal}`,
+        { signal: controller.signal },
+      );
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Không thể tải lịch sử Zalo OA");
       setLogs(data.znsLogs || []);
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages || 1);
         setTotalCount(data.pagination.total || 0);
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.name === "AbortError") return;
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
     setPage(1);
-  }, [logsSearch]);
+  }, [logsSearch, statusFilter]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      fetchData(page, logsSearch);
+      fetchData(page, logsSearch, statusFilter);
     }, 300);
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [page, logsSearch]);
+    return () => {
+      clearTimeout(delayDebounceFn);
+      activeRequest.current?.abort();
+    };
+  }, [page, logsSearch, statusFilter]);
 
   const znsLabel = (type: string) => {
     switch (type) {
@@ -64,6 +78,7 @@ export default function ZnsPage() {
     switch (status) {
       case "SENT":
       case "SUCCESS":
+      case "DELIVERED":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-bold text-success bg-success/10 px-2.5 py-1 rounded-full border border-success/20">
             <CheckCircle2 size={12} /> Thành công
@@ -102,16 +117,31 @@ export default function ZnsPage() {
     <div className="space-y-6 stagger">
 
       <div className="space-y-4 animate-fade-in">
-        {/* Search Box */}
-        <div className="relative">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={logsSearch}
-            onChange={(e) => setLogsSearch(e.target.value)}
-            placeholder="Tìm theo tên khách hàng, số điện thoại, nội dung tin nhắn..."
-            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
-          />
+        {/* Search + delivery status filter */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={logsSearch}
+              onChange={(e) => setLogsSearch(e.target.value)}
+              placeholder="Tìm theo tên khách hàng, số điện thoại, nội dung tin nhắn..."
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+            />
+          </div>
+          <div className="sm:w-56">
+            <CustomSelect
+              id="zns-status-filter"
+              value={statusFilter}
+              onChange={(val) => setStatusFilter(val as typeof statusFilter)}
+              options={[
+                { value: "ALL", label: "Tất cả trạng thái" },
+                { value: "SUCCESS", label: "Gửi thành công", badge: "Thành công", badgeVariant: "success" },
+                { value: "FAILED", label: "Gửi thất bại", badge: "Thất bại", badgeVariant: "danger" },
+              ]}
+              size="md"
+            />
+          </div>
         </div>
 
         {/* Table */}

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { releaseReservedStock, restoreStockOnce, type ReturnSourceItem } from "@/lib/inventory-cancellation";
+import { calculateSnapshotDiscount } from "@/lib/discounts";
+import { requireAuth } from "@/lib/guard";
 
 const serializeRepairOrder = (ro: any) => {
   if (!ro) return null;
@@ -11,6 +13,9 @@ const serializeRepairOrder = (ro: any) => {
     laborCost: Number(ro.laborCost || 0),
     partsCost: Number(ro.partsCost || 0),
     discountAmount: Number(ro.discountAmount || 0),
+    appliedDiscountValue: Number(ro.appliedDiscountValue || 0),
+    appliedDiscountMaxAmount:
+      ro.appliedDiscountMaxAmount === null ? null : Number(ro.appliedDiscountMaxAmount),
     totalAmount: Number(ro.totalAmount || 0),
     paidAmount: Number(ro.paidAmount || 0),
     debtAmount: Number(ro.debtAmount || 0),
@@ -24,11 +29,15 @@ const serializeRepairOrder = (ro: any) => {
 };
 
 // GET /api/workshop/[id] — get single repair order with full detail
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAuth(req, ["ADMIN", "WORKSHOP"]);
+  if (!guard.ok) return guard.response;
+
   try {
-    const id = parseInt(params.id);
-    const ro = await prisma.repairOrder.findUnique({
-      where: { id },
+    const id = parseInt((await params).id);
+    const branchId = await getActiveBranchId();
+    const ro = await prisma.repairOrder.findFirst({
+      where: { id, ...(branchId ? { branchId } : {}) },
       include: {
         customer: true,
         technician: true,
@@ -44,11 +53,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // PATCH /api/workshop/[id] — update Repair Order
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAuth(req, ["ADMIN", "WORKSHOP"]);
+  if (!guard.ok) return guard.response;
+
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     const body = await req.json();
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const currentRo = await prisma.repairOrder.findFirst({
       where: {
@@ -125,6 +137,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       } catch {}
     }
 
+    // Never trust discount percentages embedded in a PATCH payload. Historical
+    // discounts are preserved by snapshot fields; new edits must not be able
+    // to create or alter a discount without a validated discount code.
+    if (body.symptoms) {
+      try {
+        const parsed = JSON.parse(finalSymptoms || body.symptoms);
+        if (parsed && typeof parsed === "object") {
+          parsed.serviceDiscountPercent = 0;
+          parsed.partsDiscountPercent = 0;
+          finalSymptoms = JSON.stringify(parsed);
+        }
+      } catch {
+        // Plain-text symptoms do not contain discount data.
+      }
+    }
+
     const redeemTx = await prisma.loyaltyTransaction.findFirst({
       where: {
         relatedRoId: id,
@@ -138,15 +166,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     let totalDiscountAmount = 0;
     let discountPercentVal = 0;
-    if (isJson) {
-      const serviceDiscountAmount = Math.round(labor * (serviceDiscountPercent / 100));
-      const partsDiscountAmount = Math.round(parts * (partsDiscountPercent / 100));
-      totalDiscountAmount = serviceDiscountAmount + partsDiscountAmount;
-      discountPercentVal = serviceDiscountPercent; // We store service discount percent in discountPercent
+    const snapshotDiscountAmount = calculateSnapshotDiscount(currentRo, {
+      subtotal: labor + parts,
+      serviceSubtotal: labor,
+      partsSubtotal: parts,
+    });
+    if (snapshotDiscountAmount !== null) {
+      totalDiscountAmount = snapshotDiscountAmount;
+      discountPercentVal =
+        currentRo.appliedDiscountType === "PERCENTAGE"
+          ? Number(currentRo.appliedDiscountValue || 0)
+          : 0;
+    } else if (currentRo.appliedDiscountType === "LEGACY") {
+      totalDiscountAmount = Number(currentRo.discountAmount || 0);
+      discountPercentVal = Number(currentRo.discountPercent || 0);
     } else {
-      // Old format: fallback to standard total discount percent
-      discountPercentVal = body.discountPercent !== undefined ? Number(body.discountPercent) : Number(currentRo.discountPercent || 0);
-      totalDiscountAmount = Math.round((labor + parts) * (discountPercentVal / 100));
+      totalDiscountAmount = 0;
+      discountPercentVal = 0;
     }
 
     const newTotalAmount = Math.max(0, (labor + parts) - pointsDiscount - totalDiscountAmount);
@@ -295,10 +331,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/workshop/[id] — delete Repair Order
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAuth(req, ["ADMIN", "WORKSHOP"]);
+  if (!guard.ok) return guard.response;
+
   try {
-    const id = parseInt(params.id);
-    const branchId = getActiveBranchId();
+    const id = parseInt((await params).id);
+    const branchId = await getActiveBranchId();
     const currentRo = await prisma.repairOrder.findFirst({
       where: {
         id,

@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
-import { verifyRole } from "@/lib/auth";
+import { parseOptionalVehicleModel } from "@/lib/validation/inventory";
+import { requireAuth } from "@/lib/guard";
 
 // PATCH /api/inventory/[id] — update product details & prices
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAuth(req, ["ADMIN", "WAREHOUSE"]);
+  if (!guard.ok) return guard.response;
+
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     const body = await req.json();
-    const userRole = await verifyRole(req.cookies.get("user_role")?.value);
-    const isAdmin = userRole === "ADMIN";
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     // Release SKUs of any old INACTIVE products to avoid unique constraint failures on update
     try {
@@ -37,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const currentProduct = await prisma.product.findFirst({
       where: {
         id,
-        ...((branchId && !isAdmin) ? { productBranches: { some: { branchId } } } : {}),
+        ...(branchId ? { productBranches: { some: { branchId } } } : {}),
       },
     });
     if (!currentProduct) return NextResponse.json({ error: "Phụ tùng không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });
@@ -61,6 +63,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data: {
         sku: body.sku,
         name: body.name,
+        ...(Object.prototype.hasOwnProperty.call(body, "vehicleModel")
+          ? { vehicleModel: parseOptionalVehicleModel(body.vehicleModel) }
+          : {}),
         category: body.category,
         unit: body.unit,
         conversionUnit: body.conversionUnit,
@@ -70,7 +75,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
 
     // Update product branch
-    const targetBranchId = body.branchId ? Number(body.branchId) : branchId;
+    const targetBranchId = branchId;
     if (targetBranchId && (body.stockCount !== undefined || body.stockMin !== undefined || body.stockMax !== undefined)) {
       await prisma.productBranch.upsert({
         where: { productId_branchId: { productId: id, branchId: targetBranchId } },
@@ -108,17 +113,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/inventory/[id] — soft delete product
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAuth(req, ["ADMIN", "WAREHOUSE"]);
+  if (!guard.ok) return guard.response;
+
   try {
-    const id = parseInt(params.id);
-    const userRole = await verifyRole(req.cookies.get("user_role")?.value);
-    const isAdmin = userRole === "ADMIN";
-    const branchId = getActiveBranchId();
+    const id = parseInt((await params).id);
+    const branchId = await getActiveBranchId();
 
     const currentProduct = await prisma.product.findFirst({
       where: {
         id,
-        ...((branchId && !isAdmin) ? { productBranches: { some: { branchId } } } : {}),
+        ...(branchId ? { productBranches: { some: { branchId } } } : {}),
       },
     });
     if (!currentProduct) return NextResponse.json({ error: "Phụ tùng không tồn tại hoặc không thuộc cơ sở này" }, { status: 404 });

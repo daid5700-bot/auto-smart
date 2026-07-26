@@ -5,15 +5,15 @@ import { getActiveBranchId } from "@/lib/branch";
 import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
 import { paymentSchema } from "@/lib/validation/payment";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAuth(req, ["ADMIN", "WORKSHOP"]);
   if (!guard.ok) return guard.response;
 
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     if (!Number.isInteger(id) || id <= 0) throw new ApiError("ID không hợp lệ", 400, "INVALID_ID");
     const { amount: paymentDelta } = await parseJson(req, paymentSchema);
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const ro = await prisma.repairOrder.findFirst({
       where: { id, ...(branchId ? { branchId } : {}) },

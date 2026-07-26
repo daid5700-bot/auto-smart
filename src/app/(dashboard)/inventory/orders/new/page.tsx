@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown } 
 import Link from "next/link";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
+import { CustomSelect } from "@/components/CustomSelect";
 
 interface RequisitionItemInput {
   productId: string;
@@ -277,15 +278,16 @@ export default function NewInventoryOrderPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Loại đơn</label>
-                <select
+                <CustomSelect
                   value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                >
-                  <option value="EXPORT_RETAIL">Bán Lẻ</option>
-                  <option value="EXPORT_WHOLESALE">Bán Buôn</option>
-                  <option value="INTERNAL">Xuất Nội Bộ</option>
-                </select>
+                  onChange={(val) => setType(val)}
+                  options={[
+                    { value: "EXPORT_RETAIL", label: "Bán Lẻ" },
+                    { value: "EXPORT_WHOLESALE", label: "Bán Buôn" },
+                    { value: "INTERNAL", label: "Xuất Nội Bộ" },
+                  ]}
+                  size="sm"
+                />
               </div>
 
               <div>

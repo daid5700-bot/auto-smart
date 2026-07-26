@@ -6,7 +6,25 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "'Segoe UI'",
+          "Roboto",
+          "'Helvetica Neue'",
+          "Arial",
+          "sans-serif",
+        ],
+      },
+      boxShadow: {
+        sm: "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
+        DEFAULT: "0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02)",
+        md: "0 2px 5px -1px rgba(0, 0, 0, 0.04), 0 1px 3px -1px rgba(0, 0, 0, 0.02)",
+        lg: "0 4px 8px -2px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.02)",
+        xl: "0 6px 12px -3px rgba(0, 0, 0, 0.05)",
+        "2xl": "0 8px 16px -4px rgba(0, 0, 0, 0.06)",
+        inner: "inset 0 1px 2px 0 rgba(0, 0, 0, 0.03)",
+        none: "none",
       },
       colors: {
         border: "hsl(var(--border))",

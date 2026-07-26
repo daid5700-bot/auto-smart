@@ -178,11 +178,29 @@ export default function InvoicePage() {
           const labor = Number(ro.laborCost) || 0;
           const parts = Number(ro.partsCost) || 0;
           const total = Number(ro.totalAmount) || 0;
+          const recordedDiscount = Number(ro.discountAmount) || 0;
+          const hasDiscountSnapshot = Boolean(ro.appliedDiscountCode);
 
           const serviceDiscountAmount = Math.round(labor * (parsed.serviceDiscountPercent / 100));
           const partsDiscountAmount = Math.round(parts * (parsed.partsDiscountPercent / 100));
           const totalDiscount = Math.round(labor + parts - total);
-          const loyaltyDiscount = Math.max(0, totalDiscount - (serviceDiscountAmount + partsDiscountAmount));
+          const legacyDiscount = serviceDiscountAmount + partsDiscountAmount;
+          const loyaltyDiscount = Math.max(
+            0,
+            totalDiscount - (hasDiscountSnapshot ? recordedDiscount : legacyDiscount),
+          );
+          const discountTarget =
+            ro.appliedDiscountTarget === "SERVICE"
+              ? "tiền công"
+              : ro.appliedDiscountTarget === "PARTS"
+                ? "phụ tùng"
+                : "toàn lệnh";
+          const discountType =
+            ro.appliedDiscountType === "PERCENTAGE"
+              ? `${Number(ro.appliedDiscountValue || 0)}% ${discountTarget}`
+              : ro.appliedDiscountType === "FIXED_AMOUNT"
+                ? "Số tiền cố định"
+                : "Dữ liệu giảm giá cũ";
 
           return (
             <div className="space-y-2 border-t border-border pt-4">
@@ -190,7 +208,7 @@ export default function InvoicePage() {
                 <span className="text-muted-foreground">Tiền công sửa chữa</span>
                 <span className="font-semibold">{formatCurrency(labor)}</span>
               </div>
-              {hasServicesDiscount && (
+              {!hasDiscountSnapshot && hasServicesDiscount && (
                 <div className="flex justify-between text-xs text-destructive font-medium pl-4">
                   <span>Giảm giá dịch vụ ({parsed.serviceDiscountPercent}%)</span>
                   <span>-{formatCurrency(serviceDiscountAmount)}</span>
@@ -200,10 +218,21 @@ export default function InvoicePage() {
                 <span className="text-muted-foreground">Tiền phụ tùng</span>
                 <span className="font-semibold">{formatCurrency(parts)}</span>
               </div>
-              {hasPartsDiscount && (
+              {!hasDiscountSnapshot && hasPartsDiscount && (
                 <div className="flex justify-between text-xs text-destructive font-medium pl-4">
                   <span>Giảm giá phụ tùng ({parsed.partsDiscountPercent}%)</span>
                   <span>-{formatCurrency(partsDiscountAmount)}</span>
+                </div>
+              )}
+              {hasDiscountSnapshot && recordedDiscount > 0 && (
+                <div className="flex justify-between gap-4 text-xs text-destructive font-medium pl-4">
+                  <span>
+                    Mã {ro.appliedDiscountCode} — {ro.appliedDiscountName || "Giảm giá"}
+                    <span className="block text-[10px] text-muted-foreground">
+                      {discountType}
+                    </span>
+                  </span>
+                  <span className="shrink-0">-{formatCurrency(recordedDiscount)}</span>
                 </div>
               )}
               {loyaltyDiscount >= 1000 && (

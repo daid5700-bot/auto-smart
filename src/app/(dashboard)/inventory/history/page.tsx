@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } 
 import { NumericInput } from "@/components/NumericInput";
 import { Loader2, DollarSign, X, Edit3, Eye, Search, Calendar, CalendarDays } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
+import { ModalPortal } from "@/components/modal-portal";
 
 function InventoryHistoryContent() {
   const modal = useModal();
@@ -467,237 +468,241 @@ function InventoryHistoryContent() {
 
       {/* RECEIPT DETAIL MODAL */}
       {selectedReceipt && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4 print:p-0">
-          <div className="bg-card border border-border w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden print:border-none print:shadow-none print:w-full print:max-h-full print:rounded-none">
-            
-            {/* Modal Header */}
-            <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-secondary/10 print:hidden">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Chi tiết giao dịch</span>
-              </div>
-              <button 
-                onClick={() => setSelectedReceipt(null)}
-                className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Modal Body / Invoice Printable Area */}
-            <div className="p-8 flex-1 overflow-y-auto print:overflow-visible space-y-6 bg-white text-zinc-900" id="printable-receipt">
-              {/* Invoice Header */}
-              <div className="flex justify-between items-start border-b border-zinc-200 pb-6">
-                <div>
-                  <h1 className="text-2xl font-black tracking-tight text-primary">Xe Máy Toàn Thắng</h1>
-                  <p className="text-xs text-zinc-500 mt-1">Hệ thống quản trị doanh nghiệp ô tô thông minh</p>
-                  <p className="text-xs text-zinc-400">Chi nhánh: Mặc định</p>
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4 print:p-0">
+            <div className="bg-card border border-border w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden print:border-none print:shadow-none print:w-full print:max-h-full print:rounded-none">
+              
+              {/* Modal Header */}
+              <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-secondary/10 print:hidden">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Chi tiết giao dịch</span>
                 </div>
-                <div className="text-right">
-                  <h2 className="text-lg font-bold uppercase tracking-wider text-zinc-700">
-                    {selectedReceipt.type === "IMPORT" ? "PHIẾU NHẬP KHO" : 
-                     selectedReceipt.type === "EXPORT" ? "PHIẾU XUẤT KHO" : "BIÊN BẢN KIỂM KÊ"}
-                  </h2>
-                  <p className="font-mono font-bold text-xs text-zinc-800 mt-1">
-                    Số: {getReceiptCode(selectedReceipt.type, selectedReceipt.createdAt)}
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Ngày lập: {formatDate(selectedReceipt.createdAt)}
-                  </p>
-                </div>
+                <button 
+                  onClick={() => setSelectedReceipt(null)}
+                  className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <X size={18} />
+                </button>
               </div>
 
-              {/* Invoice Metadata */}
-              <div className="grid grid-cols-2 gap-4 text-xs text-zinc-600 bg-zinc-50 p-4 rounded-xl">
-                <div>
-                  <p><span className="font-bold text-zinc-800">Người lập phiếu:</span> {selectedReceipt.createdBy}</p>
-                  <p className="mt-1"><span className="font-bold text-zinc-800">Bộ phận:</span> Phòng phụ tùng / Kho hàng</p>
+              {/* Modal Body / Invoice Printable Area */}
+              <div className="p-8 flex-1 overflow-y-auto print:overflow-visible space-y-6 bg-white text-zinc-900" id="printable-receipt">
+                {/* Invoice Header */}
+                <div className="flex justify-between items-start border-b border-zinc-200 pb-6">
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-primary">Xe Máy Toàn Thắng</h1>
+                    <p className="text-xs text-zinc-500 mt-1">Hệ thống quản trị doanh nghiệp ô tô thông minh</p>
+                    <p className="text-xs text-zinc-400">Chi nhánh: Mặc định</p>
+                  </div>
+                  <div className="text-right">
+                    <h2 className="text-lg font-bold uppercase tracking-wider text-zinc-700">
+                      {selectedReceipt.type === "IMPORT" ? "PHIẾU NHẬP KHO" : 
+                       selectedReceipt.type === "EXPORT" ? "PHIẾU XUẤT KHO" : "BIÊN BẢN KIỂM KÊ"}
+                    </h2>
+                    <p className="font-mono font-bold text-xs text-zinc-800 mt-1">
+                      Số: {getReceiptCode(selectedReceipt.type, selectedReceipt.createdAt)}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Ngày lập: {formatDate(selectedReceipt.createdAt)}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p><span className="font-bold text-zinc-800">Hình thức:</span> {
-                    selectedReceipt.type === "IMPORT" ? "Nhập tay (Manual)" : 
-                    selectedReceipt.type === "EXPORT" ? "Xuất kho trực tiếp" : "Kiểm kê định kỳ"
-                  }</p>
-                  <p className="mt-1"><span className="font-bold text-zinc-800">Ghi chú:</span> {selectedReceipt.reason || "—"}</p>
-                </div>
-              </div>
 
-              {/* Invoice Table */}
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-zinc-300 text-zinc-850 font-bold">
-                    <th className="py-2.5 w-10">STT</th>
-                    <th className="py-2.5">Mã SKU</th>
-                    <th className="py-2.5">Tên sản phẩm / phụ tùng</th>
-                    <th className="py-2.5 text-center w-20">Số lượng</th>
-                    <th className="py-2.5 text-center w-16">Đơn vị</th>
-                    {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
-                      <>
-                        <th className="py-2.5 text-right w-28">Đơn giá</th>
-                        <th className="py-2.5 text-right w-28">Thành tiền</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200">
-                  {selectedReceipt.items.map((m: any, idx: number) => (
-                    <tr key={m.id} className="text-zinc-700">
-                      <td className="py-2.5">{idx + 1}</td>
-                      <td className="py-2.5 font-mono font-bold text-zinc-850">{m.product?.sku}</td>
-                      <td className="py-2.5">{m.product?.name}</td>
-                      <td className="py-2.5 text-center">{m.quantity}</td>
-                      <td className="py-2.5 text-center">{m.product?.unit}</td>
+                {/* Invoice Metadata */}
+                <div className="grid grid-cols-2 gap-4 text-xs text-zinc-600 bg-zinc-50 p-4 rounded-xl">
+                  <div>
+                    <p><span className="font-bold text-zinc-800">Người lập phiếu:</span> {selectedReceipt.createdBy}</p>
+                    <p className="mt-1"><span className="font-bold text-zinc-800">Bộ phận:</span> Phòng phụ tùng / Kho hàng</p>
+                  </div>
+                  <div>
+                    <p><span className="font-bold text-zinc-800">Hình thức:</span> {
+                      selectedReceipt.type === "IMPORT" ? "Nhập tay (Manual)" : 
+                      selectedReceipt.type === "EXPORT" ? "Xuất kho trực tiếp" : "Kiểm kê định kỳ"
+                    }</p>
+                    <p className="mt-1"><span className="font-bold text-zinc-800">Ghi chú:</span> {selectedReceipt.reason || "—"}</p>
+                  </div>
+                </div>
+
+                {/* Invoice Table */}
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-zinc-300 text-zinc-850 font-bold">
+                      <th className="py-2.5 w-10">STT</th>
+                      <th className="py-2.5">Mã SKU</th>
+                      <th className="py-2.5">Tên sản phẩm / phụ tùng</th>
+                      <th className="py-2.5 text-center w-20">Số lượng</th>
+                      <th className="py-2.5 text-center w-16">Đơn vị</th>
                       {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
                         <>
-                          <td className="py-2.5 text-right text-zinc-650">
-                            {m.type === "EXPORT_GIFT" ? (
-                              <div className="text-right flex flex-col items-end">
-                                <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 rounded font-bold">Hàng tặng</span>
-                                <span className="text-[10px] text-zinc-400 font-mono mt-0.5">(Giá lẻ: {formatCurrency(Number(m.unitCost))})</span>
-                              </div>
-                            ) : (
-                              formatCurrency(Number(m.unitCost))
-                            )}
-                          </td>
-                          <td className="py-2.5 text-right font-semibold text-zinc-950">
-                            {m.type === "EXPORT_GIFT" ? (
-                              <span className="text-emerald-605 font-bold">0 đ (Quà tặng)</span>
-                            ) : (
-                              formatCurrency(Number(m.totalCost))
-                            )}
-                          </td>
+                          <th className="py-2.5 text-right w-28">Đơn giá</th>
+                          <th className="py-2.5 text-right w-28">Thành tiền</th>
                         </>
                       )}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200">
+                    {selectedReceipt.items.map((m: any, idx: number) => (
+                      <tr key={m.id} className="text-zinc-700">
+                        <td className="py-2.5">{idx + 1}</td>
+                        <td className="py-2.5 font-mono font-bold text-zinc-850">{m.product?.sku}</td>
+                        <td className="py-2.5">{m.product?.name}</td>
+                        <td className="py-2.5 text-center">{m.quantity}</td>
+                        <td className="py-2.5 text-center">{m.product?.unit}</td>
+                        {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
+                          <>
+                            <td className="py-2.5 text-right text-zinc-650">
+                              {m.type === "EXPORT_GIFT" ? (
+                                <div className="text-right flex flex-col items-end">
+                                  <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 rounded font-bold">Hàng tặng</span>
+                                  <span className="text-[10px] text-zinc-400 font-mono mt-0.5">(Giá lẻ: {formatCurrency(Number(m.unitCost))})</span>
+                                </div>
+                              ) : (
+                                formatCurrency(Number(m.unitCost))
+                              )}
+                            </td>
+                            <td className="py-2.5 text-right font-semibold text-zinc-950">
+                              {m.type === "EXPORT_GIFT" ? (
+                                <span className="text-emerald-605 font-bold">0 đ (Quà tặng)</span>
+                              ) : (
+                                formatCurrency(Number(m.totalCost))
+                              )}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
-              {/* Total Summary */}
-              {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
-                <div className="border-t border-zinc-300 pt-4 flex justify-between items-start">
-                  <div className="text-xs text-zinc-500 italic max-w-sm">
-                    {selectedReceipt.type === "IMPORT" 
-                      ? "* Giá trị trên được tính theo đơn giá trung bình nhập kho thực tế."
-                      : selectedReceipt.type === "EXPORT_GIFT"
-                      ? "* Đây là phiếu xuất quà tặng không thu tiền. Giá trị vốn tổn hao được ghi nhận để tính toán chi phí showroom."
-                      : "* Giá trị xuất kho được tính dựa theo hình thức bán (Bán lẻ hoặc Bán buôn)."}
+                {/* Total Summary */}
+                {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
+                  <div className="border-t border-zinc-300 pt-4 flex justify-between items-start">
+                    <div className="text-xs text-zinc-500 italic max-w-sm">
+                      {selectedReceipt.type === "IMPORT" 
+                        ? "* Giá trị trên được tính theo đơn giá trung bình nhập kho thực tế."
+                        : selectedReceipt.type === "EXPORT_GIFT"
+                        ? "* Đây là phiếu xuất quà tặng không thu tiền. Giá trị vốn tổn hao được ghi nhận để tính toán chi phí showroom."
+                        : "* Giá trị xuất kho được tính dựa theo hình thức bán (Bán lẻ hoặc Bán buôn)."}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-zinc-500 font-bold uppercase mr-4">
+                        {selectedReceipt.type === "EXPORT_GIFT" ? "Tổng giá vốn quà tặng:" : "Tổng cộng:"}
+                      </span>
+                      <span className="text-lg font-black text-zinc-950">
+                        {formatCurrency(
+                          selectedReceipt.items.reduce((sum: number, it: any) => {
+                            if (it.type === "EXPORT_GIFT" && selectedReceipt.type !== "EXPORT_GIFT") {
+                              return sum;
+                            }
+                            return sum + Number(it.totalCost || 0);
+                          }, 0)
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs text-zinc-500 font-bold uppercase mr-4">
-                      {selectedReceipt.type === "EXPORT_GIFT" ? "Tổng giá vốn quà tặng:" : "Tổng cộng:"}
-                    </span>
-                    <span className="text-lg font-black text-zinc-950">
-                      {formatCurrency(
-                        selectedReceipt.items.reduce((sum: number, it: any) => {
-                          if (it.type === "EXPORT_GIFT" && selectedReceipt.type !== "EXPORT_GIFT") {
-                            return sum;
-                          }
-                          return sum + Number(it.totalCost || 0);
-                        }, 0)
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )}
+                )}
 
-              {/* Signatures */}
-              <div className="grid grid-cols-3 gap-4 text-center text-xs pt-12 text-zinc-800">
-                <div>
-                  <p className="font-bold">Người lập phiếu</p>
-                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
-                  <p className="mt-14 font-semibold">{selectedReceipt.createdBy}</p>
-                </div>
-                <div>
-                  <p className="font-bold">Thủ kho</p>
-                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
-                </div>
-                <div>
-                  <p className="font-bold">Kế toán trưởng</p>
-                  <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                {/* Signatures */}
+                <div className="grid grid-cols-3 gap-4 text-center text-xs pt-12 text-zinc-800">
+                  <div>
+                    <p className="font-bold">Người lập phiếu</p>
+                    <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                    <p className="mt-14 font-semibold">{selectedReceipt.createdBy}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold">Thủ kho</p>
+                    <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                  </div>
+                  <div>
+                    <p className="font-bold">Kế toán trưởng</p>
+                    <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-secondary/10 px-6 py-4 border-t border-border flex justify-end gap-3 print:hidden">
-              <button 
-                onClick={() => setSelectedReceipt(null)}
-                className="px-4 py-2 border border-border rounded-lg text-sm font-semibold hover:bg-secondary transition-colors"
-              >
-                Đóng
-              </button>
-              <button 
-                onClick={() => {
-                  const printContents = document.getElementById("printable-receipt")?.innerHTML;
-                  if (!printContents) return;
-                  const originalContents = document.body.innerHTML;
-                  document.body.innerHTML = printContents;
-                  window.print();
-                  document.body.innerHTML = originalContents;
-                  window.location.reload();
-                }}
-                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity"
-              >
-                In phiếu
-              </button>
+              <div className="bg-secondary/10 px-6 py-4 border-t border-border flex justify-end gap-3 print:hidden">
+                <button 
+                  onClick={() => setSelectedReceipt(null)}
+                  className="px-4 py-2 border border-border rounded-lg text-sm font-semibold hover:bg-secondary transition-colors"
+                >
+                  Đóng
+                </button>
+                <button 
+                  onClick={() => {
+                    const printContents = document.getElementById("printable-receipt")?.innerHTML;
+                    if (!printContents) return;
+                    const originalContents = document.body.innerHTML;
+                    document.body.innerHTML = printContents;
+                    window.print();
+                    document.body.innerHTML = originalContents;
+                    window.location.reload();
+                  }}
+                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity"
+                >
+                  In phiếu
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* PAYMENT UPDATE MODAL */}
       {paymentModalOpen && selectedOrderForPayment && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-card border border-border rounded-2xl overflow-hidden shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-bold">Chỉnh sửa thanh toán</h3>
-              <button onClick={() => setPaymentModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={submitPayment} className="p-6 space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground mb-1">Tổng tiền đơn</p>
-                <p className="font-bold text-lg">{formatCurrency(Number(selectedOrderForPayment.totalAmount || 0))}</p>
-              </div>
-              <div className="flex justify-between items-center bg-secondary/20 p-3 rounded-xl border border-border">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">Đã trả (Cũ)</p>
-                  <p className="font-bold text-emerald-600">{formatCurrency(Number(selectedOrderForPayment.paidAmount || 0))}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-semibold text-muted-foreground">Còn nợ (Cũ)</p>
-                  <p className="font-bold text-rose-600">{formatCurrency(Number(selectedOrderForPayment.debtAmount || 0))}</p>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase">
-                    Nhập số tiền đã trả mới
-                  </label>
-                  <button 
-                    type="button" 
-                    onClick={() => setPaymentInput(selectedOrderForPayment.totalAmount?.toString() || "0")}
-                    className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
-                  >
-                    Trả toàn bộ
-                  </button>
-                </div>
-                <NumericInput
-                  required
-                  value={paymentInput}
-                  onChange={setPaymentInput}
-                  className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                />
-              </div>
-              <div className="flex gap-3 justify-end pt-4 border-t border-border mt-4">
-                <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
-                <button disabled={submittingPayment} type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
-                  {submittingPayment ? "Đang xử lý..." : "Lưu thay đổi"}
+        <ModalPortal>
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl overflow-hidden shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <h3 className="text-lg font-bold">Chỉnh sửa thanh toán</h3>
+                <button onClick={() => setPaymentModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <X size={20} />
                 </button>
               </div>
-            </form>
+              <form onSubmit={submitPayment} className="p-6 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">Tổng tiền đơn</p>
+                  <p className="font-bold text-lg">{formatCurrency(Number(selectedOrderForPayment.totalAmount || 0))}</p>
+                </div>
+                <div className="flex justify-between items-center bg-secondary/20 p-3 rounded-xl border border-border">
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Đã trả (Cũ)</p>
+                    <p className="font-bold text-emerald-600">{formatCurrency(Number(selectedOrderForPayment.paidAmount || 0))}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-muted-foreground">Còn nợ (Cũ)</p>
+                    <p className="font-bold text-rose-600">{formatCurrency(Number(selectedOrderForPayment.debtAmount || 0))}</p>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase">
+                      Nhập số tiền đã trả mới
+                    </label>
+                    <button 
+                      type="button" 
+                      onClick={() => setPaymentInput(selectedOrderForPayment.totalAmount?.toString() || "0")}
+                      className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
+                    >
+                      Trả toàn bộ
+                    </button>
+                  </div>
+                  <NumericInput
+                    required
+                    value={paymentInput}
+                    onChange={setPaymentInput}
+                    className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                  />
+                </div>
+                <div className="flex gap-3 justify-end pt-4 border-t border-border mt-4">
+                  <button type="button" onClick={() => setPaymentModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
+                  <button disabled={submittingPayment} type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                    {submittingPayment ? "Đang xử lý..." : "Lưu thay đổi"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

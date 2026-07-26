@@ -106,27 +106,27 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
     success: {
       icon: <CheckCircle2 className="w-8 h-8 text-emerald-500 animate-bounce" />,
       bg: "bg-emerald-500/10 border-emerald-500/20",
-      btnClass: "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25",
+      btnClass: "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm",
     },
     error: {
       icon: <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />,
       bg: "bg-destructive/10 border-destructive/20",
-      btnClass: "bg-destructive hover:bg-destructive/90 text-white shadow-lg shadow-destructive/25",
+      btnClass: "bg-destructive hover:bg-destructive/90 text-white shadow-sm",
     },
     danger: {
       icon: <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />,
       bg: "bg-destructive/10 border-destructive/20",
-      btnClass: "bg-destructive hover:bg-destructive/90 text-white shadow-lg shadow-destructive/25",
+      btnClass: "bg-destructive hover:bg-destructive/90 text-white shadow-sm",
     },
     warning: {
       icon: <AlertTriangle className="w-8 h-8 text-amber-500" />,
       bg: "bg-amber-500/10 border-amber-500/20",
-      btnClass: "bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/25",
+      btnClass: "bg-amber-500 hover:bg-amber-600 text-white shadow-sm",
     },
     info: {
       icon: <Info className="w-8 h-8 text-sky-500" />,
       bg: "bg-sky-500/10 border-sky-500/20",
-      btnClass: "bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25",
+      btnClass: "bg-primary hover:bg-primary/90 text-white shadow-sm",
     },
   };
 
@@ -141,7 +141,7 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in"
             onMouseDown={(e) => e.target === e.currentTarget && handleCancel()}
           >
-            <div className="w-full max-w-md bg-card/95 border border-border/80 rounded-2xl p-6 shadow-2xl animate-scale-up relative overflow-hidden flex flex-col gap-4">
+            <div className="w-full max-w-md bg-card/95 border border-border/80 rounded-2xl p-6 shadow-lg animate-scale-up relative overflow-hidden flex flex-col gap-4">
               
               {/* Close Button */}
               <button 

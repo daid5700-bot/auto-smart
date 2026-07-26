@@ -8,8 +8,17 @@ import { requireAuth } from "@/lib/guard";
 import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
 import {
   createRepairOrderWithRequisitionSchema,
-  parseServiceDiscounts,
 } from "@/lib/validation/workshop";
+import {
+  applyDiscountCode,
+  discountSnapshotData,
+  type AppliedDiscount,
+} from "@/lib/discounts";
+import {
+  buildWorkshopSymptoms,
+  calculateWorkshopLaborCost,
+  resolveWorkshopItemPrices,
+} from "@/lib/workshop/pricing";
 
 // POST /api/workshop/create-with-requisition
 export async function POST(req: NextRequest) {
@@ -18,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await parseJson(req, createRepairOrderWithRequisitionSchema);
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     if (!branchId) {
       return NextResponse.json({ error: "Không xác định được chi nhánh hiện tại" }, { status: 400 });
     }
@@ -32,38 +41,23 @@ export async function POST(req: NextRequest) {
       symptoms,
       carCondition,
       technicianId,
-      laborCost,
+      services,
       items: parsedItems, // array of { productId, quantity, unitPrice }
       pointsToRedeem,
-      discountPercent,
+      discountCodeId,
       birthday,
     } = body;
     const items = parsedItems ?? [];
 
-      // 1. Calculate parts total cost
-      let calculatedPartsCost = 0;
-      for (const item of items) {
-        calculatedPartsCost += Number(item.unitPrice) * Number(item.quantity);
-      }
-
-      const { serviceDiscountPercent, partsDiscountPercent } = parseServiceDiscounts(symptoms);
-
-      const laborCostNum = Number(laborCost) || 0;
-      const serviceDiscountAmount = Math.round(laborCostNum * (serviceDiscountPercent / 100));
-      const partsDiscountAmount = Math.round(calculatedPartsCost * (partsDiscountPercent / 100));
-      const totalDiscountAmount = serviceDiscountAmount + partsDiscountAmount;
-
-      const rawTotal = laborCostNum + calculatedPartsCost;
-      const pointsDiscount = pointsToRedeem ? Math.min(Math.max(0, rawTotal - totalDiscountAmount), pointsToRedeem * 1000) : 0;
-      const actualPointsToRedeem = Math.ceil(pointsDiscount / 1000);
-      const finalTotalAmount = Math.max(0, rawTotal - totalDiscountAmount - pointsDiscount);
+    const laborCostNum = calculateWorkshopLaborCost(services);
+    const sanitizedSymptoms = buildWorkshopSymptoms(symptoms, services);
 
     // 2. Find or create/update customer (OUTSIDE transaction to avoid deadlocks)
     const existingCustomer = await prisma.customer.findUnique({
       where: { phone },
     });
 
-    if (!existingCustomer && actualPointsToRedeem > 0) {
+    if (!existingCustomer && Number(pointsToRedeem || 0) > 0) {
       throw new ApiError("Khách hàng mới chưa có điểm tích lũy để quy đổi.", 400, "INSUFFICIENT_POINTS");
     }
 
@@ -79,6 +73,57 @@ export async function POST(req: NextRequest) {
 
     // Create the Repair Order and Requisition inside a transaction
     const result = await prisma.$transaction(async (tx) => {
+      if (technicianId) {
+        const technician = await tx.technician.findFirst({
+          where: { id: Number(technicianId), branchId },
+          select: { id: true },
+        });
+        if (!technician) {
+          throw new ApiError(
+            "Kỹ thuật viên không thuộc cơ sở hiện tại.",
+            400,
+            "TECHNICIAN_BRANCH_MISMATCH",
+          );
+        }
+      }
+
+      const pricedItems = await resolveWorkshopItemPrices(tx, branchId, items);
+      const calculatedPartsCost = pricedItems.reduce(
+        (total, item) => total + item.unitPrice * item.quantity,
+        0,
+      );
+      const rawTotal = laborCostNum + calculatedPartsCost;
+      let appliedDiscount: AppliedDiscount | null = null;
+      let totalDiscountAmount = 0;
+      let serviceDiscountPercent = 0;
+      let partsDiscountPercent = 0;
+
+      if (discountCodeId) {
+        appliedDiscount = await applyDiscountCode(tx, {
+          discountCodeId: Number(discountCodeId),
+          branchId,
+          scope: "WORKSHOP",
+          subtotal: rawTotal,
+          serviceSubtotal: laborCostNum,
+          partsSubtotal: calculatedPartsCost,
+        });
+        totalDiscountAmount = appliedDiscount.amount;
+        serviceDiscountPercent =
+          appliedDiscount.discountType === "PERCENTAGE" && appliedDiscount.target === "SERVICE"
+            ? appliedDiscount.value
+            : 0;
+        partsDiscountPercent =
+          appliedDiscount.discountType === "PERCENTAGE" && appliedDiscount.target === "PARTS"
+            ? appliedDiscount.value
+            : 0;
+      }
+
+      const pointsDiscount = pointsToRedeem
+        ? Math.min(Math.max(0, rawTotal - totalDiscountAmount), pointsToRedeem * 1000)
+        : 0;
+      const actualPointsToRedeem = Math.ceil(pointsDiscount / 1000);
+      const finalTotalAmount = Math.max(0, rawTotal - totalDiscountAmount - pointsDiscount);
+
       // Deduct loyalty points inside transaction if requested
       if (actualPointsToRedeem > 0) {
         const currentCust = await tx.customer.findUnique({ where: { id: finalCustomerId } });
@@ -105,14 +150,22 @@ export async function POST(req: NextRequest) {
           plateNumber,
           vehicleModel: vehicleModel || "Chưa xác định",
           kmIn: Number(kmIn) || 0,
-          symptoms: symptoms || "",
+          symptoms: sanitizedSymptoms,
           status,
           technicianId: technicianId ? Number(technicianId) : null,
           createdById: guard.userId,
           laborCost: laborCostNum,
+          servicesJson: services.map((service) => ({
+            name: service.name,
+            cost: Math.round(Number(service.cost) || 0),
+          })),
           partsCost: calculatedPartsCost,
           discountPercent: serviceDiscountPercent,
-          discountAmount: totalDiscountAmount,
+          serviceDiscountPercent,
+          partsDiscountPercent,
+          ...(appliedDiscount
+            ? discountSnapshotData(appliedDiscount)
+            : { discountAmount: totalDiscountAmount }),
           totalAmount: finalTotalAmount,
           branchId,
         },
@@ -152,7 +205,7 @@ export async function POST(req: NextRequest) {
       }
 
       // 3. If there are parts, create PartsRequisition and PartsRequisitionItems (but do NOT deduct stock yet)
-      if (items.length > 0) {
+      if (pricedItems.length > 0) {
         const requisition = await tx.partsRequisition.create({
           data: {
             repairOrderId: ro.id,
@@ -167,7 +220,7 @@ export async function POST(req: NextRequest) {
         // Execute creations and updates sequentially to prevent transaction deadlocks, connection exhaustion, or transaction timeouts on the interactive transaction client
         // 1. Bulk create PartsRequisitionItem
         await tx.partsRequisitionItem.createMany({
-          data: items.map((item: any) => ({
+          data: pricedItems.map((item) => ({
             requisitionId: requisition.id,
             productId: Number(item.productId),
             quantity: Number(item.quantity),
@@ -175,7 +228,7 @@ export async function POST(req: NextRequest) {
         });
 
         // 2. Sequentially increment reservedStock
-        for (const item of items) {
+        for (const item of pricedItems) {
           await tx.productBranch.update({
             where: { productId_branchId: { productId: Number(item.productId), branchId } },
             data: { reservedStock: { increment: Number(item.quantity) } }

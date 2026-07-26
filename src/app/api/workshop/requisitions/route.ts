@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 
 export async function GET(req: NextRequest) {
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (!branchId) {
     return NextResponse.json({ error: "Không xác định được chi nhánh hiện tại" }, { status: 400 });
   }

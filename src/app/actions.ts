@@ -17,7 +17,7 @@ export async function importStock(data: {
   unitCost: number;
   conversionFactor?: number;
 }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Unauthorized");
 
@@ -31,7 +31,7 @@ export async function importStock(data: {
 
   const product = await prisma.product.findUnique({ where: { id: data.productId } });
   if (!product) throw new Error("Sản phẩm không tồn tại");
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (!branchId) throw new Error("Branch not found");
   const targetBranchId = branchId;
 
@@ -91,7 +91,7 @@ export async function createManualImport(data: {
   }[];
   createdBy: string;
 }) {
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (!branchId) throw new Error("Branch not found");
   const targetBranchId = branchId;
 
@@ -176,7 +176,7 @@ export async function createManualImport(data: {
 export async function sellItem(productId: number, quantity: number) {
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) throw new Error("Sản phẩm không tồn tại");
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (!branchId) throw new Error("Branch not found");
   const targetBranchId = branchId;
 
@@ -219,11 +219,11 @@ export async function createDirectExport(data: {
   createdBy: string;
   exportType?: "RETAIL" | "WHOLESALE";
 }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Unauthorized");
 
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
 
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách xuất kho không được trống");
@@ -327,11 +327,11 @@ export async function createManualAdjust(data: {
   }[];
   createdBy: string;
 }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Unauthorized");
 
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
 
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách kiểm kê không được trống");
@@ -410,7 +410,7 @@ export async function updateROStatus(data: {
   repairOrderId: number;
   newStatus: string;
 }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Unauthorized");
 
@@ -420,7 +420,7 @@ export async function updateROStatus(data: {
   });
 
   if (!ro) throw new Error("Lệnh sửa chữa không tồn tại");
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (branchId && ro.branchId !== branchId) {
     throw new Error("Lệnh sửa chữa không thuộc chi nhánh hiện tại");
   }
@@ -520,7 +520,7 @@ export async function exportStockForRO(data: {
   quantity: number;
   priceType: "RETAIL" | "WHOLESALE" | "INSURANCE";
 }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Unauthorized");
 
@@ -530,7 +530,7 @@ export async function exportStockForRO(data: {
   });
 
   if (!product) throw new Error("Sản phẩm không tồn tại");
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (!branchId) throw new Error("Branch not found");
   const targetBranchId = branchId;
 
@@ -636,7 +636,7 @@ export async function sendZNSMock(phone: string, templateId: string, payload: an
 }
 
 export async function redeemPointsDb(data: { customerId: number; points: number; description?: string }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
   if (!Number.isInteger(data.customerId) || data.customerId <= 0) throw new Error("Khách hàng không hợp lệ");
@@ -644,7 +644,7 @@ export async function redeemPointsDb(data: { customerId: number; points: number;
 
   const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
   if (!customer) throw new Error("Khách hàng không tồn tại");
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   const activityBranchId = branchId || customer.branchId;
 
   const defaultDesc = `Đổi ${data.points} điểm thành ${(data.points * 1000).toLocaleString("vi-VN")}đ giảm giá hóa đơn`;
@@ -682,13 +682,13 @@ export async function redeemPointsDb(data: { customerId: number; points: number;
 }
 
 export async function sendOilChangeReminderAction(data: { customerId: number; phone: string; plateNumber: string }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
 
   const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
   if (!customer) throw new Error("Khách hàng không tồn tại");
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (!(await customerBelongsToBranch(data.customerId, branchId))) {
     throw new Error("Khách hàng không thuộc chi nhánh hiện tại");
   }
@@ -761,11 +761,11 @@ export async function createManualExport(data: {
   reason?: string;
   createdBy: string;
 }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Unauthorized");
 
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
 
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách xuất kho không được trống");
@@ -925,11 +925,11 @@ export async function createPartsRequisition(data: {
   reason?: string;
   createdBy: string;
 }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Unauthorized");
 
-  const activeBranchId = getActiveBranchId();
+  const activeBranchId = await getActiveBranchId();
   if (!activeBranchId) {
     throw new Error("Không xác định được chi nhánh hiện tại");
   }
@@ -1067,13 +1067,13 @@ export async function sendCustomZnsAction(data: {
   templateId?: string;
   content: string;
 }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
   if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
 
   const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
   if (!customer) throw new Error("Khách hàng không tồn tại");
-  const activeBranchId = getActiveBranchId();
+  const activeBranchId = await getActiveBranchId();
   if (!(await customerBelongsToBranch(data.customerId, activeBranchId))) {
     throw new Error("Khách hàng không thuộc chi nhánh hiện tại");
   }

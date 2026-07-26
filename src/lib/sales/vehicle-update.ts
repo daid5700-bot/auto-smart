@@ -65,6 +65,8 @@ export function calculateUpdatedVehicleAmounts(
   const plateCost = data.plateCost !== undefined ? Number(data.plateCost) : Number(current.plateCost || 0);
   const accessories = parseItemArray(data.accessoriesJson ?? current.accessoriesJson);
   const accessoriesCost = accessoryTotal(accessories);
+  // listPrice is the net vehicle price after the selected discount. The gross
+  // price is preserved separately in originalListPrice for audit/history.
   const totalAmount = listPrice + plateCost + accessoriesCost;
   const debtAmount = totalAmount - Number(current.paidAmount);
   return { accessories, accessoriesCost, debtAmount };

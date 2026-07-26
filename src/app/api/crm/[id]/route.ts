@@ -7,15 +7,15 @@ import { Prisma } from "@prisma/client";
 import { requireAuth } from "@/lib/guard";
 
 // PATCH /api/crm/[id] — update lead/customer details
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAuth(req);
   if (!guard.ok) return guard.response;
 
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     if (!Number.isInteger(id) || id <= 0) throw new ApiError("ID không hợp lệ", 400, "INVALID_ID");
     const body = await parseJson(req, updateCrmEntrySchema);
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     if (body.type === "customer") {
 
@@ -81,15 +81,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/crm/[id] — delete lead or customer
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAuth(req);
   if (!guard.ok) return guard.response;
 
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     if (!Number.isInteger(id) || id <= 0) throw new ApiError("ID không hợp lệ", 400, "INVALID_ID");
     const type = req.nextUrl.searchParams.get("type");
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     if (type === "customer") {
       const currentCust = await prisma.customer.findFirst({

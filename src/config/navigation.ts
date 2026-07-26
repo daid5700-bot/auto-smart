@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Package, Warehouse, ClipboardList, DollarSign,
   Wrench, UserCog, History, TrendingUp, Car, FileText,
   Users, MessageSquare, Gift, Bell, BarChart3, ShieldCheck, Settings, Building2, Plus,
-  type LucideIcon,
+  BadgePercent, type LucideIcon,
 } from "lucide-react";
 import { type UserRole, type Permission, hasPermission } from "./rbac";
 
@@ -25,6 +25,7 @@ const NAV: NavSection[] = [
     { title: "Thống kê dịch vụ", href: "/workshop/stats", icon: TrendingUp, perm: "workshop.view" },
     { title: "Lệnh sửa chữa", href: "/workshop", icon: Wrench, perm: "workshop.view" },
     { title: "Tạo lệnh mới", href: "/workshop/new", icon: Plus, perm: "workshop.manage" },
+    { title: "Quản lý giảm giá", href: "/workshop/discounts", icon: BadgePercent, perm: "workshop.manage" },
     { title: "Kỹ thuật viên", href: "/workshop/technicians", icon: UserCog, perm: "workshop.manage" },
     { title: "Lịch sử xe", href: "/workshop/history", icon: History, perm: "workshop.view" },
     { title: "Khách hàng (Công nợ)", href: "/workshop/customers", icon: Users, perm: "workshop.manage" },
@@ -34,6 +35,7 @@ const NAV: NavSection[] = [
     { title: "Kho xe", href: "/sales", icon: Car, perm: "sales.view" },
     { title: "Lịch sử hồ sơ", href: "/sales/documents", icon: FileText, perm: "sales.manage" },
     { title: "Tạo hồ sơ mới", href: "/sales/documents/new", icon: Plus, perm: "sales.manage" },
+    { title: "Quản lý giảm giá", href: "/sales/discounts", icon: BadgePercent, perm: "sales.manage" },
     { title: "Khách hàng & Công nợ", href: "/sales/customers", icon: Users, perm: "sales.manage" },
   ]},
   { title: "Khách hàng (CRM)", items: [

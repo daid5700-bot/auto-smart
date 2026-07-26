@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { sendCustomZnsAction } from "@/app/actions";
 import { useModal } from "@/components/ModalProvider";
+import { CustomSelect } from "@/components/CustomSelect";
+import { ModalPortal } from "@/components/modal-portal";
 
 
 const DEFAULT_TEMPLATES = [
@@ -514,250 +516,254 @@ export default function RemindersPage() {
 
       {/* ZNS Send Modal with Template Selection */}
       {modalOpen && selectedReminder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-slide-in-bottom">
-            {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-border bg-secondary/15 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-primary">
-                <MessageSquare size={18} />
-                <h3 className="font-bold text-sm uppercase">Gửi tin nhắn Zalo ZNS</h3>
-              </div>
-              <button 
-                onClick={() => setModalOpen(false)} 
-                className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-all"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 space-y-4">
-              {/* Customer Info */}
-              <div className="grid grid-cols-2 gap-3 bg-secondary/25 p-3 rounded-xl text-xs">
-                <div>
-                  <span className="text-muted-foreground block mb-0.5">Khách hàng:</span>
-                  <strong className="text-foreground">{selectedReminder.customer.name}</strong>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+            <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-slide-in-bottom">
+              {/* Modal Header */}
+              <div className="px-5 py-4 border-b border-border bg-secondary/15 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-primary">
+                  <MessageSquare size={18} />
+                  <h3 className="font-bold text-sm uppercase">Gửi tin nhắn Zalo ZNS</h3>
                 </div>
-                <div>
-                  <span className="text-muted-foreground block mb-0.5">Số điện thoại:</span>
-                  <strong className="text-foreground">{selectedReminder.customer.phone}</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block mb-0.5">Biển số xe:</span>
-                  <strong className="text-foreground bg-card border px-1.5 py-0.5 rounded text-[10px] font-semibold inline-block">
-                    {selectedReminder.plate}
-                  </strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block mb-0.5">Dịch vụ nhắc:</span>
-                  <strong className="text-primary">{selectedReminder.serviceLabel}</strong>
-                </div>
-              </div>
-
-              {/* Template Select */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">
-                  Chọn mẫu tin nhắn ZNS
-                </label>
-                <select
-                  value={selectedTemplateId}
-                  onChange={(e) => handleTemplateChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-secondary/40 border border-border rounded-xl text-xs focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-foreground"
+                <button 
+                  onClick={() => setModalOpen(false)} 
+                  className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-all"
                 >
-                  {templates.filter(t => t.status === "ACTIVE").map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.id} - {t.name}
-                    </option>
-                  ))}
-                </select>
+                  <X size={16} />
+                </button>
               </div>
 
-              {/* Message Content Preview/Edit */}
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-[10px] font-bold uppercase text-muted-foreground">
-                    Nội dung tin nhắn gửi đi
-                  </label>
-                  <span className="text-[9px] text-primary font-semibold flex items-center gap-0.5">
-                    <Sparkles size={8} /> Tự động cá nhân hóa
-                  </span>
+              {/* Modal Body */}
+              <div className="p-5 space-y-4">
+                {/* Customer Info */}
+                <div className="grid grid-cols-2 gap-3 bg-secondary/25 p-3 rounded-xl text-xs">
+                  <div>
+                    <span className="text-muted-foreground block mb-0.5">Khách hàng:</span>
+                    <strong className="text-foreground">{selectedReminder.customer.name}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block mb-0.5">Số điện thoại:</span>
+                    <strong className="text-foreground">{selectedReminder.customer.phone}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block mb-0.5">Biển số xe:</span>
+                    <strong className="text-foreground bg-card border px-1.5 py-0.5 rounded text-[10px] font-semibold inline-block">
+                      {selectedReminder.plate}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block mb-0.5">Dịch vụ nhắc:</span>
+                    <strong className="text-primary">{selectedReminder.serviceLabel}</strong>
+                  </div>
                 </div>
-                <textarea
-                  value={compiledContent}
-                  onChange={(e) => setCompiledContent(e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-xs focus:ring-2 focus:ring-primary/20 outline-none font-medium leading-relaxed"
-                />
-              </div>
-            </div>
 
-            {/* Modal Footer */}
-            <div className="px-5 py-4 bg-secondary/10 border-t border-border flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="px-4 py-2 border border-border text-xs rounded-xl hover:bg-secondary/40 font-semibold"
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                disabled={sendingZns}
-                onClick={handleSendZns}
-                className="px-5 py-2 gradient-primary text-white text-xs font-bold rounded-xl hover:opacity-90 flex items-center gap-1.5 disabled:opacity-50 transition-all shadow-md shadow-primary/10"
-              >
-                {sendingZns ? <Loader2 size={13} className="animate-spin" /> : <Send size={11} />}
-                Gửi ZNS ngay
-              </button>
+                {/* Template Select */}
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">
+                    Chọn mẫu tin nhắn ZNS
+                  </label>
+                  <CustomSelect
+                    value={selectedTemplateId}
+                    onChange={(val) => handleTemplateChange(val)}
+                    options={templates
+                      .filter((t) => t.status === "ACTIVE")
+                      .map((t) => ({
+                        value: t.id,
+                        label: `${t.id} - ${t.name}`,
+                      }))}
+                    size="sm"
+                  />
+                </div>
+
+                {/* Message Content Preview/Edit */}
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[10px] font-bold uppercase text-muted-foreground">
+                      Nội dung tin nhắn gửi đi
+                    </label>
+                    <span className="text-[9px] text-primary font-semibold flex items-center gap-0.5">
+                      <Sparkles size={8} /> Tự động cá nhân hóa
+                    </span>
+                  </div>
+                  <textarea
+                    value={compiledContent}
+                    onChange={(e) => setCompiledContent(e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-xs focus:ring-2 focus:ring-primary/20 outline-none font-medium leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-5 py-4 bg-secondary/10 border-t border-border flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="px-4 py-2 border border-border text-xs rounded-xl hover:bg-secondary/40 font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  disabled={sendingZns}
+                  onClick={handleSendZns}
+                  className="px-5 py-2 gradient-primary text-white text-xs font-bold rounded-xl hover:opacity-90 flex items-center gap-1.5 disabled:opacity-50 transition-all shadow-md shadow-primary/10"
+                >
+                  {sendingZns ? <Loader2 size={13} className="animate-spin" /> : <Send size={11} />}
+                  Gửi ZNS ngay
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* History Modal */}
       {historyModalOpen && historyReminder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-slide-in-bottom">
-            <div className="px-5 py-4 border-b border-border bg-secondary/15 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-primary">
-                <Clock size={18} />
-                <h3 className="font-bold text-sm uppercase">Chi tiết lịch sử dịch vụ trải nghiệm</h3>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-slide-in-bottom">
+              <div className="px-5 py-4 border-b border-border bg-secondary/15 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-primary">
+                  <Clock size={18} />
+                  <h3 className="font-bold text-sm uppercase">Chi tiết lịch sử dịch vụ trải nghiệm</h3>
+                </div>
+                <button 
+                  onClick={() => setHistoryModalOpen(false)} 
+                  className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-all"
+                >
+                  <X size={16} />
+                </button>
               </div>
-              <button 
-                onClick={() => setHistoryModalOpen(false)} 
-                className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-all"
-              >
-                <X size={16} />
-              </button>
-            </div>
 
-            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[75vh] overflow-y-auto">
-              {/* Left Column - Customer and Purchase Details */}
-              <div className="space-y-4">
-                <div className="border border-border p-4 rounded-xl space-y-2 bg-secondary/10 text-xs">
-                  <p className="text-muted-foreground font-bold uppercase tracking-wider text-[10px]">Thông tin khách hàng</p>
-                  <p className="font-bold text-sm text-foreground">{historyReminder.customer.name} - {historyReminder.customer.phone}</p>
-                  <p className="text-muted-foreground mt-1">Biển số / Xe hiện tại: <span className="font-semibold text-foreground">{historyReminder.plate}</span></p>
+              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[75vh] overflow-y-auto">
+                {/* Left Column - Customer and Purchase Details */}
+                <div className="space-y-4">
+                  <div className="border border-border p-4 rounded-xl space-y-2 bg-secondary/10 text-xs">
+                    <p className="text-muted-foreground font-bold uppercase tracking-wider text-[10px]">Thông tin khách hàng</p>
+                    <p className="font-bold text-sm text-foreground">{historyReminder.customer.name} - {historyReminder.customer.phone}</p>
+                    <p className="text-muted-foreground mt-1">Biển số / Xe hiện tại: <span className="font-semibold text-foreground">{historyReminder.plate}</span></p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-primary uppercase tracking-wider">Thông tin xe đã mua</h4>
+                    {historyReminder.customer.lastVehicle ? (
+                      <div className="border border-border p-3.5 rounded-xl space-y-2 bg-card text-xs">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <span className="text-muted-foreground">Dòng xe:</span>
+                            <p className="font-semibold">{historyReminder.customer.lastVehicle.model} {historyReminder.customer.lastVehicle.variant || ""}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Màu sắc:</span>
+                            <p className="font-semibold">{historyReminder.customer.lastVehicle.color || "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Số khung (VIN):</span>
+                            <p className="font-mono font-semibold">{historyReminder.customer.lastVehicle.vin}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Ngày mua:</span>
+                            <p className="font-semibold">{formatDate(historyReminder.customer.lastVehicle.createdAt)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">Không có dữ liệu mua xe hệ thống.</p>
+                    )}
+                  </div>
                 </div>
 
+                {/* Right Column - Repair Order Details */}
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-primary uppercase tracking-wider">Thông tin xe đã mua</h4>
-                  {historyReminder.customer.lastVehicle ? (
-                    <div className="border border-border p-3.5 rounded-xl space-y-2 bg-card text-xs">
-                      <div className="grid grid-cols-2 gap-2">
+                  <h4 className="text-xs font-bold text-primary uppercase tracking-wider">Lượt sửa chữa gần nhất</h4>
+                  {historyReminder.customer.lastRepairOrder ? (
+                    <div className="border border-border p-3.5 rounded-xl space-y-3 bg-card text-xs">
+                      <div className="grid grid-cols-2 gap-3 pb-2 border-b border-border">
                         <div>
-                          <span className="text-muted-foreground">Dòng xe:</span>
-                          <p className="font-semibold">{historyReminder.customer.lastVehicle.model} {historyReminder.customer.lastVehicle.variant || ""}</p>
+                          <span className="text-muted-foreground">Mã lượt dịch vụ:</span>
+                          <p className="font-semibold text-foreground">#RO-{historyReminder.customer.lastRepairOrder.id}</p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Màu sắc:</span>
-                          <p className="font-semibold">{historyReminder.customer.lastVehicle.color || "—"}</p>
+                          <span className="text-muted-foreground">Ngày thực hiện:</span>
+                          <p className="font-semibold text-foreground">{formatDate(historyReminder.customer.lastRepairOrder.createdAt)}</p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Số khung (VIN):</span>
-                          <p className="font-mono font-semibold">{historyReminder.customer.lastVehicle.vin}</p>
+                          <span className="text-muted-foreground">Xe làm dịch vụ:</span>
+                          <p className="font-semibold text-foreground">{historyReminder.customer.lastRepairOrder.plateNumber} {historyReminder.customer.lastRepairOrder.vehicleModel ? `(${historyReminder.customer.lastRepairOrder.vehicleModel})` : ""}</p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Ngày mua:</span>
-                          <p className="font-semibold">{formatDate(historyReminder.customer.lastVehicle.createdAt)}</p>
+                          <span className="text-muted-foreground">Số KM vào xưởng:</span>
+                          <p className="font-semibold text-foreground">{historyReminder.customer.lastRepairOrder.kmIn?.toLocaleString() || 0} km</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Người sửa chữa (Kỹ thuật viên):</span>
+                          <p className="font-bold text-primary text-xs">
+                            {historyReminder.customer.lastRepairOrder.technician ? (
+                              `${historyReminder.customer.lastRepairOrder.technician.name} ${historyReminder.customer.lastRepairOrder.technician.phone ? `(${historyReminder.customer.lastRepairOrder.technician.phone})` : ""}`
+                            ) : (
+                              "Chưa phân công / Không có"
+                            )}
+                          </p>
+                        </div>
+                        {historyReminder.customer.lastRepairOrder.symptoms && (
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground">Yêu cầu / Triệu chứng của khách:</span>
+                            <p className="font-medium text-foreground bg-secondary/15 p-2 rounded mt-0.5">
+                              {parseSymptoms(historyReminder.customer.lastRepairOrder.symptoms).summary || "Không ghi chú triệu chứng"}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <p className="font-semibold text-[11px] text-muted-foreground">Chi tiết phụ tùng & công việc:</p>
+                        <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
+                          {historyReminder.customer.lastRepairOrder.items?.map((item: any) => (
+                            <div key={item.id} className="flex justify-between items-center bg-secondary/20 p-2 rounded text-[11px]">
+                              <span className="font-medium truncate max-w-[70%]">{item.productName}</span>
+                              <span className="font-bold text-muted-foreground">x{item.quantity} ({formatCurrency(item.totalPrice)})</span>
+                            </div>
+                          ))}
+                          {(!historyReminder.customer.lastRepairOrder.items || historyReminder.customer.lastRepairOrder.items.length === 0) && (
+                            <p className="text-[10px] text-muted-foreground italic">Không có danh mục phụ tùng.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-border space-y-1 text-right">
+                        <div className="text-[11px] text-muted-foreground flex justify-between">
+                          <span>Tiền công thợ:</span>
+                          <span className="font-medium">{formatCurrency(historyReminder.customer.lastRepairOrder.laborCost)}</span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex justify-between">
+                          <span>Tiền phụ tùng:</span>
+                          <span className="font-medium">{formatCurrency(historyReminder.customer.lastRepairOrder.partsCost)}</span>
+                        </div>
+                        <div className="text-xs font-bold text-foreground flex justify-between pt-1 border-t border-dashed border-border">
+                          <span>Tổng chi phí:</span>
+                          <span className="text-primary text-sm">{formatCurrency(historyReminder.customer.lastRepairOrder.totalAmount)}</span>
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">Không có dữ liệu mua xe hệ thống.</p>
+                    <p className="text-xs text-muted-foreground italic">Chưa có lượt làm dịch vụ sửa chữa nào trước đây.</p>
                   )}
                 </div>
               </div>
 
-              {/* Right Column - Repair Order Details */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-primary uppercase tracking-wider">Lượt sửa chữa gần nhất</h4>
-                {historyReminder.customer.lastRepairOrder ? (
-                  <div className="border border-border p-3.5 rounded-xl space-y-3 bg-card text-xs">
-                    <div className="grid grid-cols-2 gap-3 pb-2 border-b border-border">
-                      <div>
-                        <span className="text-muted-foreground">Mã lượt dịch vụ:</span>
-                        <p className="font-semibold text-foreground">#RO-{historyReminder.customer.lastRepairOrder.id}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Ngày thực hiện:</span>
-                        <p className="font-semibold text-foreground">{formatDate(historyReminder.customer.lastRepairOrder.createdAt)}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Xe làm dịch vụ:</span>
-                        <p className="font-semibold text-foreground">{historyReminder.customer.lastRepairOrder.plateNumber} {historyReminder.customer.lastRepairOrder.vehicleModel ? `(${historyReminder.customer.lastRepairOrder.vehicleModel})` : ""}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Số KM vào xưởng:</span>
-                        <p className="font-semibold text-foreground">{historyReminder.customer.lastRepairOrder.kmIn?.toLocaleString() || 0} km</p>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground">Người sửa chữa (Kỹ thuật viên):</span>
-                        <p className="font-bold text-primary text-xs">
-                          {historyReminder.customer.lastRepairOrder.technician ? (
-                            `${historyReminder.customer.lastRepairOrder.technician.name} ${historyReminder.customer.lastRepairOrder.technician.phone ? `(${historyReminder.customer.lastRepairOrder.technician.phone})` : ""}`
-                          ) : (
-                            "Chưa phân công / Không có"
-                          )}
-                        </p>
-                      </div>
-                      {historyReminder.customer.lastRepairOrder.symptoms && (
-                        <div className="col-span-2">
-                          <span className="text-muted-foreground">Yêu cầu / Triệu chứng của khách:</span>
-                          <p className="font-medium text-foreground bg-secondary/15 p-2 rounded mt-0.5">
-                            {parseSymptoms(historyReminder.customer.lastRepairOrder.symptoms).summary || "Không ghi chú triệu chứng"}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <p className="font-semibold text-[11px] text-muted-foreground">Chi tiết phụ tùng & công việc:</p>
-                      <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
-                        {historyReminder.customer.lastRepairOrder.items?.map((item: any) => (
-                          <div key={item.id} className="flex justify-between items-center bg-secondary/20 p-2 rounded text-[11px]">
-                            <span className="font-medium truncate max-w-[70%]">{item.productName}</span>
-                            <span className="font-bold text-muted-foreground">x{item.quantity} ({formatCurrency(item.totalPrice)})</span>
-                          </div>
-                        ))}
-                        {(!historyReminder.customer.lastRepairOrder.items || historyReminder.customer.lastRepairOrder.items.length === 0) && (
-                          <p className="text-[10px] text-muted-foreground italic">Không có danh mục phụ tùng.</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-border space-y-1 text-right">
-                      <div className="text-[11px] text-muted-foreground flex justify-between">
-                        <span>Tiền công thợ:</span>
-                        <span className="font-medium">{formatCurrency(historyReminder.customer.lastRepairOrder.laborCost)}</span>
-                      </div>
-                      <div className="text-[11px] text-muted-foreground flex justify-between">
-                        <span>Tiền phụ tùng:</span>
-                        <span className="font-medium">{formatCurrency(historyReminder.customer.lastRepairOrder.partsCost)}</span>
-                      </div>
-                      <div className="text-xs font-bold text-foreground flex justify-between pt-1 border-t border-dashed border-border">
-                        <span>Tổng chi phí:</span>
-                        <span className="text-primary text-sm">{formatCurrency(historyReminder.customer.lastRepairOrder.totalAmount)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">Chưa có lượt làm dịch vụ sửa chữa nào trước đây.</p>
-                )}
+              <div className="px-5 py-4 bg-secondary/10 border-t border-border flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setHistoryModalOpen(false)}
+                  className="px-5 py-2 gradient-primary text-white text-xs font-bold rounded-xl hover:opacity-90 transition-all shadow-md"
+                >
+                  Đóng
+                </button>
               </div>
             </div>
-
-            <div className="px-5 py-4 bg-secondary/10 border-t border-border flex justify-end">
-              <button
-                type="button"
-                onClick={() => setHistoryModalOpen(false)}
-                className="px-5 py-2 gradient-primary text-white text-xs font-bold rounded-xl hover:opacity-90 transition-all shadow-md"
-              >
-                Đóng
-              </button>
-            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

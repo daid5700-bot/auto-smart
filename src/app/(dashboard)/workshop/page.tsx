@@ -8,6 +8,11 @@ import { createPartsRequisition } from "@/app/actions";
 import { useAuth } from "@/lib/store";
 import { ModalPortal } from "@/components/modal-portal";
 import { useModal } from "@/components/ModalProvider";
+import { CustomSelect } from "@/components/CustomSelect";
+import {
+  DiscountPicker,
+  type DiscountOption,
+} from "@/components/discounts/DiscountPicker";
 
 
 const RO_COLS = [
@@ -57,6 +62,7 @@ export default function WorkshopPage() {
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectedDiscount, setSelectedDiscount] = useState<DiscountOption | null>(null);
   const [formData, setFormData] = useState<{
     plateNumber: string;
     vehicleModel: string;
@@ -275,6 +281,7 @@ export default function WorkshopPage() {
 
   const handleOpenAdd = () => {
     setEditingId(null);
+    setSelectedDiscount(null);
     setFormData({
       plateNumber: "",
       vehicleModel: "",
@@ -294,6 +301,7 @@ export default function WorkshopPage() {
 
   const handleOpenEdit = (ro: any) => {
     setEditingId(ro.id);
+    setSelectedDiscount(null);
     setFormData({
       plateNumber: ro.plateNumber,
       vehicleModel: ro.vehicleModel,
@@ -330,6 +338,7 @@ export default function WorkshopPage() {
         customerName: formData.customerName.trim() || undefined,
         customerPhone: formData.customerPhone.trim() || undefined,
         photos: formData.carCondition ? [formData.carCondition] : [],
+        ...(!editingId ? { discountCodeId: selectedDiscount?.id || null } : {}),
       };
 
       const res = await fetch(url, {
@@ -516,7 +525,7 @@ export default function WorkshopPage() {
                       </div>
                       <p className="text-xs font-medium text-foreground mb-1">{ro.vehicleModel}</p>
                       <p className="text-[10px] text-muted-foreground mb-2 line-clamp-1">Khách: {ro.customer?.name}</p>
-                      <p className="text-[10px] text-muted-foreground italic mb-2 line-clamp-2">" {parseSymptoms(ro.symptoms).summary} "</p>
+                      <p className="text-[10px] text-muted-foreground italic mb-2 line-clamp-2">&ldquo; {parseSymptoms(ro.symptoms).summary} &rdquo;</p>
                       {ro.photos?.[0] && <p className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100/60 mb-2 truncate">⚠️ Tình trạng: {ro.photos[0]}</p>}
                       <div className="flex items-center justify-between pt-2 border-t border-border/30">
                         <span className="text-[10px] text-muted-foreground">KTV: {ro.technician?.name || "Chưa giao"}</span>
@@ -549,40 +558,18 @@ export default function WorkshopPage() {
                 <td className="text-xs text-muted-foreground max-w-xs truncate">{parseSymptoms(ro.symptoms).summary}</td>
                 <td>
                   <div className="font-semibold">{formatCurrency(Number(ro.totalAmount))}</div>
-                  {(() => {
-                    const labor = Number(ro.laborCost) || 0;
-                    const parts = Number(ro.partsCost) || 0;
-                    const total = Number(ro.totalAmount) || 0;
-                    const discount = Math.round(labor + parts - total);
-                    if (discount >= 1000) {
-                      return (
-                        <div className="text-[10px] text-success font-bold mt-0.5" title="Hóa đơn có giảm giá">
-                          Giảm: -{formatCurrency(discount)}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
                 </td>
                 <td>
-                  <select
+                  <CustomSelect
                     value={ro.status}
-                    onChange={(e) => handleUpdateStatus(ro.id, e.target.value)}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-extrabold border outline-none cursor-pointer transition-all text-white ${
-                      ro.status === "PENDING" ? "bg-amber-600 border-amber-700" :
-                      ro.status === "DIAGNOSING" ? "bg-blue-600 border-blue-700" :
-                      ro.status === "DOING" ? "bg-purple-600 border-purple-700" :
-                      ro.status === "WAITING_PARTS" ? "bg-red-600 border-red-700" :
-                      ro.status === "DONE" ? "bg-emerald-600 border-emerald-700" :
-                      ro.status === "DELIVERED" ? "bg-teal-600 border-teal-700" :
-                      "bg-secondary text-secondary-foreground border-border"
-                    }`}
-                  >
-                    <option value="WAITING_PARTS" className="bg-card text-foreground">Chờ phụ tùng</option>
-                    <option value="DOING" className="bg-card text-foreground">Đang sửa</option>
-                    <option value="DONE" className="bg-card text-foreground">Hoàn thành</option>
-                    <option value="DELIVERED" className="bg-card text-foreground">Đã giao xe</option>
-                  </select>
+                    onChange={(val) => handleUpdateStatus(ro.id, val)}
+                    options={[
+                      { value: "WAITING_PARTS", label: "Chờ phụ tùng", badge: "Chờ phụ tùng", badgeVariant: "danger" },
+                      { value: "DOING", label: "Đang sửa", badge: "Đang sửa", badgeVariant: "warning" },
+                      { value: "DONE", label: "Hoàn thành", badge: "Hoàn thành", badgeVariant: "success" },
+                      { value: "DELIVERED", label: "Đã giao xe", badge: "Đã giao xe", badgeVariant: "info" },
+                    ]}
+                  />
                 </td>
                 <td>
                   <div className="flex items-center gap-2">
@@ -691,10 +678,20 @@ export default function WorkshopPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Khách hàng có sẵn</label>
-                  <select value={formData.customerId} onChange={(e) => setFormData({ ...formData, customerId: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                    <option value="">-- Khách hàng mới / chưa chọn --</option>
-                    {customers.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
-                  </select>
+                  <CustomSelect
+                    value={formData.customerId}
+                    onChange={(val) => setFormData({ ...formData, customerId: val })}
+                    placeholder="-- Khách hàng mới / chưa chọn --"
+                    options={[
+                      { value: "", label: "-- Khách hàng mới / chưa chọn --" },
+                      ...customers.map((c: any) => ({
+                        value: String(c.id),
+                        label: `${c.name} (${c.phone})`,
+                        sublabel: c.phone,
+                      })),
+                    ]}
+                    clearable
+                  />
                 </div>
               </div>
               {!formData.customerId && (
@@ -724,19 +721,32 @@ export default function WorkshopPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Giao KTV</label>
-                  <select value={formData.technicianId} onChange={(e) => setFormData({ ...formData, technicianId: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                    <option value="">-- Chưa giao việc --</option>
-                    {technicians.map((ktv: any) => <option key={ktv.id} value={ktv.id}>{ktv.name}</option>)}
-                  </select>
+                  <CustomSelect
+                    value={formData.technicianId}
+                    onChange={(val) => setFormData({ ...formData, technicianId: val })}
+                    placeholder="-- Chưa giao việc --"
+                    options={[
+                      { value: "", label: "-- Chưa giao việc --" },
+                      ...technicians.map((ktv: any) => ({
+                        value: String(ktv.id),
+                        label: ktv.name,
+                      })),
+                    ]}
+                    clearable
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Trạng thái sửa chữa</label>
-                  <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                    <option value="DOING">Đang sửa (Doing)</option>
-                    <option value="WAITING_PARTS">Chờ phụ tùng (Waiting Parts)</option>
-                    <option value="DONE">Hoàn thành (Done)</option>
-                    <option value="DELIVERED">Đã giao xe (Delivered)</option>
-                  </select>
+                  <CustomSelect
+                    value={formData.status}
+                    onChange={(val) => setFormData({ ...formData, status: val })}
+                    options={[
+                      { value: "DOING", label: "Đang sửa (Doing)", badge: "Đang sửa", badgeVariant: "warning" },
+                      { value: "WAITING_PARTS", label: "Chờ phụ tùng (Waiting Parts)", badge: "Chờ phụ tùng", badgeVariant: "danger" },
+                      { value: "DONE", label: "Hoàn thành (Done)", badge: "Hoàn thành", badgeVariant: "success" },
+                      { value: "DELIVERED", label: "Đã giao xe (Delivered)", badge: "Đã giao xe", badgeVariant: "info" },
+                    ]}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/40">
@@ -759,6 +769,17 @@ export default function WorkshopPage() {
                   />
                 </div>
               </div>
+              {!editingId && (
+                <DiscountPicker
+                  scope="WORKSHOP"
+                  value={selectedDiscount?.id || null}
+                  subtotal={Number(formData.laborCost || 0) + Number(formData.partsCost || 0)}
+                  serviceSubtotal={Number(formData.laborCost || 0)}
+                  partsSubtotal={Number(formData.partsCost || 0)}
+                  hideContainer
+                  onChange={setSelectedDiscount}
+                />
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Triệu chứng / Yêu cầu</label>
@@ -828,11 +849,29 @@ export default function WorkshopPage() {
                 const labor = Number(printRo.laborCost) || 0;
                 const parts = Number(printRo.partsCost) || 0;
                 const total = Number(printRo.totalAmount) || 0;
+                const recordedDiscount = Number(printRo.discountAmount) || 0;
+                const hasDiscountSnapshot = Boolean(printRo.appliedDiscountCode);
 
                 const serviceDiscountAmount = Math.round(labor * (parsed.serviceDiscountPercent / 100));
                 const partsDiscountAmount = Math.round(parts * (parsed.partsDiscountPercent / 100));
                 const totalDiscount = Math.round(labor + parts - total);
-                const loyaltyDiscount = Math.max(0, totalDiscount - (serviceDiscountAmount + partsDiscountAmount));
+                const legacyDiscount = serviceDiscountAmount + partsDiscountAmount;
+                const loyaltyDiscount = Math.max(
+                  0,
+                  totalDiscount - (hasDiscountSnapshot ? recordedDiscount : legacyDiscount),
+                );
+                const discountTarget =
+                  printRo.appliedDiscountTarget === "SERVICE"
+                    ? "tiền công"
+                    : printRo.appliedDiscountTarget === "PARTS"
+                      ? "phụ tùng"
+                      : "toàn lệnh";
+                const discountType =
+                  printRo.appliedDiscountType === "PERCENTAGE"
+                    ? `${Number(printRo.appliedDiscountValue || 0)}% ${discountTarget}`
+                    : printRo.appliedDiscountType === "FIXED_AMOUNT"
+                      ? "Số tiền cố định"
+                      : "Dữ liệu giảm giá cũ";
 
                 return (
                   <>
@@ -892,7 +931,7 @@ export default function WorkshopPage() {
                             <td className="py-3 text-right font-medium">{formatCurrency(parts)}</td>
                           </tr>
 
-                          {serviceDiscountAmount > 0 && (
+                          {!hasDiscountSnapshot && serviceDiscountAmount > 0 && (
                             <tr className="border-b border-border/40 text-destructive/80">
                               <td className="py-3">
                                 <p className="font-semibold">Chiết khấu giảm giá dịch vụ ({parsed.serviceDiscountPercent}%)</p>
@@ -902,13 +941,27 @@ export default function WorkshopPage() {
                             </tr>
                           )}
 
-                          {partsDiscountAmount > 0 && (
+                          {!hasDiscountSnapshot && partsDiscountAmount > 0 && (
                             <tr className="border-b border-border/40 text-destructive/80">
                               <td className="py-3">
                                 <p className="font-semibold">Chiết khấu giảm giá phụ tùng ({parsed.partsDiscountPercent}%)</p>
                                 <p className="text-[10px] text-muted-foreground">Áp dụng trực tiếp vào tiền phụ tùng</p>
                               </td>
                               <td className="py-3 text-right font-semibold text-destructive/80">-{formatCurrency(partsDiscountAmount)}</td>
+                            </tr>
+                          )}
+
+                          {hasDiscountSnapshot && recordedDiscount > 0 && (
+                            <tr className="border-b border-border/40 text-destructive/80">
+                              <td className="py-3">
+                                <p className="font-semibold">
+                                  Mã {printRo.appliedDiscountCode} — {printRo.appliedDiscountName || "Giảm giá"}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">{discountType}</p>
+                              </td>
+                              <td className="py-3 text-right font-semibold text-destructive/80">
+                                -{formatCurrency(recordedDiscount)}
+                              </td>
                             </tr>
                           )}
 
@@ -984,19 +1037,21 @@ export default function WorkshopPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Lệnh sửa chữa (RO)</label>
-                  <select
-                    required
+                  <CustomSelect
                     value={reqFormData.repairOrderId}
-                    onChange={(e) => setReqFormData({ ...reqFormData, repairOrderId: e.target.value })}
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                  >
-                    <option value="">-- Chọn lệnh sửa chữa --</option>
-                    {repairOrders.filter((ro: any) => ro.status !== "DONE" && ro.status !== "DELIVERED").map((ro: any) => (
-                      <option key={ro.id} value={ro.id}>
-                        {ro.plateNumber} - {ro.vehicleModel} ({ro.customer?.name || "Khách vãng lai"})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setReqFormData({ ...reqFormData, repairOrderId: val })}
+                    placeholder="-- Chọn lệnh sửa chữa --"
+                    options={[
+                      { value: "", label: "-- Chọn lệnh sửa chữa --" },
+                      ...repairOrders.filter((ro: any) => ro.status !== "DONE" && ro.status !== "DELIVERED").map((ro: any) => ({
+                        value: String(ro.id),
+                        label: `${ro.plateNumber} - ${ro.vehicleModel}`,
+                        sublabel: ro.customer?.name || "Khách vãng lai",
+                        badge: ro.plateNumber,
+                        badgeVariant: "info" as const,
+                      })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Lý do yêu cầu</label>
@@ -1103,16 +1158,16 @@ export default function WorkshopPage() {
                         </div>
 
                         {/* Price Type Selector */}
-                        <div className="w-full md:w-32">
-                          <select
+                        <div className="w-full md:w-36">
+                          <CustomSelect
                             value={item.priceType}
-                            onChange={(e) => updateItem(idx, { priceType: e.target.value as any })}
-                            className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                          >
-                            <option value="RETAIL">Giá lẻ</option>
-                            <option value="WHOLESALE">Giá sỉ</option>
-                            <option value="INSURANCE">Giá bảo hiểm</option>
-                          </select>
+                            onChange={(val) => updateItem(idx, { priceType: val as any })}
+                            options={[
+                              { value: "RETAIL", label: "Giá lẻ" },
+                              { value: "WHOLESALE", label: "Giá sỉ" },
+                              { value: "INSURANCE", label: "Giá bảo hiểm" },
+                            ]}
+                          />
                         </div>
 
                         {/* Custom Unit Price */}

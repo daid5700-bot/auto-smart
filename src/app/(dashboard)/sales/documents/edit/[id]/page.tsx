@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { 
   ArrowLeft, Loader2, Plus, X, Search, User, Info, 
   Sparkles, Receipt, Car, Trash2, ChevronDown
@@ -9,6 +9,7 @@ import {
 import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useModal } from "@/components/ModalProvider";
+import { CustomSelect } from "@/components/CustomSelect";
 
 
 interface Accessory {
@@ -19,8 +20,9 @@ interface Accessory {
   quantity: number | "";
 }
 
-export default function EditDocumentPage({ params }: { params: { id: string } }) {
+export default function EditDocumentPage() {
   const router = useRouter();
+  const params = useParams<{ id: string }>();
   const modal = useModal();
   const vehicleId = params.id;
 
@@ -408,41 +410,41 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground">Tiến độ tổng quan *</label>
-              <select
+              <CustomSelect
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary focus:border-primary outline-none"
-              >
-                <option value="RESERVED">ĐÃ CỌC (Reserved)</option>
-                <option value="SOLD">ĐÃ BÁN (Sold)</option>
-              </select>
+                onChange={(val) => setStatus(val)}
+                options={[
+                  { value: "RESERVED", label: "ĐÃ CỌC (Reserved)", badge: "Đã cọc", badgeVariant: "warning" },
+                  { value: "SOLD", label: "ĐÃ BÁN (Sold)", badge: "Đã bán", badgeVariant: "success" },
+                ]}
+              />
             </div>
             
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground">Tiến độ Ngân hàng (Trả góp)</label>
-              <select
+              <CustomSelect
                 value={bankStatus}
-                onChange={(e) => setBankStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary focus:border-primary outline-none"
-              >
-                <option value="NONE">Mua thẳng (Không vay ngân hàng)</option>
-                <option value="PENDING_APPROVAL">Chờ phê duyệt hồ sơ vay</option>
-                <option value="APPROVED">Đã ra thông báo cho vay</option>
-                <option value="DISBURSED">Đã giải ngân tiền</option>
-              </select>
+                onChange={(val) => setBankStatus(val)}
+                options={[
+                  { value: "NONE", label: "Mua thẳng (Không vay ngân hàng)" },
+                  { value: "PENDING_APPROVAL", label: "Chờ phê duyệt hồ sơ vay", badge: "Chờ vay", badgeVariant: "warning" },
+                  { value: "APPROVED", label: "Đã ra thông báo cho vay", badge: "Đã duyệt", badgeVariant: "info" },
+                  { value: "DISBURSED", label: "Đã giải ngân tiền", badge: "Giải ngân", badgeVariant: "success" },
+                ]}
+              />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground">Thủ tục bấm biển</label>
-              <select
+              <CustomSelect
                 value={plateStatus}
-                onChange={(e) => setPlateStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary focus:border-primary outline-none"
-              >
-                <option value="PENDING">Chờ nộp thuế (Đợi biển)</option>
-                <option value="TAX_PAID">Đã nộp thuế trước bạ</option>
-                <option value="PLATE_DONE">Đã bấm biển & Bàn giao xe</option>
-              </select>
+                onChange={(val) => setPlateStatus(val)}
+                options={[
+                  { value: "PENDING", label: "Chờ nộp thuế (Đợi biển)", badge: "Chờ thuế", badgeVariant: "warning" },
+                  { value: "TAX_PAID", label: "Đã nộp thuế trước bạ", badge: "Nộp thuế", badgeVariant: "info" },
+                  { value: "PLATE_DONE", label: "Đã bấm biển & Bàn giao xe", badge: "Bàn giao", badgeVariant: "success" },
+                ]}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -774,7 +776,7 @@ export default function EditDocumentPage({ params }: { params: { id: string } })
 
           <div className="space-y-3 pt-4 border-t border-border">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-emerald-600 block flex items-center gap-2">
+              <label className="text-xs font-bold text-emerald-600 flex items-center gap-2">
                 <Sparkles size={14} /> Chọn Quà tặng (Không tính tiền, chờ kho duyệt)
               </label>
               {isGiftLocked && (

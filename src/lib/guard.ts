@@ -110,9 +110,23 @@ export async function requireAuth(
         ),
       };
     }
+    if (user.role !== role) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "Quyền tài khoản đã thay đổi. Vui lòng đăng nhập lại." },
+          { status: 401 },
+        ),
+      };
+    }
   } catch {
-    // Nếu DB không trả về được (lỗi kết nối), fallback an toàn: vẫn cho qua
-    // (tránh chặn toàn bộ hệ thống khi DB chậm)
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Không thể xác thực phiên đăng nhập. Vui lòng thử lại." },
+        { status: 503 },
+      ),
+    };
   }
 
   // 5. Kiểm tra role nếu được yêu cầu

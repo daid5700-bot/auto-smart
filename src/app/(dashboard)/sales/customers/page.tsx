@@ -5,6 +5,7 @@ import { Users, Search, Phone, User, DollarSign, Receipt, Eye, X, Edit3, Car } f
 import { fetchWithDedup, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useModal } from "@/components/ModalProvider";
+import { ModalPortal } from "@/components/modal-portal";
 
 
 export default function SalesCustomerDebtsPage() {
@@ -263,169 +264,173 @@ export default function SalesCustomerDebtsPage() {
 
       {/* Customer Vehicles Modal */}
       {selectedCustomer && !editingOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-card w-full max-w-4xl rounded-2xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-border bg-secondary/30 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                  <User size={24} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-foreground">Hồ sơ: {selectedCustomer.name}</h3>
-                  <div className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-                    <span>{selectedCustomer.phone}</span>
-                    {selectedCustomer.address && (
-                      <>
-                        <span className="w-1 h-1 rounded-full bg-border"></span>
-                        <span>{selectedCustomer.address}</span>
-                      </>
-                    )}
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-card w-full max-w-4xl rounded-2xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="px-6 py-4 border-b border-border bg-secondary/30 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                    <User size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-foreground">Hồ sơ: {selectedCustomer.name}</h3>
+                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+                      <span>{selectedCustomer.phone}</span>
+                      {selectedCustomer.address && (
+                        <>
+                          <span className="w-1 h-1 rounded-full bg-border"></span>
+                          <span>{selectedCustomer.address}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
+                <button onClick={() => setSelectedCustomer(null)} className="p-2 hover:bg-secondary rounded-xl transition-colors">
+                  <X size={20} />
+                </button>
               </div>
-              <button onClick={() => setSelectedCustomer(null)} className="p-2 hover:bg-secondary rounded-xl transition-colors">
-                <X size={20} />
-              </button>
-            </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Car size={16} className="text-primary" /> Lịch sử mua xe & công nợ
-              </h4>
+              <div className="flex-1 overflow-y-auto p-6">
+                <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Car size={16} className="text-primary" /> Lịch sử mua xe & công nợ
+                </h4>
 
-              {loadingVehicles ? (
-                <div className="text-center py-10 text-muted-foreground font-medium">Đang tải danh sách xe...</div>
-              ) : customerVehicles.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground font-medium bg-secondary/10 rounded-xl">Khách hàng chưa có lịch sử mua xe nào.</div>
-              ) : (
-                <div className="space-y-3">
-                  {customerVehicles.map(veh => {
-                    const totalContractVal = getVehicleContractTotal(veh);
-                    return (
-                      <div key={veh.id} className="border border-border bg-secondary/5 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
-                        <div>
-                          <div className="font-bold text-primary text-sm flex items-center gap-1.5">
-                            {veh.model} {veh.variant ? `(${veh.variant})` : ""}
+                {loadingVehicles ? (
+                  <div className="text-center py-10 text-muted-foreground font-medium">Đang tải danh sách xe...</div>
+                ) : customerVehicles.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground font-medium bg-secondary/10 rounded-xl">Khách hàng chưa có lịch sử mua xe nào.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {customerVehicles.map(veh => {
+                      const totalContractVal = getVehicleContractTotal(veh);
+                      return (
+                        <div key={veh.id} className="border border-border bg-secondary/5 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
+                          <div>
+                            <div className="font-bold text-primary text-sm flex items-center gap-1.5">
+                              {veh.model} {veh.variant ? `(${veh.variant})` : ""}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-medium">
+                              <span>VIN: <span className="font-bold text-foreground">{veh.vin}</span></span>
+                              <span>Màu: <span className="font-bold text-foreground">{veh.color || "N/A"}</span></span>
+                              <span>Trạng thái: <span className="font-bold text-foreground">{veh.status === "SOLD" ? "Đã bán" : "Đã cọc"}</span></span>
+                            </div>
                           </div>
-                          <div className="text-[11px] text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-medium">
-                            <span>VIN: <span className="font-bold text-foreground">{veh.vin}</span></span>
-                            <span>Màu: <span className="font-bold text-foreground">{veh.color || "N/A"}</span></span>
-                            <span>Trạng thái: <span className="font-bold text-foreground">{veh.status === "SOLD" ? "Đã bán" : "Đã cọc"}</span></span>
+                          <div className="flex items-center gap-6 text-right ml-auto shrink-0">
+                            <div>
+                              <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Tổng cộng</div>
+                              <div className="font-bold text-foreground text-sm">{formatCurrency(totalContractVal)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Đã trả</div>
+                              <div className="font-bold text-emerald-600 text-sm">{formatCurrency(Number(veh.paidAmount))}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Còn nợ</div>
+                              <div className="font-black text-rose-600 text-sm">{formatCurrency(Number(veh.debtAmount))}</div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEditingOrder(veh);
+                                setPaymentInput(0);
+                              }}
+                              className={`p-2 rounded-xl border ${Number(veh.debtAmount) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20" : "border-border bg-card text-muted-foreground hover:bg-secondary"} transition-colors`}
+                              title="Cập nhật thanh toán"
+                            >
+                              <Edit3 size={18} />
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-6 text-right ml-auto shrink-0">
-                          <div>
-                            <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Tổng cộng</div>
-                            <div className="font-bold text-foreground text-sm">{formatCurrency(totalContractVal)}</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Đã trả</div>
-                            <div className="font-bold text-emerald-600 text-sm">{formatCurrency(Number(veh.paidAmount))}</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Còn nợ</div>
-                            <div className="font-black text-rose-600 text-sm">{formatCurrency(Number(veh.debtAmount))}</div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setEditingOrder(veh);
-                              setPaymentInput(0);
-                            }}
-                            className={`p-2 rounded-xl border ${Number(veh.debtAmount) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20" : "border-border bg-card text-muted-foreground hover:bg-secondary"} transition-colors`}
-                            title="Cập nhật thanh toán"
-                          >
-                            <Edit3 size={18} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Edit Payment Modal */}
       {editingOrder && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border overflow-hidden">
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-secondary/20">
-              <h3 className="text-lg font-black text-foreground flex items-center gap-2">
-                <DollarSign className="text-emerald-500" /> Cập nhật thanh toán xe
-              </h3>
-              <button onClick={() => setEditingOrder(null)} className="p-2 hover:bg-secondary rounded-xl transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={submitPayment} className="p-6">
-              <div className="bg-secondary/10 p-4 rounded-xl mb-6 border border-border">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="font-medium text-muted-foreground">Xe đã chọn:</span>
-                  <span className="font-bold text-primary">{editingOrder.model}</span>
-                </div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="font-medium text-muted-foreground">Số VIN:</span>
-                  <span className="font-bold font-mono text-xs">{editingOrder.vin}</span>
-                </div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="font-medium text-muted-foreground">Tổng hợp đồng:</span>
-                  <span className="font-bold">{formatCurrency(getVehicleContractTotal(editingOrder))}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium text-muted-foreground">Khách nợ cũ:</span>
-                  <span className="font-bold text-rose-600">{formatCurrency(Number(editingOrder.debtAmount))}</span>
-                </div>
+        <ModalPortal>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border overflow-hidden">
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-secondary/20">
+                <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+                  <DollarSign className="text-emerald-500" /> Cập nhật thanh toán xe
+                </h3>
+                <button onClick={() => setEditingOrder(null)} className="p-2 hover:bg-secondary rounded-xl transition-colors">
+                  <X size={20} />
+                </button>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold mb-2">Số tiền trả thêm lần này</label>
-                  <div className="relative">
-                    <NumericInput
-                      required
-                      value={paymentInput}
-                      onChange={setPaymentInput}
-                      className="w-full pl-4 pr-12 py-2.5 bg-background border border-border rounded-xl text-base font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
-                    />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">VNĐ</div>
+              <form onSubmit={submitPayment} className="p-6">
+                <div className="bg-secondary/10 p-4 rounded-xl mb-6 border border-border">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="font-medium text-muted-foreground">Xe đã chọn:</span>
+                    <span className="font-bold text-primary">{editingOrder.model}</span>
                   </div>
-                  <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="font-medium text-muted-foreground">Số VIN:</span>
+                    <span className="font-bold font-mono text-xs">{editingOrder.vin}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="font-medium text-muted-foreground">Tổng hợp đồng:</span>
+                    <span className="font-bold">{formatCurrency(getVehicleContractTotal(editingOrder))}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium text-muted-foreground">Khách nợ cũ:</span>
+                    <span className="font-bold text-rose-600">{formatCurrency(Number(editingOrder.debtAmount))}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2">Số tiền trả thêm lần này</label>
+                    <div className="relative">
+                      <NumericInput
+                        required
+                        value={paymentInput}
+                        onChange={setPaymentInput}
+                        className="w-full pl-4 pr-12 py-2.5 bg-background border border-border rounded-xl text-base font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">VNĐ</div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentInput(Number(editingOrder.debtAmount))}
+                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-all"
+                      >
+                        [ Trả đủ nợ còn lại: {formatCurrency(Number(editingOrder.debtAmount))} ]
+                      </button>
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        Phần nợ sẽ được hệ thống tự tính lại.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
                     <button
                       type="button"
-                      onClick={() => setPaymentInput(Number(editingOrder.debtAmount))}
-                      className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-all"
+                      onClick={() => setEditingOrder(null)}
+                      className="px-5 py-2.5 rounded-xl font-bold bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
                     >
-                      [ Trả đủ nợ còn lại: {formatCurrency(Number(editingOrder.debtAmount))} ]
+                      Hủy bỏ
                     </button>
-                    <p className="text-[10px] text-muted-foreground font-medium">
-                      Phần nợ sẽ được hệ thống tự tính lại.
-                    </p>
+                    <button
+                      type="submit"
+                      disabled={submittingPayment}
+                      className="px-5 py-2.5 rounded-xl font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/20"
+                    >
+                      {submittingPayment ? "Đang lưu..." : "Xác nhận & Lưu"}
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setEditingOrder(null)}
-                    className="px-5 py-2.5 rounded-xl font-bold bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingPayment}
-                    className="px-5 py-2.5 rounded-xl font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/20"
-                  >
-                    {submittingPayment ? "Đang lưu..." : "Xác nhận & Lưu"}
-                  </button>
-                </div>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -20,42 +20,40 @@ if (!globalForRequisitionEvents.requisitionEvents) {
 }
 
 export async function getPendingRequisitionCount(branchId: number) {
-  const pendingRequisitions = await prisma.partsRequisition.findMany({
-    where: {
-      branchId,
-      status: "PENDING",
-    },
-    select: {
-      repairOrderId: true,
-      vehicleId: true,
-      vehicle: {
-        select: {
-          vin: true,
+  const [pendingWorkshopCount, giftReqs, pendingVehicleOrders] = await Promise.all([
+    prisma.partsRequisition.count({
+      where: {
+        branchId,
+        status: "PENDING",
+        repairOrderId: { not: null },
+      },
+    }),
+    prisma.partsRequisition.findMany({
+      where: {
+        branchId,
+        status: "PENDING",
+        vehicleId: { not: null },
+      },
+      select: {
+        vehicle: {
+          select: {
+            vin: true,
+          },
         },
       },
-    },
-  });
-
-  const pendingVehicleOrders = await prisma.inventoryOrder.findMany({
-    where: {
-      branchId,
-      status: "PENDING",
-      createdBy: "Hệ thống (Bán Xe)",
-    },
-    select: {
-      id: true,
-      reason: true,
-      vehicleId: true,
-      vehicle: { select: { vin: true } }
-    },
-  });
-
-  // Workshop requisitions are displayed on the Workshop tab
-  const workshopReqs = pendingRequisitions.filter(r => r.repairOrderId !== null);
-  const pendingWorkshopCount = workshopReqs.length;
-
-  // Vehicle accessory exports (paid & gifts) are displayed on the Vehicle tab
-  const giftReqs = pendingRequisitions.filter(r => r.vehicleId !== null);
+    }),
+    prisma.inventoryOrder.findMany({
+      where: {
+        branchId,
+        status: "PENDING",
+        createdBy: "Hệ thống (Bán Xe)",
+      },
+      select: {
+        reason: true,
+        vehicle: { select: { vin: true } },
+      },
+    }),
+  ]);
 
   const uniqueVins = new Set<string>();
   let noVinCount = 0;

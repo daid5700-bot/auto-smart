@@ -48,6 +48,30 @@ export const updateVehicleSchema = z.object({
   customerPhone: z.string().trim().regex(/^0[0-9]{9}$/).optional(),
   customerBirthday: z.union([z.string().date(), z.literal(""), z.null()]).optional(),
   customerAddress: z.string().trim().max(500).optional().nullable(),
+  discountCodeId: z.union([z.coerce.number().int().positive(), z.null()]).optional(),
 }).strict();
 
 export const createVehicleSchema = updateVehicleSchema;
+
+const wholesaleVehicleSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  listPrice: z.coerce.number().finite().min(0).max(10_000_000_000),
+}).strict();
+
+export const createWholesaleDocumentSchema = z.object({
+  vehicles: z.array(wholesaleVehicleSchema).min(1).max(200).superRefine((vehicles, ctx) => {
+    const ids = vehicles.map((vehicle) => vehicle.id);
+    if (new Set(ids).size !== ids.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Danh sách bán buôn có xe bị trùng.",
+      });
+    }
+  }),
+  status: z.enum(["RESERVED", "SOLD"]),
+  customerName: z.string().trim().min(1).max(120),
+  customerPhone: z.string().trim().regex(/^0[0-9]{9}$/),
+  customerBirthday: z.union([z.string().date(), z.literal(""), z.null()]).optional(),
+  customerAddress: z.string().trim().max(500).optional().nullable(),
+  discountCodeId: z.union([z.coerce.number().int().positive(), z.null()]).optional(),
+}).strict();

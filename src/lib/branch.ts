@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 
-export function getActiveBranchId(): number | null {
+export async function getActiveBranchId(): Promise<number | null> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const branchIdStr = cookieStore.get("active_branch_id")?.value;
     if (!branchIdStr) return null;
     const id = parseInt(branchIdStr, 10);

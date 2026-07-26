@@ -669,7 +669,7 @@ export default function UnifiedRequisitionsApprovalPage() {
                                 {item.quantity} cái
                               </td>
                               <td className={`p-3 text-center font-bold bg-secondary/5 ${isOut && order.status === "PENDING" ? "text-rose-600" : "text-foreground"}`}>
-                                {item.stockCount} cái {isOut && order.status === "PENDING" && <span className="text-[9px] font-medium block text-rose-500 font-normal mt-0.5">(Không đủ tồn)</span>}
+                                {item.stockCount} cái {isOut && order.status === "PENDING" && <span className="text-[9px] block text-rose-500 font-normal mt-0.5">(Không đủ tồn)</span>}
                               </td>
                               <td className="p-3 text-right text-muted-foreground">
                                 {item.isGift ? (

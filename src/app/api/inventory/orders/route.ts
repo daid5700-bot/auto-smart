@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const search = searchParams.get("search") || "";
     const customerId = searchParams.get("customerId");
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const where: any = {};
     if (branchId) where.branchId = branchId;
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await parseJson(req, createInventoryOrderSchema);
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     if (!branchId) throw new ApiError("Không xác định được chi nhánh hiện tại", 400, "BRANCH_REQUIRED");
     const userName = req.cookies.get("user_name")?.value || "System";
 

@@ -6,11 +6,11 @@ import { verifyRole, verifyData } from "@/lib/auth";
 const ROLE_PATHS: Record<string, string[]> = {
   ADMIN: ["/admin", "/inventory", "/workshop", "/sales", "/crm", "/api"],
   WAREHOUSE: ["/inventory", "/api/inventory", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
-  WORKSHOP: ["/workshop", "/inventory", "/crm", "/api/workshop", "/api/inventory", "/api/crm", "/api/stats", "/api/technicians", "/api/dashboard", "/api/search", "/api/config"],
-  SALES: ["/sales", "/crm", "/api/sales", "/api/crm", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
+  WORKSHOP: ["/workshop", "/inventory", "/crm", "/api/workshop", "/api/inventory", "/api/crm", "/api/discounts", "/api/stats", "/api/technicians", "/api/dashboard", "/api/search", "/api/config"],
+  SALES: ["/sales", "/crm", "/api/sales", "/api/crm", "/api/discounts", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip auth for login page, API login, and static assets
@@ -40,6 +40,18 @@ export async function middleware(request: NextRequest) {
     // Return 401 for API requests instead of redirecting
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "Unauthorized access" }, { status: 401 });
+    }
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  const userIdCookie = request.cookies.get("user_id")?.value;
+  const userId = await verifyData(userIdCookie);
+  if (!userId || !/^\d+$/.test(userId)) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json(
+        { error: "Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại." },
+        { status: 401 },
+      );
     }
     return NextResponse.redirect(new URL("/login", request.url));
   }
@@ -111,7 +123,6 @@ export async function middleware(request: NextRequest) {
       secure: isProd,
     });
   }
-  const userIdCookie = request.cookies.get("user_id")?.value;
   if (userIdCookie) {
     response.cookies.set("user_id", userIdCookie, {
       path: "/",

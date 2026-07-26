@@ -3,11 +3,8 @@ import { formatCurrency } from "@/lib/utils";
 
 type Props = {
   totalServiceCost: number;
-  serviceDiscountPercent: number | "";
-  serviceDiscountAmount: number;
   partsCostTotal: number;
-  partsDiscountPercent: number | "";
-  partsDiscountAmount: number;
+  appliedDiscountName: string | null;
   selectedCustomerId: number | null;
   customerLoyaltyPoints: number;
   pointsToRedeem: number | "";
@@ -38,17 +35,11 @@ export function RepairOrderSummary(props: Props) {
 
         <div className="space-y-3.5 pt-4 border-t border-border/40">
           <SummaryRow label="Tiền công thợ:" value={formatCurrency(props.totalServiceCost)} />
-          {props.serviceDiscountAmount > 0 && (
-            <DiscountRow
-              label={`Giảm giá công thợ (${props.serviceDiscountPercent}%):`}
-              amount={props.serviceDiscountAmount}
-            />
-          )}
           <SummaryRow label="Tiền phụ tùng:" value={formatCurrency(props.partsCostTotal)} />
-          {props.partsDiscountAmount > 0 && (
+          {props.totalDiscountAmount > 0 && (
             <DiscountRow
-              label={`Giảm giá phụ tùng (${props.partsDiscountPercent}%):`}
-              amount={props.partsDiscountAmount}
+              label={props.appliedDiscountName || "Mã giảm giá"}
+              amount={props.totalDiscountAmount}
             />
           )}
 
