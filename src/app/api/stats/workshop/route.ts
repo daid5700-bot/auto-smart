@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const roWhere: any = { isDeleted: false, ...(branchId ? { branchId } : {}) };
     if (startDate || endDate) {

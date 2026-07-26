@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { UserCog, Plus, Loader2, Edit, Trash2, X } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
+import { CustomSelect } from "@/components/CustomSelect";
+import { ModalPortal } from "@/components/modal-portal";
 
 
 export default function TechniciansPage() {
@@ -176,46 +178,52 @@ export default function TechniciansPage() {
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-bold">{editingId ? "Cập nhật KTV" : "Thêm KTV mới"}</h3>
-              <button onClick={() => setModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <Plus size={20} className="rotate-45" />
-              </button>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-lg bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <h3 className="text-lg font-bold">{editingId ? "Cập nhật KTV" : "Thêm KTV mới"}</h3>
+                <button onClick={() => setModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <Plus size={20} className="rotate-45" />
+                </button>
+              </div>
+              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Mã KTV (Mã số nhân viên)</label>
+                    <input required value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: KTV01" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Họ và tên KTV</label>
+                    <input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: Nguyễn Văn Hùng" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại</label>
+                  <input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: 0901234567" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Trạng thái công việc</label>
+                  <CustomSelect
+                    value={formData.status}
+                    onChange={(val) => setFormData({ ...formData, status: val })}
+                    options={[
+                      { value: "IDLE", label: "Đang rảnh (Idle)", badge: "Đang rảnh", badgeVariant: "success" },
+                      { value: "WORKING", label: "Đang làm việc (Working)", badge: "Đang bận", badgeVariant: "warning" },
+                    ]}
+                  />
+                </div>
+
+                <div className="flex gap-3 justify-end pt-4">
+                  <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
+                  <button type="submit" className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90">Lưu lại</button>
+                </div>
+              </form>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Mã KTV (Mã số nhân viên)</label>
-                  <input required value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: KTV01" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Họ và tên KTV</label>
-                  <input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: Nguyễn Văn Hùng" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số điện thoại</label>
-                <input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="VD: 0901234567" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Trạng thái công việc</label>
-                <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                  <option value="IDLE">Đang rảnh (Idle)</option>
-                  <option value="WORKING">Đang làm việc (Working)</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4">
-                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
-                <button type="submit" className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90">Lưu lại</button>
-              </div>
-            </form>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -5,7 +5,7 @@ import { getActiveBranchId } from "@/lib/branch";
 
 export async function GET(req: NextRequest) {
   try {
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const technicians = await prisma.technician.findMany({
       where: (branchId ? { branchId } : {}) as any,
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     const tech = await prisma.technician.create({
       data: {
         code: body.code,

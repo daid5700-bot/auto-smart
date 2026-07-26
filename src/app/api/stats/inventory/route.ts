@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     // Declare filters for query parallelization
     const movementWhere: any = {

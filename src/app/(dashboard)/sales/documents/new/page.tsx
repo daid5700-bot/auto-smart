@@ -9,6 +9,12 @@ import {
 import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useModal } from "@/components/ModalProvider";
+import { CustomSelect } from "@/components/CustomSelect";
+import {
+  calculateDiscountPreview,
+  DiscountPicker,
+  type DiscountOption,
+} from "@/components/discounts/DiscountPicker";
 
 
 interface Accessory {
@@ -95,6 +101,7 @@ export default function NewDocumentPage() {
   const [saleMode, setSaleMode] = useState<"RETAIL"|"WHOLESALE">("RETAIL");
   const [wholesaleVehicles, setWholesaleVehicles] = useState<{id:number;vin:string;model:string;variant:string;color:string;listPrice:string}[]>([]);
   const [wholesaleSearch, setWholesaleSearch] = useState("");
+  const [selectedDiscount, setSelectedDiscount] = useState<DiscountOption | null>(null);
 
   const fetchProducts = async (branchFilterId?: number) => {
     try {
@@ -258,26 +265,43 @@ export default function NewDocumentPage() {
       });
       return;
     }
+    const discountEligibilitySubtotal =
+      saleMode === "RETAIL"
+        ? Number(listPrice || 0)
+        : Math.min(...wholesaleVehicles.map((vehicle) => Number(vehicle.listPrice || 0)));
+    if (
+      selectedDiscount
+      && discountEligibilitySubtotal < selectedDiscount.minOrderAmount
+    ) {
+      await modal.alert({
+        title: "Chưa đủ điều kiện áp dụng mã",
+        message: `Mỗi xe phải đạt tối thiểu ${formatCurrency(selectedDiscount.minOrderAmount)} để dùng mã ${selectedDiscount.code}.`,
+        type: "warning",
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       if (saleMode === "WHOLESALE") {
-        for (const wv of wholesaleVehicles) {
-          const res = await fetch(`/api/sales/${wv.id}`, {
-            method: "PATCH",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({
-              status, bankStatus:"NONE", plateStatus:"PENDING", plateCost:0,
-              listPrice: Number(wv.listPrice)||0,
-              accessoriesJson: "[]", notes: "Bán buôn",
-              saleType: "WHOLESALE",
-              customerName, customerPhone, customerBirthday: customerBirthday||undefined,
-              customerAddress
-            })
-          });
-          if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || "Gặp lỗi khi xử lý xe: " + wv.vin);
-          }
+        const res = await fetch("/api/sales/wholesale", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vehicles: wholesaleVehicles.map((vehicle) => ({
+              id: vehicle.id,
+              listPrice: Number(vehicle.listPrice) || 0,
+            })),
+            status,
+            discountCodeId: selectedDiscount?.id || null,
+            customerName,
+            customerPhone,
+            customerBirthday: customerBirthday || undefined,
+            customerAddress,
+          }),
+        });
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || "Không thể tạo hồ sơ bán buôn.");
         }
         router.push("/sales/documents");
         router.refresh();
@@ -294,7 +318,8 @@ export default function NewDocumentPage() {
         notes: rawNotes, customerName, customerPhone,
         customerBirthday: customerBirthday||undefined,
         customerAddress,
-        saleType: "RETAIL"
+        saleType: "RETAIL",
+        discountCodeId: selectedDiscount?.id || null
       };
       const res = await fetch(`/api/sales/${selectedVehicleId}`, {
         method: "PATCH",
@@ -505,10 +530,13 @@ export default function NewDocumentPage() {
           </div>
 
           {/* ── RETAIL: single vehicle dropdown + status ── */}
-          {saleMode==="RETAIL" && (
-            <>
+          {saleMode === "RETAIL" && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Cột 1 (Hàng 1): Chọn xe từ Kho hệ thống */}
               <div className="space-y-1.5 relative" ref={vehDropdownRef}>
-                <label className="text-xs font-bold text-muted-foreground">Chọn xe từ Kho hệ thống *</label>
+                <div className="h-5 flex items-center">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Chọn xe từ Kho hệ thống *</label>
+                </div>
                 <button 
                   type="button" 
                   onClick={() => setIsVehDropdownOpen(!isVehDropdownOpen)}
@@ -569,18 +597,109 @@ export default function NewDocumentPage() {
                   </div>
                 )}
               </div>
-              {selectedVehicleId&&(<div className="bg-primary/5 border border-primary/20 rounded-xl p-4"><p className="text-xs text-muted-foreground font-semibold mb-1">Xe đã chọn:</p><h3 className="text-sm font-bold text-primary">{model} {variant?`(${variant})`:""} — {color||"N/A"}</h3><div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground"><span><strong>VIN:</strong> {vin}</span><span><strong>Niêm yết:</strong> {listPrice?Number(listPrice).toLocaleString("vi-VN"):"0"} VNĐ</span></div></div>)}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-1.5"><label className="text-xs font-bold text-muted-foreground">Tiến độ tổng quan *</label><select value={status} onChange={(e)=>setStatus(e.target.value)} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary outline-none"><option value="RESERVED">ĐÃ CỌC (Reserved)</option><option value="SOLD">ĐÃ BÁN (Sold)</option></select></div>
-                <div className="space-y-1.5"><label className="text-xs font-bold text-muted-foreground">Tiến độ Ngân hàng</label><select value={bankStatus} onChange={(e)=>setBankStatus(e.target.value)} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary outline-none"><option value="NONE">Mua thẳng (Không vay)</option><option value="PENDING_APPROVAL">Chờ phê duyệt vay</option><option value="APPROVED">Đã ra thông báo vay</option><option value="DISBURSED">Đã giải ngân</option></select></div>
-                <div className="space-y-1.5"><label className="text-xs font-bold text-muted-foreground">Thủ tục bấm biển</label><select value={plateStatus} onChange={(e)=>setPlateStatus(e.target.value)} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary outline-none"><option value="PENDING">Chờ nộp thuế (Đợi biển)</option><option value="TAX_PAID">Đã nộp thuế trước bạ</option><option value="PLATE_DONE">Đã bấm biển &amp; Bàn giao xe</option></select></div>
-                <div className="space-y-1.5"><label className="text-xs font-bold text-primary">Giá bán thực tế (VNĐ) *</label><NumericInput required placeholder="Nhập giá bán..." value={listPrice} onChange={setListPrice} className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary font-bold text-primary"/></div>
+
+              {/* Cột 2 (Hàng 1): Giá niêm yết */}
+              <div className="space-y-1.5">
+                <div className="h-5 flex items-center">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Giá niêm yết (VNĐ)</label>
+                </div>
+                <div className="min-h-[42px] px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary flex items-center">
+                  {formatCurrency(Number(listPrice || 0))}
+                </div>
               </div>
-            </>
+
+              {/* Cột 3 (Hàng 1): Tiến độ tổng quan */}
+              <div className="space-y-1.5">
+                <div className="h-5 flex items-center">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tiến độ tổng quan *</label>
+                </div>
+                <CustomSelect
+                  value={status}
+                  onChange={(val) => setStatus(val)}
+                  options={[
+                    { value: "RESERVED", label: "ĐÃ CỌC (Reserved)", badge: "Đã cọc", badgeVariant: "warning" },
+                    { value: "SOLD", label: "ĐÃ BÁN (Sold)", badge: "Đã bán", badgeVariant: "success" },
+                  ]}
+                />
+              </div>
+
+              {/* Xe đã chọn Banner (nếu có) */}
+              {selectedVehicleId && (
+                <div className="md:col-span-3 bg-primary/5 border border-primary/20 rounded-xl p-4">
+                  <p className="text-xs text-muted-foreground font-semibold mb-1">Xe đã chọn:</p>
+                  <h3 className="text-sm font-bold text-primary">{model} {variant ? `(${variant})` : ""} — {color || "N/A"}</h3>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                    <span><strong>VIN:</strong> {vin}</span>
+                    <span><strong>Niêm yết:</strong> {listPrice ? Number(listPrice).toLocaleString("vi-VN") : "0"} VNĐ</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Cột 1 (Hàng 2): Tiến độ Ngân hàng */}
+              <div className="space-y-1.5">
+                <div className="h-5 flex items-center">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tiến độ Ngân hàng</label>
+                </div>
+                <CustomSelect
+                  value={bankStatus}
+                  onChange={(val) => setBankStatus(val)}
+                  options={[
+                    { value: "NONE", label: "Mua thẳng (Không vay)" },
+                    { value: "PENDING_APPROVAL", label: "Chờ phê duyệt vay", badge: "Chờ vay", badgeVariant: "warning" },
+                    { value: "APPROVED", label: "Đã ra thông báo vay", badge: "Đã duyệt", badgeVariant: "info" },
+                    { value: "DISBURSED", label: "Đã giải ngân", badge: "Giải ngân", badgeVariant: "success" },
+                  ]}
+                />
+              </div>
+
+              {/* Cột 2 (Hàng 2): Thủ tục bấm biển */}
+              <div className="space-y-1.5">
+                <div className="h-5 flex items-center">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Thủ tục bấm biển</label>
+                </div>
+                <CustomSelect
+                  value={plateStatus}
+                  onChange={(val) => setPlateStatus(val)}
+                  options={[
+                    { value: "PENDING", label: "Chờ nộp thuế (Đợi biển)", badge: "Chờ thuế", badgeVariant: "warning" },
+                    { value: "TAX_PAID", label: "Đã nộp thuế trước bạ", badge: "Nộp thuế", badgeVariant: "info" },
+                    { value: "PLATE_DONE", label: "Đã bấm biển & Bàn giao xe", badge: "Bàn giao", badgeVariant: "success" },
+                  ]}
+                />
+              </div>
+
+              {/* Cột 3 (Hàng 2 - dưới cùng bên phải): Mã giảm giá */}
+              <div>
+                <DiscountPicker
+                  scope="SALES"
+                  hideContainer
+                  value={selectedDiscount?.id || null}
+                  subtotal={Number(listPrice || 0)}
+                  onChange={setSelectedDiscount}
+                />
+              </div>
+
+              {selectedDiscount && (
+                <div className="md:col-span-3 flex items-center justify-between rounded-xl border border-success/20 bg-success/5 px-4 py-3 text-sm">
+                  <span className="font-semibold text-muted-foreground">Giá xe sau giảm:</span>
+                  <span className="font-black text-success">
+                    {formatCurrency(
+                      Math.max(
+                        0,
+                        Number(listPrice || 0)
+                          - calculateDiscountPreview(selectedDiscount, {
+                            subtotal: Number(listPrice || 0),
+                          }),
+                      ),
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── WHOLESALE: multi vehicle picker ── */}
-          {saleMode==="WHOLESALE" && (
+          {saleMode === "WHOLESALE" && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Cột trái: Kho xe */}
@@ -626,7 +745,7 @@ export default function NewDocumentPage() {
                         <tr className="border-b border-border/50 text-muted-foreground font-bold">
                           <th className="py-2 px-1 text-center w-10">STT</th>
                           <th className="py-2 px-2">Thông tin xe</th>
-                          <th className="py-2 px-2 text-right w-48">Giá bán thực tế (đ) *</th>
+                          <th className="py-2 px-2 text-right w-48">Giá niêm yết</th>
                           <th className="py-2 px-2 text-center w-12"></th>
                         </tr>
                       </thead>
@@ -639,15 +758,9 @@ export default function NewDocumentPage() {
                               <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">VIN: {wv.vin} • {wv.color}</div>
                             </td>
                             <td className="py-3 px-2 text-right">
-                              <div className="inline-block relative w-full max-w-[180px]">
-                                <NumericInput 
-                                  placeholder="Nhập giá bán..."
-                                  value={wv.listPrice}
-                                  onChange={(c) => setWholesaleVehicles(wholesaleVehicles.map(x => x.id === wv.id ? { ...x, listPrice: c } : x))}
-                                  className="w-full px-3 py-1.5 border border-border rounded-lg bg-background text-xs font-bold focus:border-primary outline-none text-emerald-600 text-right pr-6" 
-                                />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">đ</span>
-                              </div>
+                              <span className="font-bold text-primary">
+                                {formatCurrency(Number(wv.listPrice || 0))}
+                              </span>
                             </td>
                             <td className="py-3 px-2 text-center">
                               <button 
@@ -674,15 +787,53 @@ export default function NewDocumentPage() {
                 </div>
               </div>
 
-              {/* Status Row */}
-              <div className="flex items-center gap-4 bg-secondary/10 border border-border/50 rounded-xl p-4">
-                <label className="text-xs font-bold text-muted-foreground whitespace-nowrap uppercase tracking-wider">Tiến độ tổng quan *</label>
-                <select value={status} onChange={(e)=>setStatus(e.target.value)} className="w-full max-w-sm px-3 py-2 bg-background border border-border rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary outline-none">
-                  <option value="RESERVED">ĐÃ CỌC (Reserved)</option>
-                  <option value="SOLD">ĐÃ BÁN (Sold)</option>
-                </select>
+              {/* Status Row & Discount Picker */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-secondary/10 border border-border/50 rounded-xl p-4 items-start">
+                <div className="space-y-1.5">
+                  <div className="h-5 flex items-center">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tiến độ tổng quan *</label>
+                  </div>
+                  <CustomSelect
+                    value={status}
+                    onChange={(val) => setStatus(val)}
+                    options={[
+                      { value: "RESERVED", label: "ĐÃ CỌC (Reserved)", badge: "Đã cọc", badgeVariant: "warning" },
+                      { value: "SOLD", label: "ĐÃ BÁN (Sold)", badge: "Đã bán", badgeVariant: "success" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <DiscountPicker
+                    scope="SALES"
+                    hideContainer
+                    value={selectedDiscount?.id || null}
+                    subtotal={
+                      wholesaleVehicles.length
+                        ? Math.min(...wholesaleVehicles.map((vehicle) => Number(vehicle.listPrice || 0)))
+                        : 0
+                    }
+                    previewAmountOverride={
+                      selectedDiscount
+                        ? wholesaleVehicles.reduce(
+                            (total, vehicle) =>
+                              total
+                              + calculateDiscountPreview(selectedDiscount, {
+                                subtotal: Number(vehicle.listPrice || 0),
+                              }),
+                            0,
+                          )
+                        : undefined
+                    }
+                    onChange={setSelectedDiscount}
+                  />
+                </div>
               </div>
             </div>
+          )}
+          {selectedDiscount && saleMode === "WHOLESALE" && (
+            <p className="text-xs text-muted-foreground">
+              Mã được áp dụng riêng cho từng xe trong hồ sơ bán buôn.
+            </p>
           )}
         </div>
 
@@ -849,7 +1000,7 @@ export default function NewDocumentPage() {
             </div>
 
             <div className="space-y-2 mt-4 pt-4 border-t border-border">
-              <label className="text-xs font-bold text-emerald-600 block flex items-center gap-2">
+              <label className="text-xs font-bold text-emerald-600 flex items-center gap-2">
                 <Sparkles size={14} /> Chọn Quà tặng (Không tính tiền, chờ kho duyệt)
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -900,7 +1051,7 @@ export default function NewDocumentPage() {
             Hủy bỏ
           </button>
           <button type="submit" disabled={isSubmitting}
-            className="px-6 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-md hover:shadow-primary/30 hover:scale-[1.02] transition-all inline-flex items-center gap-2">
+            className="px-6 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-md hover:shadow-primary/30 hover:scale-[1.02] transition-all inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             {isSubmitting?(<><Loader2 className="w-3.5 h-3.5 animate-spin"/> Đang lưu...</>):"Lưu hồ sơ"}
           </button>
         </div>

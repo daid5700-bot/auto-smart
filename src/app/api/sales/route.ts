@@ -8,65 +8,7 @@ import { getOrCreateCustomerForBranch } from "@/lib/customer-branch";
 import { handleApiError, parseJson } from "@/lib/api-response";
 import { createVehicleSchema } from "@/lib/validation/sales";
 import { parseItemArray } from "@/lib/sales/vehicle-update";
-
-// Helper to expand unaccented Vietnamese search terms
-function expandVietnameseKeyword(keyword: string): string[] {
-  const lower = keyword.toLowerCase();
-  const variants = new Set<string>([keyword, lower]);
-
-  // If the word does not contain any transformable characters, return early
-  if (!/[aadeiouydăâêôơưđ]/.test(lower)) {
-    return Array.from(variants);
-  }
-
-  // Character replacement groups for Vietnamese accents and casing
-  const charGroups: Record<string, string[]> = {
-    'a': ['a', 'á', 'à', 'ả', 'ã', 'ạ', 'ă', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ', 'â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'A', 'Á', 'À', 'Ả', 'Ã', 'Ạ', 'Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ', 'Ặ', 'Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ'],
-    'e': ['e', 'é', 'è', 'ẻ', 'ẽ', 'ẹ', 'ê', 'ế', 'ề', 'ể', 'ễ', 'ệ', 'E', 'É', 'È', 'Ẻ', 'Ẽ', 'Ẹ', 'Ê', 'Ế', 'Ề', 'Ể', 'Ễ', 'Ệ'],
-    'i': ['i', 'í', 'ì', 'ỉ', 'ĩ', 'ị', 'I', 'Í', 'Ì', 'Ỉ', 'Ĩ', 'Ị'],
-    'o': ['o', 'ó', 'ò', 'ỏ', 'õ', 'ọ', 'ô', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ', 'ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'O', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ', 'Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ', 'Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ'],
-    'u': ['u', 'ú', 'ù', 'ủ', 'ũ', 'ụ', 'ư', 'ứ', 'ừ', 'ử', 'ữ', 'ự', 'U', 'Ú', 'Ù', 'Ủ', 'Ũ', 'Ụ', 'Ư', 'Ứ', 'Ừ', 'Ử', 'Ữ', 'Ự'],
-    'y': ['y', 'ý', 'ỳ', 'ỷ', 'ỹ', 'ỵ', 'Y', 'Ý', 'Ỳ', 'Ỷ', 'Ỹ', 'Ỵ'],
-    'd': ['d', 'đ', 'D', 'Đ'],
-    'đ': ['d', 'đ', 'D', 'Đ'],
-    'ă': ['a', 'á', 'à', 'ả', 'ã', 'ạ', 'ă', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ', 'â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'A', 'Á', 'À', 'Ả', 'Ã', 'Ạ', 'Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ', 'Ặ', 'Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ'],
-    'â': ['a', 'á', 'à', 'ả', 'ã', 'ạ', 'ă', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ', 'â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'A', 'Á', 'À', 'Ả', 'Ã', 'Ạ', 'Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ', 'Ặ', 'Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ'],
-    'ê': ['e', 'é', 'è', 'ẻ', 'ẽ', 'ẹ', 'ê', 'ế', 'ề', 'ể', 'ễ', 'ệ', 'E', 'É', 'È', 'Ẻ', 'Ẽ', 'Ẹ', 'Ê', 'Ế', 'Ề', 'Ể', 'Ễ', 'Ệ'],
-    'ô': ['o', 'ó', 'ò', 'ỏ', 'õ', 'ọ', 'ô', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ', 'ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'O', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ', 'Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ', 'Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ'],
-    'ơ': ['o', 'ó', 'ò', 'ỏ', 'õ', 'ọ', 'ô', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ', 'ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'O', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ', 'Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ', 'Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ'],
-    'ư': ['u', 'ú', 'ù', 'ủ', 'ũ', 'ụ', 'ư', 'ứ', 'ừ', 'ử', 'ữ', 'ự', 'U', 'Ú', 'Ù', 'Ủ', 'Ũ', 'Ụ', 'Ư', 'Ứ', 'Ừ', 'Ử', 'Ữ', 'Ự'],
-  };
-
-  const baseChars = lower.split('');
-  let results = [lower];
-
-  for (let i = 0; i < baseChars.length; i++) {
-    const char = baseChars[i];
-    const group = charGroups[char];
-    if (group) {
-      const nextResults: string[] = [];
-      results.forEach(r => {
-        group.forEach(gChar => {
-          nextResults.push(r.substring(0, i) + gChar + r.substring(i + 1));
-        });
-      });
-      // Safety cap to avoid combinatorial explosion in database queries
-      if (nextResults.length <= 150) {
-        results = nextResults;
-      } else {
-        break;
-      }
-    }
-  }
-
-  results.forEach(r => variants.add(r));
-
-  const capitalized = keyword.charAt(0).toUpperCase() + keyword.slice(1);
-  variants.add(capitalized);
-  variants.add(keyword.toUpperCase());
-
-  return Array.from(variants);
-}
+import { Prisma } from "@prisma/client";
 
 // GET /api/sales — list vehicles
 export async function GET(req: NextRequest) {
@@ -78,18 +20,26 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") || "";
   const saleType = searchParams.get("saleType") || "";
   const color = searchParams.get("color") || "";
+  const discountFilter = searchParams.get("discount") || "";
 
   // Pagination params
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20")));
   const skip = (page - 1) * limit;
 
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
 
   const where: any = {};
   if (branchId) where.branchId = branchId;
   if (saleType) where.saleType = saleType;
   if (color) where.color = color;
+  if (discountFilter === "ANY") {
+    where.discountAmount = { gt: 0 };
+  } else if (discountFilter === "NONE") {
+    where.discountAmount = { lte: 0 };
+  } else if (/^\d+$/.test(discountFilter)) {
+    where.discountCodeId = Number(discountFilter);
+  }
   const customerId = searchParams.get("customerId");
   if (customerId) where.customerId = parseInt(customerId);
   if (search) {
@@ -97,17 +47,12 @@ export async function GET(req: NextRequest) {
     const keywords = trimmed.split(/\s+/).filter(Boolean);
     if (keywords.length > 0) {
       where.AND = keywords.map(keyword => {
-        const expanded = expandVietnameseKeyword(keyword);
-        const keywordOr: any[] = [];
-
-        expanded.forEach(kw => {
-          keywordOr.push(
-            { model: { contains: kw, mode: "insensitive" } },
-            { vin: { contains: kw, mode: "insensitive" } },
-            { variant: { contains: kw, mode: "insensitive" } },
-            { engineNumber: { contains: kw, mode: "insensitive" } }
-          );
-        });
+        const keywordOr: any[] = [
+          { model: { contains: keyword, mode: "insensitive" } },
+          { vin: { contains: keyword, mode: "insensitive" } },
+          { variant: { contains: keyword, mode: "insensitive" } },
+          { engineNumber: { contains: keyword, mode: "insensitive" } },
+        ];
 
         if (/^\d+$/.test(keyword)) {
           keywordOr.push({ id: parseInt(keyword, 10) });
@@ -136,8 +81,64 @@ export async function GET(req: NextRequest) {
     };
   }
 
+  const includeCounts = searchParams.get("includeCounts") !== "false";
+  const countConditions: Prisma.Sql[] = [Prisma.sql`TRUE`];
+  if (branchId) countConditions.push(Prisma.sql`v."branchId" = ${branchId}`);
+  if (color) countConditions.push(Prisma.sql`v."color" = ${color}`);
+  if (customerId) countConditions.push(Prisma.sql`v."customerId" = ${Number(customerId)}`);
+  if (discountFilter === "ANY") {
+    countConditions.push(Prisma.sql`v."discountAmount" > 0`);
+  } else if (discountFilter === "NONE") {
+    countConditions.push(Prisma.sql`v."discountAmount" <= 0`);
+  } else if (/^\d+$/.test(discountFilter)) {
+    countConditions.push(Prisma.sql`v."discountCodeId" = ${Number(discountFilter)}`);
+  }
+  if (status) {
+    const statuses = status.split(",").filter(Boolean);
+    countConditions.push(Prisma.sql`v."status" IN (${Prisma.join(statuses)})`);
+  } else {
+    countConditions.push(Prisma.sql`v."status" <> 'CANCELLED'`);
+  }
+  if (dateFrom) countConditions.push(Prisma.sql`v."createdAt" >= ${new Date(dateFrom)}`);
+  if (dateTo) {
+    countConditions.push(
+      Prisma.sql`v."createdAt" <= ${new Date(new Date(dateTo).setHours(23, 59, 59, 999))}`,
+    );
+  }
+  for (const keyword of search.trim().split(/\s+/).filter(Boolean)) {
+    const pattern = `%${keyword}%`;
+    const numericId = /^\d+$/.test(keyword) ? Number(keyword) : -1;
+    countConditions.push(Prisma.sql`(
+      v."model" ILIKE ${pattern}
+      OR v."vin" ILIKE ${pattern}
+      OR COALESCE(v."variant", '') ILIKE ${pattern}
+      OR COALESCE(v."engineNumber", '') ILIKE ${pattern}
+      OR v."id" = ${numericId}
+    )`);
+  }
+
+  const countsPromise = includeCounts
+    ? prisma.$queryRaw<Array<{ retailCount: number; wholesaleCount: number }>>(Prisma.sql`
+        SELECT
+          COUNT(*) FILTER (
+            WHERE COALESCE(v."saleType", 'RETAIL') = 'RETAIL'
+          )::integer AS "retailCount",
+          COUNT(DISTINCT CASE
+            WHEN v."saleType" = 'WHOLESALE' THEN
+              CASE
+                WHEN v."customerId" IS NULL THEN 'v_' || v."id"::text
+                ELSE v."customerId"::text || '_' ||
+                  TO_CHAR(v."updatedAt" AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD')
+              END
+            ELSE NULL
+          END)::integer AS "wholesaleCount"
+        FROM "Vehicle" v
+        WHERE ${Prisma.join(countConditions, " AND ")}
+      `)
+    : Promise.resolve(null);
+
   // Run heavy queries in parallel
-  const [vehicles, total, statusGroups, colorsGroup] = await Promise.all([
+  const [vehicles, total, statusGroups, colorsGroup, countSummary] = await Promise.all([
     prisma.vehicle.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -169,8 +170,13 @@ export async function GET(req: NextRequest) {
     }),
     prisma.vehicle.groupBy({
       by: ["color"],
-      where: { color: { not: null } }
-    })
+      where: {
+        color: { not: null },
+        status: { not: "CANCELLED" },
+        ...(branchId ? { branchId } : {}),
+      }
+    }),
+    countsPromise,
   ]);
 
   const vins = vehicles.map(v => v.vin).filter(Boolean) as string[];
@@ -257,7 +263,14 @@ export async function GET(req: NextRequest) {
     ...v,
     importPrice: v.importPrice ? Number(v.importPrice) : null,
     listPrice: v.listPrice ? Number(v.listPrice) : 0,
+    originalListPrice: v.originalListPrice === null ? null : Number(v.originalListPrice),
     floorPrice: v.floorPrice ? Number(v.floorPrice) : 0,
+    discountAmount: Number(v.discountAmount || 0),
+    appliedDiscountValue: Number(v.appliedDiscountValue || 0),
+    appliedDiscountMaxAmount:
+      v.appliedDiscountMaxAmount === null
+        ? null
+        : Number(v.appliedDiscountMaxAmount),
     paidAmount: v.paidAmount ? Number(v.paidAmount) : 0,
     debtAmount: v.debtAmount ? Number(v.debtAmount) : 0,
     plateCost: v.plateCost ? Number(v.plateCost) : null,
@@ -270,48 +283,29 @@ export async function GET(req: NextRequest) {
     })) || []
   }));
 
-  const countWhere = { ...where };
-  delete countWhere.saleType;
-
-  const matchingForCount = await prisma.vehicle.findMany({
-    where: countWhere,
-    select: {
-      id: true,
-      saleType: true,
-      customerId: true,
-      updatedAt: true
-    }
-  });
-
-  const retailCount = matchingForCount.filter(v => (v.saleType || "RETAIL") === "RETAIL").length;
-  const wholesaleVehicles = matchingForCount.filter(v => v.saleType === "WHOLESALE");
-  const wholesaleGroups = new Set<string>();
-  wholesaleVehicles.forEach(v => {
-    const dateKey = v.updatedAt ? new Date(v.updatedAt).toISOString().split('T')[0] : "unknown";
-    const key = v.customerId ? `${v.customerId}_${dateKey}` : `v_${v.id}`;
-    wholesaleGroups.add(key);
-  });
-  const wholesaleCount = wholesaleGroups.size;
+  const retailCount = countSummary?.[0]?.retailCount;
+  const wholesaleCount = countSummary?.[0]?.wholesaleCount;
 
   return NextResponse.json({
     vehicles: serializedVehicles,
     counts,
     uniqueColors,
     pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    retailCount,
-    wholesaleCount
+    ...(retailCount !== undefined ? { retailCount } : {}),
+    ...(wholesaleCount !== undefined ? { wholesaleCount } : {}),
   });
 }
 // POST /api/sales — add vehicle with linked customer
 export async function POST(req: NextRequest) {
-  const guard = await requireAuth(req);
+  const guard = await requireAuth(req, ["ADMIN", "SALES"]);
   if (!guard.ok) return guard.response;
 
   try {
     const body = await parseJson(req, createVehicleSchema);
-    const branchId = body.branchId !== undefined ? (body.branchId ? Number(body.branchId) : null) : getActiveBranchId();
-
-
+    const branchId = await getActiveBranchId();
+    if (!branchId) {
+      return NextResponse.json({ error: "Không xác định được cơ sở hiện tại." }, { status: 400 });
+    }
 
     const {
       vin, sku, engineNumber, importPrice, importDate, stockCount, warehouse,

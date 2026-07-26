@@ -4,7 +4,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { getPendingRequisitionCount } from "@/lib/requisition-events";
 
 export async function GET() {
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (!branchId) {
     return NextResponse.json({ error: "Không xác định được chi nhánh hiện tại" }, { status: 400 });
   }

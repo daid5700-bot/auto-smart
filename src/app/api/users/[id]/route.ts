@@ -4,14 +4,14 @@ import bcrypt from "bcryptjs";
 import { verifyRole } from "@/lib/auth";
 import { revokeSession } from "@/lib/guard";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     const body = await req.json();
 
     const data: any = {};
@@ -50,14 +50,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
 
     // Get target user to check safety
     const user = await prisma.user.findUnique({ where: { id } });

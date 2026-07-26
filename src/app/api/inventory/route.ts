@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { verifyRole } from "@/lib/auth";
+import { parseOptionalVehicleModel } from "@/lib/validation/inventory";
+import { requireAuth } from "@/lib/guard";
 
 // GET /api/inventory — list products with prices (paginated)
 export async function GET(req: NextRequest) {
@@ -10,12 +13,13 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get("category") || "";
   const scope = searchParams.get("scope") || "current";
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   const userRole = await verifyRole(req.cookies.get("user_role")?.value);
   const isAdmin = userRole === "ADMIN";
 
   const view = searchParams.get("view");
   const isSelector = view === "selector";
+  const includeMeta = searchParams.get("includeMeta") !== "false";
 
   const limitParam = parseInt(searchParams.get("limit") || "20");
   const limit = isSelector
@@ -53,6 +57,7 @@ export async function GET(req: NextRequest) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
       { sku: { contains: search, mode: "insensitive" } },
+      { vehicleModel: { contains: search, mode: "insensitive" } },
     ];
     if (/^\d+$/.test(search.trim())) {
       where.OR.push({ id: parseInt(search.trim(), 10) });
@@ -67,6 +72,7 @@ export async function GET(req: NextRequest) {
         id: true,
         sku: true,
         name: true,
+        vehicleModel: true,
         prices: {
           select: {
             type: true,
@@ -92,6 +98,7 @@ export async function GET(req: NextRequest) {
         id: p.id,
         sku: p.sku,
         name: p.name,
+        vehicleModel: p.vehicleModel,
         prices: p.prices?.map((pr: any) => ({
           ...pr,
           amount: Number(pr.amount)
@@ -124,15 +131,71 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const summaryWhere = { ...where };
-  delete summaryWhere.productBranches;
+  const summaryConditions: Prisma.Sql[] = [
+    Prisma.sql`p."status" = 'ACTIVE'`,
+    Prisma.sql`p."isDeleted" = false`,
+  ];
   if (targetBranchId) {
-    summaryWhere.productBranches = { some: { branchId: targetBranchId } };
-  } else if (!isAdmin && scope === "other" && branchId) {
-    summaryWhere.productBranches = { some: { branchId: { not: branchId } } };
+    summaryConditions.push(Prisma.sql`pb."branchId" = ${targetBranchId}`);
+  } else if (scope === "other" && branchId) {
+    summaryConditions.push(Prisma.sql`pb."branchId" <> ${branchId}`);
+  }
+  if (search) {
+    const pattern = `%${search}%`;
+    const numericId = /^\d+$/.test(search.trim()) ? Number(search.trim()) : -1;
+    summaryConditions.push(
+      Prisma.sql`(
+        p."name" ILIKE ${pattern}
+        OR p."sku" ILIKE ${pattern}
+        OR COALESCE(p."vehicleModel", '') ILIKE ${pattern}
+        OR p."id" = ${numericId}
+      )`,
+    );
+  }
+  if (category) {
+    summaryConditions.push(Prisma.sql`p."category" = ${category}`);
   }
 
-  const [rawProducts, total, categories, summaryProducts] = await Promise.all([
+  const metaPromise = includeMeta
+    ? Promise.all([
+        prisma.product.findMany({
+          where: { status: "ACTIVE", isDeleted: false },
+          select: { category: true },
+          distinct: ["category"],
+        }),
+        prisma.product.findMany({
+          where: {
+            status: "ACTIVE",
+            isDeleted: false,
+            vehicleModel: { not: null },
+          },
+          select: { vehicleModel: true },
+          distinct: ["vehicleModel"],
+          orderBy: { vehicleModel: "asc" },
+        }),
+        prisma.$queryRaw<Array<{
+          totalValue: number;
+          totalInsuranceValue: number;
+          lowStockCount: number;
+          highStockCount: number;
+        }>>(Prisma.sql`
+          SELECT
+            COALESCE(SUM(COALESCE(retail."amount", 0) * pb."stockCount"), 0)::double precision AS "totalValue",
+            COALESCE(SUM(COALESCE(insurance."amount", 0) * pb."stockCount"), 0)::double precision AS "totalInsuranceValue",
+            COUNT(*) FILTER (WHERE pb."stockCount" <= pb."stockMin")::integer AS "lowStockCount",
+            COUNT(*) FILTER (WHERE pb."stockCount" >= pb."stockMax")::integer AS "highStockCount"
+          FROM "ProductBranch" pb
+          JOIN "Product" p ON p."id" = pb."productId"
+          LEFT JOIN "Price" retail
+            ON retail."productId" = p."id" AND retail."type" = 'RETAIL'
+          LEFT JOIN "Price" insurance
+            ON insurance."productId" = p."id" AND insurance."type" = 'INSURANCE'
+          WHERE ${Prisma.join(summaryConditions, " AND ")}
+        `),
+      ])
+    : Promise.resolve(null);
+
+  const [rawProducts, total, meta] = await Promise.all([
     prisma.product.findMany({
       where,
       include: {
@@ -156,16 +219,7 @@ export async function GET(req: NextRequest) {
       take: limit,
     }),
     prisma.product.count({ where }),
-    prisma.product.findMany({ select: { category: true }, distinct: ["category"] }),
-    prisma.product.findMany({
-      where: summaryWhere,
-      include: {
-        prices: true,
-        productBranches: {
-          where: targetBranchId ? { branchId: targetBranchId } : scope === "other" && branchId ? { branchId: { not: branchId } } : undefined
-        }
-      }
-    }),
+    metaPromise,
   ]);
 
   // Map ProductBranch data to Product root level for UI backward compatibility
@@ -189,21 +243,9 @@ export async function GET(req: NextRequest) {
   };
 
   const products = rawProducts.map(mapProduct);
-  const summary = summaryProducts.reduce((acc: any, p: any) => {
-    const branches = p.productBranches?.length ? p.productBranches : [{ stockCount: 0, stockMin: 0, stockMax: 100 }];
-    const retail = (p.prices || []).find((pr: any) => pr.type === "RETAIL");
-    const insurance = (p.prices || []).find((pr: any) => pr.type === "INSURANCE");
-    branches.forEach((pb: any) => {
-      const stockCount = Number(pb.stockCount || 0);
-      const stockMin = Number(pb.stockMin || 0);
-      const stockMax = Number(pb.stockMax || 100);
-      acc.totalValue += retail ? Number(retail.amount) * stockCount : 0;
-      acc.totalInsuranceValue += insurance ? Number(insurance.amount) * stockCount : 0;
-      if (stockCount <= stockMin) acc.lowStockCount += 1;
-      if (stockCount >= stockMax) acc.highStockCount += 1;
-    });
-    return acc;
-  }, { totalValue: 0, totalInsuranceValue: 0, lowStockCount: 0, highStockCount: 0 });
+  const categories = meta?.[0];
+  const vehicleModelRows = meta?.[1];
+  const summary = meta?.[2]?.[0];
 
   // Low stock alert (using the mapped products for simplicity, in production should query DB)
   let lowStock = products.filter(p => Number(p.stockCount) <= Number(p.stockMin)).map(p => ({
@@ -220,10 +262,19 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     products,
-    categories: categories.map((c) => c.category),
+    ...(categories
+      ? { categories: categories.map((row) => row.category) }
+      : {}),
+    ...(vehicleModelRows
+      ? {
+          vehicleModels: vehicleModelRows
+            .map((row) => row.vehicleModel)
+            .filter((vehicleModel): vehicleModel is string => Boolean(vehicleModel)),
+        }
+      : {}),
     lowStock,
     totalValue,
-    summary,
+    ...(summary ? { summary } : {}),
     totalCount: total,
     totalPages: Math.ceil(total / limit),
     currentPage: page,
@@ -233,13 +284,15 @@ export async function GET(req: NextRequest) {
 
 // POST /api/inventory — create product
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req, ["ADMIN", "WAREHOUSE"]);
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await req.json();
-    const userRole = await verifyRole(req.cookies.get("user_role")?.value);
-    const isAdmin = userRole === "ADMIN";
-    const branchId = getActiveBranchId();
+    const vehicleModel = parseOptionalVehicleModel(body.vehicleModel);
+    const branchId = await getActiveBranchId();
 
-    const targetBranchId = (isAdmin && body.branchId) ? Number(body.branchId) : branchId;
+    const targetBranchId = branchId;
     if (!targetBranchId) return NextResponse.json({ error: "Yêu cầu mã chi nhánh hoạt động" }, { status: 400 });
 
     // Release SKUs of any old INACTIVE products to avoid unique constraint failures on new creations
@@ -280,6 +333,7 @@ export async function POST(req: NextRequest) {
       data: {
         sku: body.sku,
         name: body.name,
+        vehicleModel,
         category: body.category || "General",
         unit: body.unit,
         conversionUnit: body.conversionUnit,

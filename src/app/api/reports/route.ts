@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     const baseWhere: any = branchId ? { branchId } : {};
 
     // Default dates for comparison if not filtering

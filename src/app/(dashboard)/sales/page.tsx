@@ -4,6 +4,8 @@ import { formatCurrency, statusText, statusBadge, handleNumericInputChange, fetc
 import { NumericInput } from "@/components/NumericInput";
 import { Car, Plus, Search, Grid3X3, List, Eye, Edit, Trash2, X, Loader2, Upload } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
+import { ModalPortal } from "@/components/modal-portal";
+import { CustomSelect } from "@/components/CustomSelect";
 
 
 const COLOR_DOT: Record<string, string> = { "Đen": "bg-gray-800", "Trắng": "bg-white border border-border", "Bạc": "bg-gray-400", "Đỏ": "bg-red-500", "Xanh": "bg-blue-500" };
@@ -393,27 +395,35 @@ export default function SalesPage() {
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" 
           />
         </div>
-        <select 
-          value={statusF} 
-          onChange={(e) => setStatusF(e.target.value)} 
-          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/30 min-w-[160px]"
-        >
-          <option value="AVAILABLE">Sẵn sàng (Available)</option>
-          <option value="RESERVED">Đã đặt cọc (Reserved)</option>
-          <option value="INCOMING">Đang về (Incoming)</option>
-          <option value="SOLD">Đã bán (Sold)</option>
-          <option value="">Tất cả xe hoạt động</option>
-        </select>
-        <select 
-          value={colorF} 
-          onChange={(e) => setColorF(e.target.value)} 
-          className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/30 min-w-[150px]"
-        >
-          <option value="">All colors</option>
-          {uniqueColors.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        <div className="w-[180px] shrink-0">
+          <CustomSelect
+            value={statusF}
+            onChange={(val) => setStatusF(val)}
+            placeholder="Tất cả xe hoạt động"
+            options={[
+              { value: "", label: "Tất cả xe hoạt động" },
+              { value: "AVAILABLE", label: "Sẵn sàng (Available)", badge: "Sẵn sàng", badgeVariant: "success" },
+              { value: "RESERVED", label: "Đã đặt cọc (Reserved)", badge: "Đã cọc", badgeVariant: "warning" },
+              { value: "INCOMING", label: "Đang về (Incoming)", badge: "Đang về", badgeVariant: "info" },
+              { value: "SOLD", label: "Đã bán (Sold)", badge: "Đã bán", badgeVariant: "default" },
+            ]}
+          />
+        </div>
+        <div className="w-[160px] shrink-0">
+          <CustomSelect
+            value={colorF}
+            onChange={(val) => setColorF(val)}
+            placeholder="Tất cả màu sắc"
+            options={[
+              { value: "", label: "Tất cả màu sắc" },
+              ...uniqueColors.map((c) => ({
+                value: c,
+                label: c,
+                colorDot: COLOR_DOT[c],
+              })),
+            ]}
+          />
+        </div>
         <div className="flex bg-card border border-border rounded-xl overflow-hidden shrink-0">
           <button onClick={() => setView("grid")} className={`px-3 py-2 text-xs ${view === "grid" ? "bg-primary text-white" : ""}`}><Grid3X3 size={14} /></button>
           <button onClick={() => setView("list")} className={`px-3 py-2 text-xs ${view === "list" ? "bg-primary text-white" : ""}`}><List size={14} /></button>
@@ -570,14 +580,14 @@ export default function SalesPage() {
                       </button>
                       <button 
                         onClick={() => handleOpenEdit(v)} 
-                        className="p-1.5 hover:bg-secondary rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                        className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
                         title="Sửa"
                       >
                         <Edit size={14} />
                       </button>
                       <button 
                         onClick={() => handleDelete(v.id)} 
-                        className="p-1.5 hover:bg-secondary rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+                        className="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
                         title="Xóa"
                       >
                         <Trash2 size={14} />
@@ -650,7 +660,8 @@ export default function SalesPage() {
 
       {/* CRUD Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-2xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="text-lg font-bold">{editingId ? "Cập nhật thông tin xe" : "Thêm xe mới"}</h3>
@@ -711,16 +722,21 @@ export default function SalesPage() {
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <select 
-                        value={formData.color} 
-                        onChange={(e) => setFormData({ ...formData, color: e.target.value })} 
-                        className="flex-1 px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none font-medium"
-                      >
-                        <option value="">-- Chọn màu sắc --</option>
-                        {uniqueColors.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
+                      <div className="flex-1">
+                        <CustomSelect
+                          value={formData.color}
+                          onChange={(val) => setFormData({ ...formData, color: val })}
+                          placeholder="-- Chọn màu sắc --"
+                          options={[
+                            { value: "", label: "-- Chọn màu sắc --" },
+                            ...uniqueColors.map((c) => ({
+                              value: c,
+                              label: c,
+                              colorDot: COLOR_DOT[c],
+                            })),
+                          ]}
+                        />
+                      </div>
                       <button 
                         type="button"
                         onClick={() => {
@@ -748,16 +764,16 @@ export default function SalesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Trạng thái xe</label>
-                  <select 
-                    value={formData.status} 
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })} 
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                  >
-                    <option value="AVAILABLE">Sẵn có (Available)</option>
-                    <option value="RESERVED">Đặt cọc (Reserved)</option>
-                    <option value="INCOMING">Đang về (Incoming)</option>
-                    <option value="SOLD">Đã bán (Sold)</option>
-                  </select>
+                  <CustomSelect
+                    value={formData.status}
+                    onChange={(val) => setFormData({ ...formData, status: val })}
+                    options={[
+                      { value: "AVAILABLE", label: "Sẵn có (Available)", badge: "Sẵn có", badgeVariant: "success" },
+                      { value: "RESERVED", label: "Đặt cọc (Reserved)", badge: "Đặt cọc", badgeVariant: "warning" },
+                      { value: "INCOMING", label: "Đang về (Incoming)", badge: "Đang về", badgeVariant: "info" },
+                      { value: "SOLD", label: "Đã bán (Sold)", badge: "Đã bán", badgeVariant: "default" },
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -862,11 +878,13 @@ export default function SalesPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* View Detail Modal */}
       {detailOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-2xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -989,6 +1007,7 @@ export default function SalesPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Unique datalists for auto-suggestions */}

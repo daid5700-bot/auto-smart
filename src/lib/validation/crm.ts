@@ -13,6 +13,7 @@ export const crmQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(1000).default(50),
   search: z.string().trim().max(100).default(""),
   category: z.enum(["", "all", "service", "purchase", "vip", "inactive"]).default(""),
+  status: z.enum(["ALL", "SUCCESS", "FAILED", "PENDING"]).default("ALL"),
 });
 
 const customerFields = {

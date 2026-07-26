@@ -8,6 +8,7 @@ import { roleName, roleColor } from "@/config/rbac";
 import { Car, ChevronLeft, ChevronRight, LogOut, Search, Menu, ChevronDown, Loader2, X, Wrench, User, Sparkles, Building2, KeyRound, Pencil, Eye, EyeOff } from "lucide-react";
 import { cn, formatCurrency, parseSymptoms } from "@/lib/utils";
 import { toast } from "@/lib/toast";
+import { ModalPortal } from "@/components/modal-portal";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -507,198 +508,204 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Global Search Command Palette Modal */}
       {searchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in pt-[10vh]">
-          <div className="w-full max-w-2xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom flex flex-col max-h-[70vh]">
-            {/* Input Header */}
-            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border">
-              <Search className="text-primary shrink-0" size={20} />
-              <input
-                ref={searchInputRef}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm khách hàng, biển số, tên xe, hoặc ID... (Nhập từ 2 ký tự)"
-                className="flex-1 bg-transparent border-none outline-none text-base placeholder:text-muted-foreground"
-              />
-              {searching ? (
-                <Loader2 className="animate-spin text-muted-foreground shrink-0" size={16} />
-              ) : (
-                <button onClick={() => setSearchOpen(false)} className="text-muted-foreground hover:text-foreground shrink-0">
-                  <X size={18} />
-                </button>
-              )}
-            </div>
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in pt-[10vh]">
+            <div className="w-full max-w-2xl bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom flex flex-col max-h-[70vh]">
+              {/* Input Header */}
+              <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border">
+                <Search className="text-primary shrink-0" size={20} />
+                <input
+                  ref={searchInputRef}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Tìm khách hàng, biển số, tên xe, hoặc ID... (Nhập từ 2 ký tự)"
+                  className="flex-1 bg-transparent border-none outline-none text-base placeholder:text-muted-foreground"
+                />
+                {searching ? (
+                  <Loader2 className="animate-spin text-muted-foreground shrink-0" size={16} />
+                ) : (
+                  <button onClick={() => setSearchOpen(false)} className="text-muted-foreground hover:text-foreground shrink-0">
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
 
-            {/* Results Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {searchQuery.trim().length < 2 ? (
-                <div className="text-center py-10 space-y-2">
-                  <Sparkles className="mx-auto text-primary/40 animate-pulse" size={28} />
-                  <p className="text-sm font-semibold text-muted-foreground">Thanh tìm kiếm toàn cục - Xe Máy Toàn Thắng</p>
-                  <p className="text-xs text-muted-foreground/80 max-w-xs mx-auto">Nhập biển số xe, tên khách hàng hoặc tên dòng xe để tra cứu nhanh thông tin liên quan</p>
-                </div>
-              ) : (
-                <>
-                  {/* Category: Lệnh sửa chữa */}
-                  {searchResults.repairOrders.length > 0 && (
-                    <div className="space-y-1.5">
-                      <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Lệnh sửa chữa dịch vụ</h4>
-                      <div className="space-y-0.5">
-                        {searchResults.repairOrders.map((ro) => (
-                          <div
-                            key={ro.id}
-                            onClick={() => handleResultClick("/workshop")}
-                            className="flex items-center justify-between p-2 rounded-xl hover:bg-secondary/60 cursor-pointer transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600"><Wrench size={16} /></div>
-                              <div>
-                                <p className="text-sm font-bold">{ro.plateNumber} — <span className="text-xs text-muted-foreground font-normal">{ro.vehicleModel}</span></p>
-                                <p className="text-[10px] text-muted-foreground">Khách hàng: {ro.customer?.name} | Triệu chứng: {parseSymptoms(ro.symptoms).summary}</p>
+              {/* Results Body */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {searchQuery.trim().length < 2 ? (
+                  <div className="text-center py-10 space-y-2">
+                    <Sparkles className="mx-auto text-primary/40 animate-pulse" size={28} />
+                    <p className="text-sm font-semibold text-muted-foreground">Thanh tìm kiếm toàn cục - Xe Máy Toàn Thắng</p>
+                    <p className="text-xs text-muted-foreground/80 max-w-xs mx-auto">Nhập biển số xe, tên khách hàng hoặc tên dòng xe để tra cứu nhanh thông tin liên quan</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Category: Lệnh sửa chữa */}
+                    {searchResults.repairOrders.length > 0 && (
+                      <div className="space-y-1.5">
+                        <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Lệnh sửa chữa dịch vụ</h4>
+                        <div className="space-y-0.5">
+                          {searchResults.repairOrders.map((ro) => (
+                            <div
+                              key={ro.id}
+                              onClick={() => handleResultClick("/workshop")}
+                              className="flex items-center justify-between p-2 rounded-xl hover:bg-secondary/60 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600"><Wrench size={16} /></div>
+                                <div>
+                                  <p className="text-sm font-bold">{ro.plateNumber} — <span className="text-xs text-muted-foreground font-normal">{ro.vehicleModel}</span></p>
+                                  <p className="text-[10px] text-muted-foreground">Khách hàng: {ro.customer?.name} | Triệu chứng: {parseSymptoms(ro.symptoms).summary}</p>
+                                </div>
                               </div>
+                              <span className="text-[10px] bg-secondary border border-border px-2 py-0.5 rounded font-bold uppercase">{ro.status}</span>
                             </div>
-                            <span className="text-[10px] bg-secondary border border-border px-2 py-0.5 rounded font-bold uppercase">{ro.status}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Category: Khách hàng */}
-                  {searchResults.customers.length > 0 && (
-                    <div className="space-y-1.5">
-                      <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Khách hàng chính thức (CRM)</h4>
-                      <div className="space-y-0.5">
-                        {searchResults.customers.map((c) => (
-                          <div
-                            key={c.id}
-                            onClick={() => handleResultClick("/crm/customers")}
-                            className="flex items-center justify-between p-2 rounded-xl hover:bg-secondary/60 cursor-pointer transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-600"><User size={16} /></div>
-                              <div>
-                                <p className="text-sm font-bold">{c.name} — <span className="text-xs text-muted-foreground font-normal">{c.phone}</span></p>
-                                <p className="text-[10px] text-muted-foreground">Email: {c.email || "Không có"} | Địa chỉ: {c.address || "Chưa có"}</p>
-                              </div>
-                            </div>
-                            <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full">{c.loyaltyPoints} điểm</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Category: Xe đang bán */}
-                  {searchResults.vehicles.length > 0 && (
-                    <div className="space-y-1.5">
-                      <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Xe đang bán (Kinh doanh)</h4>
-                      <div className="space-y-0.5">
-                        {searchResults.vehicles.map((v) => (
-                          <div
-                            key={v.id}
-                            onClick={() => handleResultClick("/sales")}
-                            className="flex items-center justify-between p-2 rounded-xl hover:bg-secondary/60 cursor-pointer transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-600"><Car size={16} /></div>
-                              <div>
-                                <p className="text-sm font-bold">{v.model} — <span className="text-xs font-mono text-muted-foreground font-normal">VIN: {v.vin}</span></p>
-                                <p className="text-[10px] text-muted-foreground">Màu: {v.color}</p>
-                              </div>
-                            </div>
-                            <span className="text-[11px] text-primary font-bold">{formatCurrency(Number(v.listPrice))}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* No results */}
-                  {searchResults.customers.length === 0 &&
-                    searchResults.vehicles.length === 0 &&
-                    searchResults.repairOrders.length === 0 && (
-                      <div className="text-center py-10">
-                        <p className="text-sm text-muted-foreground">Không tìm thấy bản ghi nào trùng khớp</p>
+                          ))}
+                        </div>
                       </div>
                     )}
-                </>
-              )}
-            </div>
 
-            {/* Footer tips */}
-            <div className="px-4 py-2 bg-muted/50 border-t border-border flex justify-between items-center text-[10px] text-muted-foreground">
-              <span>Mẹo: Nhấn phím <kbd className="bg-card px-1 py-0.5 rounded border">Esc</kbd> để đóng nhanh</span>
-              <span>Dữ liệu tìm kiếm thời gian thực</span>
+                    {/* Category: Khách hàng */}
+                    {searchResults.customers.length > 0 && (
+                      <div className="space-y-1.5">
+                        <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Khách hàng chính thức (CRM)</h4>
+                        <div className="space-y-0.5">
+                          {searchResults.customers.map((c) => (
+                            <div
+                              key={c.id}
+                              onClick={() => handleResultClick("/crm/customers")}
+                              className="flex items-center justify-between p-2 rounded-xl hover:bg-secondary/60 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-600"><User size={16} /></div>
+                                <div>
+                                  <p className="text-sm font-bold">{c.name} — <span className="text-xs text-muted-foreground font-normal">{c.phone}</span></p>
+                                  <p className="text-[10px] text-muted-foreground">Email: {c.email || "Không có"} | Địa chỉ: {c.address || "Chưa có"}</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full">{c.loyaltyPoints} điểm</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Category: Xe đang bán */}
+                    {searchResults.vehicles.length > 0 && (
+                      <div className="space-y-1.5">
+                        <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Xe đang bán (Kinh doanh)</h4>
+                        <div className="space-y-0.5">
+                          {searchResults.vehicles.map((v) => (
+                            <div
+                              key={v.id}
+                              onClick={() => handleResultClick("/sales")}
+                              className="flex items-center justify-between p-2 rounded-xl hover:bg-secondary/60 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-600"><Car size={16} /></div>
+                                <div>
+                                  <p className="text-sm font-bold">{v.model} — <span className="text-xs font-mono text-muted-foreground font-normal">VIN: {v.vin}</span></p>
+                                  <p className="text-[10px] text-muted-foreground">Màu: {v.color}</p>
+                                </div>
+                              </div>
+                              <span className="text-[11px] text-primary font-bold">{formatCurrency(Number(v.listPrice))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* No results */}
+                    {searchResults.customers.length === 0 &&
+                      searchResults.vehicles.length === 0 &&
+                      searchResults.repairOrders.length === 0 && (
+                        <div className="text-center py-10">
+                          <p className="text-sm text-muted-foreground">Không tìm thấy bản ghi nào trùng khớp</p>
+                        </div>
+                      )}
+                  </>
+                )}
+              </div>
+
+              {/* Footer tips */}
+              <div className="px-4 py-2 bg-muted/50 border-t border-border flex justify-between items-center text-[10px] text-muted-foreground">
+                <span>Mẹo: Nhấn phím <kbd className="bg-card px-1 py-0.5 rounded border">Esc</kbd> để đóng nhanh</span>
+                <span>Dữ liệu tìm kiếm thời gian thực</span>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {profileModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={(event) => event.target === event.currentTarget && setProfileModalOpen(false)}>
-          <div className="w-full max-w-md bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <div>
-                <h3 className="text-lg font-bold">Thông tin cá nhân</h3>
-                <p className="text-xs text-muted-foreground mt-1">Cập nhật tên hiển thị của bạn</p>
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={(event) => event.target === event.currentTarget && setProfileModalOpen(false)}>
+            <div className="w-full max-w-md bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h3 className="text-lg font-bold">Thông tin cá nhân</h3>
+                  <p className="text-xs text-muted-foreground mt-1">Cập nhật tên hiển thị của bạn</p>
+                </div>
+                <button onClick={() => setProfileModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
               </div>
-              <button onClick={() => setProfileModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+              <form onSubmit={handleProfileSubmit} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Họ và tên</label>
+                  <input required value={profileName} onChange={(event) => setProfileName(event.target.value)} className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Email</label>
+                  <input value={user.email} disabled className="w-full px-3 py-2.5 bg-muted/50 border border-border rounded-xl text-sm text-muted-foreground" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Vai trò</label>
+                  <input value={roleName(user.role)} disabled className="w-full px-3 py-2.5 bg-muted/50 border border-border rounded-xl text-sm text-muted-foreground" />
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setProfileModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-secondary/40">Hủy</button>
+                  <button type="submit" disabled={profileSaving} className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60">{profileSaving ? "Đang lưu..." : "Lưu thay đổi"}</button>
+                </div>
+              </form>
             </div>
-            <form onSubmit={handleProfileSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Họ và tên</label>
-                <input required value={profileName} onChange={(event) => setProfileName(event.target.value)} className="w-full px-3 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Email</label>
-                <input value={user.email} disabled className="w-full px-3 py-2.5 bg-muted/50 border border-border rounded-xl text-sm text-muted-foreground" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Vai trò</label>
-                <input value={roleName(user.role)} disabled className="w-full px-3 py-2.5 bg-muted/50 border border-border rounded-xl text-sm text-muted-foreground" />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setProfileModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-secondary/40">Hủy</button>
-                <button type="submit" disabled={profileSaving} className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60">{profileSaving ? "Đang lưu..." : "Lưu thay đổi"}</button>
-              </div>
-            </form>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {passwordModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={(event) => event.target === event.currentTarget && setPasswordModalOpen(false)}>
-          <div className="w-full max-w-md bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <div>
-                <h3 className="text-lg font-bold">Đổi mật khẩu</h3>
-                <p className="text-xs text-muted-foreground mt-1">Mật khẩu mới cần có ít nhất 6 ký tự</p>
-              </div>
-              <button onClick={() => setPasswordModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
-            </div>
-            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
-              {[
-                ["Mật khẩu hiện tại", currentPassword, setCurrentPassword, showCurrentPassword, setShowCurrentPassword],
-                ["Mật khẩu mới", newPassword, setNewPassword, showNewPassword, setShowNewPassword],
-                ["Xác nhận mật khẩu mới", confirmPassword, setConfirmPassword, showConfirmPassword, setShowConfirmPassword],
-              ].map(([label, value, setter, visible, setVisible]) => (
-                <div key={label as string}>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">{label as string}</label>
-                  <div className="relative">
-                    <input required type={visible ? "text" : "password"} value={value as string} onChange={(event) => (setter as React.Dispatch<React.SetStateAction<string>>)(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
-                    <button type="button" onClick={() => (setVisible as React.Dispatch<React.SetStateAction<boolean>>)(!visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={(event) => event.target === event.currentTarget && setPasswordModalOpen(false)}>
+            <div className="w-full max-w-md bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-slide-in-bottom">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h3 className="text-lg font-bold">Đổi mật khẩu</h3>
+                  <p className="text-xs text-muted-foreground mt-1">Mật khẩu mới cần có ít nhất 6 ký tự</p>
                 </div>
-              ))}
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setPasswordModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-secondary/40">Hủy</button>
-                <button type="submit" disabled={passwordSaving} className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60">{passwordSaving ? "Đang lưu..." : "Đổi mật khẩu"}</button>
+                <button onClick={() => setPasswordModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
               </div>
-            </form>
+              <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+                {[
+                  ["Mật khẩu hiện tại", currentPassword, setCurrentPassword, showCurrentPassword, setShowCurrentPassword],
+                  ["Mật khẩu mới", newPassword, setNewPassword, showNewPassword, setShowNewPassword],
+                  ["Xác nhận mật khẩu mới", confirmPassword, setConfirmPassword, showConfirmPassword, setShowConfirmPassword],
+                ].map(([label, value, setter, visible, setVisible]) => (
+                  <div key={label as string}>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">{label as string}</label>
+                    <div className="relative">
+                      <input required type={visible ? "text" : "password"} value={value as string} onChange={(event) => (setter as React.Dispatch<React.SetStateAction<string>>)(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                      <button type="button" onClick={() => (setVisible as React.Dispatch<React.SetStateAction<boolean>>)(!visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setPasswordModalOpen(false)} className="px-4 py-2 border border-border rounded-xl text-sm hover:bg-secondary/40">Hủy</button>
+                  <button type="submit" disabled={passwordSaving} className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60">{passwordSaving ? "Đang lưu..." : "Đổi mật khẩu"}</button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Building2, Loader2, Plus, Edit, Trash2, X, MapPin, Phone, Upload } from "lucide-react";
 import { useAuth } from "@/lib/store";
 import { useModal } from "@/components/ModalProvider";
+import { ModalPortal } from "@/components/modal-portal";
 
 
 export default function BranchesPage() {
@@ -318,120 +319,122 @@ export default function BranchesPage() {
 
       {/* Modal Add/Edit */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
-            <div className="p-6 border-b border-border flex items-center justify-between">
-              <h3 className="text-lg font-bold">
-                {editingId ? "Cập nhật cơ sở" : "Thêm cơ sở mới"}
-              </h3>
-              <button
-                onClick={() => setModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-secondary/50"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Mã cơ sở/chi nhánh</label>
-                <input
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="Ví dụ: CN9, HN, SG..."
-                  className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card border border-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+              <div className="p-6 border-b border-border flex items-center justify-between">
+                <h3 className="text-lg font-bold">
+                  {editingId ? "Cập nhật cơ sở" : "Thêm cơ sở mới"}
+                </h3>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-secondary/50"
+                >
+                  <X size={18} />
+                </button>
               </div>
+              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Mã cơ sở/chi nhánh</label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    placeholder="Ví dụ: CN9, HN, SG..."
+                    className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Tên cơ sở/chi nhánh *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ví dụ: Chi nhánh Quận 9"
-                  className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Tên cơ sở/chi nhánh *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ví dụ: Chi nhánh Quận 9"
+                    className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Địa chỉ</label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Nhập địa chỉ chi tiết"
-                  className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Địa chỉ</label>
+                  <input
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Nhập địa chỉ chi tiết"
+                    className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Số điện thoại</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="Nhập số điện thoại liên hệ"
-                  className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Số điện thoại</label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="Nhập số điện thoại liên hệ"
+                    className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
 
-              {/* Logo / Avatar Upload */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Logo / Avatar chi nhánh</label>
-                <div className="flex items-center gap-4 bg-secondary/10 p-3 rounded-xl border border-border">
-                  {formData.logoUrl ? (
-                    <div className="relative w-16 h-16 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                      <img src={formData.logoUrl} alt="Preview Logo" className="w-full h-full object-contain" />
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, logoUrl: "" })}
-                        className="absolute top-0.5 right-0.5 bg-destructive text-white rounded-full p-0.5 shadow hover:bg-destructive/80 transition-colors"
-                      >
-                        <X size={10} />
-                      </button>
+                {/* Logo / Avatar Upload */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Logo / Avatar chi nhánh</label>
+                  <div className="flex items-center gap-4 bg-secondary/10 p-3 rounded-xl border border-border">
+                    {formData.logoUrl ? (
+                      <div className="relative w-16 h-16 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
+                        <img src={formData.logoUrl} alt="Preview Logo" className="w-full h-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, logoUrl: "" })}
+                          className="absolute top-0.5 right-0.5 bg-destructive text-white rounded-full p-0.5 shadow hover:bg-destructive/80 transition-colors"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="w-16 h-16 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-secondary/20 hover:border-primary/50 transition-all shrink-0">
+                        {uploading ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-[9px] text-muted-foreground mt-0.5 font-semibold">Tải lên</span>
+                          </>
+                        )}
+                        <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+                      </label>
+                    )}
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      <p className="font-semibold text-foreground text-[11px]">Chọn hình ảnh làm logo đại diện</p>
+                      <p className="text-[10px]">Định dạng: JPG, PNG, WEBP (Max 5MB)</p>
                     </div>
-                  ) : (
-                    <label className="w-16 h-16 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-secondary/20 hover:border-primary/50 transition-all shrink-0">
-                      {uploading ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-[9px] text-muted-foreground mt-0.5 font-semibold">Tải lên</span>
-                        </>
-                      )}
-                      <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
-                    </label>
-                  )}
-                  <div className="text-xs text-muted-foreground space-y-0.5">
-                    <p className="font-semibold text-foreground text-[11px]">Chọn hình ảnh làm logo đại diện</p>
-                    <p className="text-[10px]">Định dạng: JPG, PNG, WEBP (Max 5MB)</p>
                   </div>
                 </div>
-              </div>
 
-              <div className="pt-4 flex justify-end gap-2 border-t border-border mt-6">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2.5 border border-border hover:bg-secondary text-foreground text-sm font-semibold rounded-xl transition-all"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2.5 gradient-primary text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-all flex items-center gap-1.5"
-                >
-                  {loading && <Loader2 size={14} className="animate-spin" />}
-                  Lưu lại
-                </button>
-              </div>
-            </form>
+                <div className="pt-4 flex justify-end gap-2 border-t border-border mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="px-4 py-2.5 border border-border hover:bg-secondary text-foreground text-sm font-semibold rounded-xl transition-all"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2.5 gradient-primary text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-all flex items-center gap-1.5"
+                  >
+                    {loading && <Loader2 size={14} className="animate-spin" />}
+                    Lưu lại
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

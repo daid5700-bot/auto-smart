@@ -6,7 +6,7 @@ import { getActiveBranchId } from "@/lib/branch";
 // GET /api/inventory/pending-exports — list all pending vehicle accessory export orders
 export async function GET(req: NextRequest) {
   try {
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     const { searchParams } = req.nextUrl;
     const statusFilter = searchParams.get("status") || "PENDING";
 

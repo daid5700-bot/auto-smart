@@ -14,7 +14,7 @@ function encodeMessage(count: number) {
 }
 
 export async function GET(req: Request) {
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   if (!branchId) {
     return new Response("Không xác định được chi nhánh hiện tại", { status: 400 });
   }
@@ -61,6 +61,7 @@ export async function GET(req: Request) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCurrency, formatDate, statusText, statusBadge, parseSymptoms } from "@/lib/utils";
-import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle, CalendarDays } from "lucide-react";
+import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle, CalendarDays, TicketPercent } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useModal } from "@/components/ModalProvider";
+import { CustomSelect } from "@/components/CustomSelect";
+import { ModalPortal } from "@/components/modal-portal";
 
 
 export default function HistoryPage() {
@@ -16,6 +18,10 @@ export default function HistoryPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [submittingDelivery, setSubmittingDelivery] = useState<string | null>(null);
+  const [discountFilter, setDiscountFilter] = useState("ALL");
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
+  const activeListRequest = useRef<AbortController | null>(null);
 
   // Date filter state
   const [dateFrom, setDateFrom] = useState("");
@@ -90,35 +96,73 @@ export default function HistoryPage() {
     } else {
       setTableLoading(true);
     }
+    activeListRequest.current?.abort();
+    const controller = new AbortController();
+    activeListRequest.current = controller;
     try {
-      let url = `/api/workshop?page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}`;
+      let url = `/api/workshop?view=history&page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}`;
       if (from) url += `&dateFrom=${from}`;
       if (to) url += `&dateTo=${to}`;
-      const res = await fetch(url);
+      if (discountFilter !== "ALL") url += `&discount=${discountFilter}`;
+      const res = await fetch(url, { signal: controller.signal });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Không thể tải lịch sử sửa chữa");
       setOrders(data.repairOrders || []);
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages || 1);
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.name === "AbortError") return;
       console.error(e);
     } finally {
-      setInitialLoading(false);
-      setTableLoading(false);
+      if (!controller.signal.aborted) {
+        setInitialLoading(false);
+        setTableLoading(false);
+      }
+    }
+  };
+
+  const openOrderDetail = async (orderId: number) => {
+    try {
+      setDetailLoadingId(orderId);
+      const response = await fetch(`/api/workshop/${orderId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Không thể tải chi tiết lệnh sửa chữa");
+      }
+      setSelectedOrder(payload);
+    } catch (error: any) {
+      toast.error("Không thể mở chi tiết", error.message);
+    } finally {
+      setDetailLoadingId(null);
     }
   };
 
   useEffect(() => {
     setPage(1);
-  }, [search, dateFrom, dateTo]);
+  }, [search, dateFrom, dateTo, discountFilter]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       fetchData(page, search, dateFrom, dateTo);
     }, 300);
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [page, search, dateFrom, dateTo]);
+    return () => {
+      clearTimeout(delayDebounceFn);
+      activeListRequest.current?.abort();
+    };
+  }, [page, search, dateFrom, dateTo, discountFilter]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/discounts?scope=WORKSHOP", { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data) => setDiscounts(data.discounts || []))
+      .catch((error) => {
+        if (error?.name !== "AbortError") console.error(error);
+      });
+    return () => controller.abort();
+  }, []);
 
   const filteredOrders = orders;
 
@@ -152,6 +196,24 @@ export default function HistoryPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm kiếm biển số, dòng xe, tên khách, SĐT hoặc ID..."
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+
+        <div className="w-[200px]">
+          <CustomSelect
+            value={discountFilter}
+            onChange={(val) => setDiscountFilter(val)}
+            options={[
+              { value: "ALL", label: "Tất cả giảm giá" },
+              { value: "ANY", label: "Có sử dụng giảm giá" },
+              { value: "NONE", label: "Không sử dụng giảm giá" },
+              ...discounts.map((discount) => ({
+                value: String(discount.id),
+                label: `${discount.code} — ${discount.name}`,
+                badge: discount.code,
+                badgeVariant: "info" as const,
+              })),
+            ]}
           />
         </div>
 
@@ -236,7 +298,8 @@ export default function HistoryPage() {
                 <tr key={o.id} className="border-b border-border/40 hover:bg-secondary/5 transition-colors">
                   <td className="p-4">
                     <button
-                      onClick={() => setSelectedOrder(o)}
+                      onClick={() => openOrderDetail(o.id)}
+                      disabled={detailLoadingId === o.id}
                       className="font-extrabold text-primary hover:underline focus:outline-none"
                     >
                       {o.plateNumber}
@@ -250,20 +313,6 @@ export default function HistoryPage() {
                   <td className="p-4 text-foreground/80">{formatCurrency(Number(o.partsCost))}</td>
                   <td className="p-4">
                     <div className="font-extrabold text-primary">{formatCurrency(Number(o.totalAmount))}</div>
-                    {(() => {
-                      const labor = Number(o.laborCost) || 0;
-                      const parts = Number(o.partsCost) || 0;
-                      const total = Number(o.totalAmount) || 0;
-                      const discount = Math.round(labor + parts - total);
-                      if (discount >= 1000) {
-                        return (
-                          <div className="text-[10px] text-success font-bold mt-0.5" title="Hóa đơn có giảm giá">
-                            Giảm: -{formatCurrency(discount)}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
                   </td>
                   <td className="p-4">
                     <span className={`badge ${statusBadge(o.status)}`}>
@@ -288,11 +337,14 @@ export default function HistoryPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => setSelectedOrder(o)}
+                        onClick={() => openOrderDetail(o.id)}
+                        disabled={detailLoadingId === o.id}
                         className="p-1.5 hover:bg-primary/10 text-primary rounded-lg transition-colors inline-flex items-center justify-center"
                         title="Xem chi tiết"
                       >
-                        <Eye size={16} />
+                        {detailLoadingId === o.id
+                          ? <Loader2 size={16} className="animate-spin" />
+                          : <Eye size={16} />}
                       </button>
                     </div>
                   </td>
@@ -333,93 +385,101 @@ export default function HistoryPage() {
 
       {/* DETAILED REPAIR ORDER MODAL */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-card w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl border border-border overflow-hidden flex flex-col animate-scale-up">
-            
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-border bg-secondary/15">
-              <div>
-                <span className="text-[10px] font-bold text-primary tracking-widest uppercase">
-                  {formatRoCode(selectedOrder.id, selectedOrder.createdAt)}
-                </span>
-                <h3 className="text-xl font-black text-foreground mt-0.5">Chi tiết Lịch sử Sửa chữa</h3>
-              </div>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="p-2 hover:bg-secondary rounded-xl text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-card w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl border border-border overflow-hidden flex flex-col animate-scale-up">
               
-              {/* General details grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                
-                {/* Vehicle card */}
-                <div className="p-4 bg-secondary/10 border border-border/40 rounded-2xl space-y-1">
-                  <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                    <Wrench size={12} className="text-primary" /> Thông tin xe
-                  </div>
-                  <p className="text-lg font-black text-primary">{selectedOrder.plateNumber}</p>
-                  <p className="text-xs font-semibold text-foreground/80">{selectedOrder.vehicleModel || "Chưa rõ dòng xe"}</p>
-                  <p className="text-[11px] text-muted-foreground">Số KM vào: <span className="font-bold text-foreground">{selectedOrder.kmIn?.toLocaleString() || 0} km</span></p>
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-border bg-secondary/15">
+                <div>
+                  <span className="text-[10px] font-bold text-primary tracking-widest uppercase">
+                    {formatRoCode(selectedOrder.id, selectedOrder.createdAt)}
+                  </span>
+                  <h3 className="text-xl font-black text-foreground mt-0.5">Chi tiết Lịch sử Sửa chữa</h3>
                 </div>
-
-                {/* Customer card */}
-                <div className="p-4 bg-secondary/10 border border-border/40 rounded-2xl space-y-1">
-                  <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                    <User size={12} className="text-primary" /> Khách hàng
-                  </div>
-                  <p className="text-base font-bold text-foreground">{selectedOrder.customer?.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{selectedOrder.customer?.phone}</p>
-                  <p className="text-[11px] text-muted-foreground">Nguồn: <span className="font-semibold">{selectedOrder.customer?.source || "Trực tiếp"}</span></p>
-                </div>
-
-                {/* Technician card */}
-                <div className="p-4 bg-secondary/10 border border-border/40 rounded-2xl space-y-1">
-                  <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                    <User size={12} className="text-primary" /> Nhân sự thực hiện
-                  </div>
-                  <p className="text-base font-bold text-foreground">{selectedOrder.technician?.name || "Chưa giao việc"}</p>
-                  <p className="text-xs text-muted-foreground">Kỹ thuật viên sửa chữa</p>
-                  <p className="text-[11px] text-muted-foreground">Trạng thái KTV: <span className="font-semibold text-success">Hoạt động</span></p>
-                </div>
-
-                {/* Date status card */}
-                <div className="p-4 bg-secondary/10 border border-border/40 rounded-2xl space-y-1">
-                  <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                    <Calendar size={12} className="text-primary" /> Thời gian & Trạng thái
-                  </div>
-                  <div>
-                    <span className={`badge ${statusBadge(selectedOrder.status)} text-[10px]`}>
-                      {statusText(selectedOrder.status)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground pt-1.5">Tiếp nhận: {formatDate(selectedOrder.createdAt)}</p>
-                  <p className="text-[11px] text-muted-foreground">Cập nhật: {formatDate(selectedOrder.updatedAt)}</p>
-                </div>
-
+                <button
+                  onClick={() => setSelectedOrder(null)}
+                  className="p-2 hover:bg-secondary rounded-xl text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X size={20} />
+                </button>
               </div>
 
-              {/* Symptoms / Notes section */}
-              <div className="space-y-4">
-                <div className="p-4 bg-secondary/5 border border-border/40 rounded-2xl">
-                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Triệu chứng & Yêu cầu của khách</h4>
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                
+                {/* General details grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  
+                  {/* Vehicle card */}
+                  <div className="p-4 bg-secondary/10 border border-border/40 rounded-2xl space-y-1">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
+                      <Wrench size={12} className="text-primary" /> Thông tin xe
+                    </div>
+                    <p className="text-lg font-black text-primary">{selectedOrder.plateNumber}</p>
+                    <p className="text-xs font-semibold text-foreground/80">{selectedOrder.vehicleModel || "Chưa rõ dòng xe"}</p>
+                    <p className="text-[11px] text-muted-foreground">Số KM vào: <strong className="text-foreground">{selectedOrder.kmIn?.toLocaleString() || 0} km</strong></p>
+                  </div>
+
+                  {/* Customer card */}
+                  <div className="p-4 bg-secondary/10 border border-border/40 rounded-2xl space-y-1">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
+                      <User size={12} className="text-primary" /> Khách hàng
+                    </div>
+                    <p className="text-sm font-bold text-foreground truncate">{selectedOrder.customer?.name || "Khách vãng vãng"}</p>
+                    <p className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+                      <Phone size={10} /> {selectedOrder.customer?.phone || "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">Nguồn: <strong>{selectedOrder.customer?.source || "WALKIN"}</strong></p>
+                  </div>
+
+                  {/* Technician card */}
+                  <div className="p-4 bg-secondary/10 border border-border/40 rounded-2xl space-y-1">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
+                      <User size={12} className="text-primary" /> Nhân sự thực hiện
+                    </div>
+                    <p className="text-sm font-bold text-foreground truncate">{selectedOrder.technician?.name || "Chưa phân công"}</p>
+                    <p className="text-[11px] text-muted-foreground">Kỹ thuật viên sửa chữa</p>
+                    {selectedOrder.technician && (
+                      <p className="text-[10px] text-emerald-600 font-bold">Trạng thái KTV: Hoạt động</p>
+                    )}
+                  </div>
+
+                  {/* Time & status card */}
+                  <div className="p-4 bg-secondary/10 border border-border/40 rounded-2xl space-y-1">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
+                      <Calendar size={12} className="text-primary" /> Thời gian & Trạng thái
+                    </div>
+                    <div>
+                      <span className={`badge ${statusBadge(selectedOrder.status)} text-[10px]`}>
+                        {statusText(selectedOrder.status)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground pt-1">Tiếp nhận: <strong className="text-foreground">{formatDate(selectedOrder.createdAt)}</strong></p>
+                    <p className="text-[11px] text-muted-foreground">Cập nhật: <strong className="text-foreground">{formatDate(selectedOrder.updatedAt)}</strong></p>
+                  </div>
+
+                </div>
+
+                {/* Symptoms & Labor work */}
+                <div className="p-4 bg-secondary/5 border border-border/40 rounded-2xl space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Triệu chứng & Yêu cầu của khách</h4>
                   {(() => {
                     const parsed = parseSymptoms(selectedOrder.symptoms);
                     return (
-                      <div className="space-y-2 text-xs">
-                        <p className="text-sm text-foreground/90 font-semibold">{parsed.summary || "Không ghi chú triệu chứng"}</p>
+                      <div className="space-y-3 text-xs">
+                        {parsed.summary ? (
+                          <p className="font-semibold text-foreground bg-card p-3 rounded-xl border border-border/40">{parsed.summary}</p>
+                        ) : (
+                          <p className="text-muted-foreground italic">Không có ghi chú triệu chứng</p>
+                        )}
                         {parsed.services.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Hạng mục công việc:</p>
-                            <ul className="list-disc list-inside space-y-0.5 pl-1">
-                              {parsed.services.map((srv: any, i: number) => (
-                                <li key={i} className="text-foreground/80">
-                                  {srv.name} — <span className="font-bold text-primary">{formatCurrency(Number(srv.cost))}</span>
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Hạng mục công việc:</span>
+                            <ul className="space-y-1 pl-4 list-disc text-foreground">
+                              {parsed.services.map((item: any, idx: number) => (
+                                <li key={idx} className="font-medium">
+                                  {item.name} — <strong className="text-primary">{formatCurrency(item.cost)}</strong>
                                 </li>
                               ))}
                             </ul>
@@ -430,101 +490,120 @@ export default function HistoryPage() {
                   })()}
                 </div>
 
-                <div className="p-4 bg-secondary/5 border border-border/40 rounded-2xl">
-                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tình trạng xe khi tiếp nhận</h4>
-                  <p className="text-sm text-foreground/90 font-medium whitespace-pre-wrap leading-relaxed">
-                    {selectedOrder.carCondition || "Không ghi nhận trầy xước ngoại quan"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Parts & Services breakdown */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 border-b border-border/60 pb-2">
-                  <Package size={15} className="text-primary" />
-                  <h4 className="text-sm font-bold uppercase text-muted-foreground tracking-wider">Danh sách phụ tùng thay thế</h4>
-                </div>
-                
-                {(!selectedOrder.items || selectedOrder.items.length === 0) ? (
-                  <p className="text-xs text-muted-foreground italic py-3">Không sử dụng phụ tùng thay thế trong lệnh này.</p>
-                ) : (
-                  <div className="border border-border/40 rounded-xl overflow-hidden bg-card">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-secondary/10 border-b border-border/40">
-                          <th className="p-3 font-bold text-muted-foreground">Mã phụ tùng</th>
-                          <th className="p-3 font-bold text-muted-foreground">Tên phụ tùng</th>
-                          <th className="p-3 font-bold text-muted-foreground text-center">Số lượng</th>
-                          <th className="p-3 font-bold text-muted-foreground text-right">Đơn giá</th>
-                          <th className="p-3 font-bold text-muted-foreground text-right">Thành tiền</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedOrder.items.map((item: any) => (
-                          <tr key={item.id} className="border-b border-border/40 hover:bg-secondary/5">
-                            <td className="p-3 font-mono font-bold text-foreground/80">{item.product?.sku}</td>
-                            <td className="p-3 font-medium text-foreground">{item.product?.name}</td>
-                            <td className="p-3 text-center font-bold">{item.quantity}</td>
-                            <td className="p-3 text-right">{formatCurrency(Number(item.unitPrice))}</td>
-                            <td className="p-3 text-right font-bold text-primary">{formatCurrency(item.quantity * Number(item.unitPrice))}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {/* Receiving Vehicle Condition */}
+                {selectedOrder.carCondition && (
+                  <div className="p-4 bg-secondary/5 border border-border/40 rounded-2xl space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Tình trạng xe khi tiếp nhận</h4>
+                    <p className="text-xs font-medium text-foreground bg-card p-3 rounded-xl border border-border/40">{selectedOrder.carCondition}</p>
                   </div>
                 )}
-              </div>
 
-              {/* Cost breakdown summary */}
-              <div className="flex flex-col md:flex-row md:justify-end">
-                <div className="w-full md:w-80 p-5 bg-secondary/10 border border-border/40 rounded-2xl space-y-3.5">
-                  <div className="flex items-center gap-1.5 border-b border-border/40 pb-2">
-                    <DollarSign size={14} className="text-primary" />
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tóm tắt Chi phí</span>
+                {/* Requisition items (parts) table */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Package size={14} className="text-primary" /> Danh sách phụ tùng thay thế
+                  </h4>
+                  {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                    <div className="border border-border/40 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-secondary/20 border-b border-border/40 text-muted-foreground font-bold uppercase text-[10px]">
+                            <th className="p-3">Mã SKU</th>
+                            <th className="p-3">Tên phụ tùng</th>
+                            <th className="p-3 text-center">Số lượng</th>
+                            <th className="p-3 text-right">Đơn giá</th>
+                            <th className="p-3 text-right">Thành tiền</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40">
+                          {selectedOrder.items.map((item: any) => (
+                            <tr key={item.id} className="hover:bg-secondary/10">
+                              <td className="p-3 font-mono text-muted-foreground font-semibold">{item.product?.sku || "—"}</td>
+                              <td className="p-3 font-bold text-foreground">{item.productName}</td>
+                              <td className="p-3 text-center font-bold">{item.quantity}</td>
+                              <td className="p-3 text-right font-medium text-muted-foreground">{formatCurrency(Number(item.unitPrice))}</td>
+                              <td className="p-3 text-right font-bold text-primary">{formatCurrency(Number(item.totalPrice))}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-secondary/5 border border-border/40 rounded-2xl text-center text-xs text-muted-foreground italic">
+                      Không sử dụng phụ tùng thay thế trong lệnh này.
+                    </div>
+                  )}
+                </div>
+
+                {/* Costs Summary */}
+                <div className="p-4 bg-card border border-border/60 rounded-2xl space-y-2 max-w-sm ml-auto shadow-sm">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground font-medium">Tiền công dịch vụ:</span>
+                    <span className="font-bold text-foreground">{formatCurrency(Number(selectedOrder.laborCost))}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Tiền công dịch vụ:</span>
-                    <span className="font-semibold text-foreground">{formatCurrency(Number(selectedOrder.laborCost))}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Tiền phụ tùng:</span>
-                    <span className="font-semibold text-foreground">{formatCurrency(Number(selectedOrder.partsCost))}</span>
+                    <span className="text-muted-foreground font-medium">Tiền phụ tùng:</span>
+                    <span className="font-bold text-foreground">{formatCurrency(Number(selectedOrder.partsCost))}</span>
                   </div>
                   {(() => {
                     const parsed = parseSymptoms(selectedOrder.symptoms);
-                    const labor = Number(selectedOrder.laborCost) || 0;
-                    const parts = Number(selectedOrder.partsCost) || 0;
-                    const total = Number(selectedOrder.totalAmount) || 0;
-                    
-                    const serviceDiscountAmount = Math.round(labor * (parsed.serviceDiscountPercent / 100));
-                    const partsDiscountAmount = Math.round(parts * (parsed.partsDiscountPercent / 100));
-                    const totalDiscount = Math.round(labor + parts - total);
-                    const loyaltyDiscount = Math.max(0, totalDiscount - (serviceDiscountAmount + partsDiscountAmount));
+                    const serviceDiscountAmount = Math.round((Number(selectedOrder.laborCost) * (parsed.serviceDiscountPercent || 0)) / 100);
+                    const partsDiscountAmount = Math.round((Number(selectedOrder.partsCost) * (parsed.partsDiscountPercent || 0)) / 100);
+                    const loyaltyDiscount = Number(selectedOrder.loyaltyDiscountAmount || 0);
+                    const recordedDiscount = Number(selectedOrder.discountAmount || 0);
 
                     return (
                       <>
-                        {serviceDiscountAmount > 0 && (
+                        {selectedOrder.appliedDiscountCode && recordedDiscount >= 1000 ? (
+                          <div className="flex justify-between text-xs text-success">
+                            <span className="font-medium flex items-center gap-1">
+                              <TicketPercent size={12} />
+                              Mã giảm giá ({selectedOrder.appliedDiscountCode}):
+                            </span>
+                            <span className="font-semibold">-{formatCurrency(recordedDiscount)}</span>
+                          </div>
+                        ) : recordedDiscount >= 1000 ? (
+                          <div className="flex justify-between text-xs text-success">
+                            <span className="font-medium flex items-center gap-1">
+                              <TicketPercent size={12} />
+                              Giảm giá ({
+                                selectedOrder.appliedDiscountType === "PERCENTAGE"
+                                  ? `${selectedOrder.appliedDiscountValue}% cho ${
+                                      selectedOrder.appliedDiscountTarget === "SERVICE"
+                                        ? "dịch vụ"
+                                        : selectedOrder.appliedDiscountTarget === "PARTS"
+                                          ? "phụ tùng"
+                                          : "toàn lệnh"
+                                    }`
+                                  : selectedOrder.appliedDiscountType === "FIXED_AMOUNT"
+                                    ? "Số tiền cố định"
+                                    : "Dữ liệu giảm giá cũ"
+                              }):
+                            </span>
+                            <span className="font-semibold">-{formatCurrency(recordedDiscount)}</span>
+                          </div>
+                        ) : serviceDiscountAmount > 0 && (
                           <div className="flex justify-between text-xs text-destructive">
-                            <span className="font-medium">Giảm giá dịch vụ ({parsed.serviceDiscountPercent}%):</span>
+                            <span className="font-medium">Giảm dịch vụ ({parsed.serviceDiscountPercent}%):</span>
                             <span className="font-semibold">-{formatCurrency(serviceDiscountAmount)}</span>
                           </div>
                         )}
-                        {partsDiscountAmount > 0 && (
+                        {partsDiscountAmount > 0 && !selectedOrder.appliedDiscountCode && (
                           <div className="flex justify-between text-xs text-destructive">
-                            <span className="font-medium">Giảm giá phụ tùng ({parsed.partsDiscountPercent}%):</span>
+                            <span className="font-medium">Giảm phụ tùng ({parsed.partsDiscountPercent}%):</span>
                             <span className="font-semibold">-{formatCurrency(partsDiscountAmount)}</span>
                           </div>
                         )}
                         {loyaltyDiscount >= 1000 && (
-                          <div className="flex justify-between text-xs text-success">
-                            <span className="font-medium">Giảm giá đổi điểm:</span>
+                          <div className="flex justify-between text-xs text-emerald-600">
+                            <span className="font-medium">Giảm đổi điểm loyalty:</span>
                             <span className="font-semibold">-{formatCurrency(loyaltyDiscount)}</span>
                           </div>
                         )}
                       </>
                     );
                   })()}
-                  <div className="flex justify-between items-center pt-2.5 border-t border-dashed border-border/40">
+                  <div className="border-t border-dashed border-border/40 pt-2 flex justify-between items-center">
                     <span className="text-xs font-bold text-foreground">Tổng chi phí:</span>
                     <span className="text-base font-black text-primary">{formatCurrency(Number(selectedOrder.totalAmount))}</span>
                   </div>
@@ -542,39 +621,38 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-5 border-t border-border bg-secondary/5 flex justify-end gap-3">
-              {selectedOrder.status === "DONE" && (
+              {/* Modal Footer */}
+              <div className="p-5 border-t border-border bg-secondary/5 flex justify-end gap-3">
+                {selectedOrder.status === "DONE" && (
+                  <button
+                    disabled={submittingDelivery === selectedOrder.id}
+                    onClick={() => handleDeliverOrder(selectedOrder.id)}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {submittingDelivery === selectedOrder.id ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        Đang xử lý...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={12} />
+                        Bàn giao xe
+                      </>
+                    )}
+                  </button>
+                )}
                 <button
-                  disabled={submittingDelivery === selectedOrder.id}
-                  onClick={() => handleDeliverOrder(selectedOrder.id)}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  onClick={() => setSelectedOrder(null)}
+                  className="px-5 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-colors"
                 >
-                  {submittingDelivery === selectedOrder.id ? (
-                    <>
-                      <Loader2 size={12} className="animate-spin" />
-                      Đang xử lý...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={12} />
-                      Bàn giao xe
-                    </>
-                  )}
+                  Đóng
                 </button>
-              )}
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="px-5 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-colors"
-              >
-                Đóng
-              </button>
-            </div>
+              </div>
 
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
     </div>

@@ -11,7 +11,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const { vehicleIds, amount: paymentDelta } = await parseJson(req, wholesalePaymentSchema);
-    const activeBranchId = getActiveBranchId();
+    const activeBranchId = await getActiveBranchId();
 
     // Fetch all vehicles in the wholesale group
     const vehicles = await prisma.vehicle.findMany({

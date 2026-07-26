@@ -84,7 +84,7 @@ export default function MovementsPage() {
     };
   }, []);
 
-  const resetItems = () => {
+  function resetItems() {
     setItems([{
       id: crypto.randomUUID(),
       productId: "",
@@ -93,7 +93,7 @@ export default function MovementsPage() {
       unitCost: "",
       note: ""
     }]);
-  };
+  }
 
   // When changing tabs, reset items
   useEffect(() => {

@@ -6,6 +6,11 @@ import { requireAuth } from "@/lib/guard";
 import { ensureCustomerBranch, getOrCreateCustomerForBranch } from "@/lib/customer-branch";
 import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
 import { createInlineRepairOrderSchema } from "@/lib/validation/workshop";
+import {
+  applyDiscountCode,
+  discountSnapshotData,
+  type AppliedDiscount,
+} from "@/lib/discounts";
 
 const serializeRepairOrder = (ro: any) => {
   if (!ro) return null;
@@ -14,6 +19,9 @@ const serializeRepairOrder = (ro: any) => {
     laborCost: Number(ro.laborCost || 0),
     partsCost: Number(ro.partsCost || 0),
     discountAmount: Number(ro.discountAmount || 0),
+    appliedDiscountValue: Number(ro.appliedDiscountValue || 0),
+    appliedDiscountMaxAmount:
+      ro.appliedDiscountMaxAmount === null ? null : Number(ro.appliedDiscountMaxAmount),
     totalAmount: Number(ro.totalAmount || 0),
     paidAmount: Number(ro.paidAmount || 0),
     debtAmount: Number(ro.debtAmount || 0),
@@ -31,7 +39,7 @@ export async function GET(req: NextRequest) {
   const guard = await requireAuth(req);
   if (!guard.ok) return guard.response;
 
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   const { searchParams } = req.nextUrl;
   
   const customerId = searchParams.get("customerId");
@@ -44,6 +52,8 @@ export async function GET(req: NextRequest) {
 
   const activeOnly = searchParams.get("activeOnly") === "true";
   const search = searchParams.get("search") || "";
+  const discountFilter = searchParams.get("discount") || "";
+  const historyView = searchParams.get("view") === "history";
 
   const whereClause: any = {
     isDeleted: false,
@@ -70,6 +80,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  if (discountFilter === "ANY") {
+    whereClause.discountAmount = { gt: 0 };
+  } else if (discountFilter === "NONE") {
+    whereClause.discountAmount = { lte: 0 };
+  } else if (/^\d+$/.test(discountFilter)) {
+    whereClause.discountCodeId = Number(discountFilter);
+  }
+
   // Date range filter
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
@@ -81,26 +99,56 @@ export async function GET(req: NextRequest) {
   }
 
   // Run independent queries in parallel for speed
+  const repairOrdersQuery = historyView
+    ? prisma.repairOrder.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          customerId: true,
+          plateNumber: true,
+          vehicleModel: true,
+          status: true,
+          technicianId: true,
+          laborCost: true,
+          partsCost: true,
+          discountAmount: true,
+          totalAmount: true,
+          paidAmount: true,
+          debtAmount: true,
+          appliedDiscountCode: true,
+          createdAt: true,
+          updatedAt: true,
+          customer: { select: { name: true, phone: true } },
+          technician: { select: { name: true } },
+        },
+      })
+    : prisma.repairOrder.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: { customer: true, technician: true, items: { include: { product: true } } },
+      });
+
   const [repairOrders, totalROs, technicians] = await Promise.all([
-    prisma.repairOrder.findMany({
-      where: whereClause,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-      include: { customer: true, technician: true, items: { include: { product: true } } },
-    }),
+    repairOrdersQuery,
     prisma.repairOrder.count({
       where: whereClause,
     }),
-    prisma.technician.findMany({
-      where: branchId ? { branchId } : {},
-      orderBy: { code: "asc" },
-      include: {
-        _count: {
-          select: { repairOrders: true }
-        },
-      },
-    })
+    historyView
+      ? Promise.resolve([])
+      : prisma.technician.findMany({
+          where: branchId ? { branchId } : {},
+          orderBy: { code: "asc" },
+          include: {
+            _count: {
+              select: { repairOrders: true }
+            },
+          },
+        }),
   ]);
 
   // Enrich technicians with totals
@@ -119,12 +167,12 @@ export async function GET(req: NextRequest) {
 
 // POST /api/workshop — create repair order
 export async function POST(req: NextRequest) {
-  const guard = await requireAuth(req);
+  const guard = await requireAuth(req, ["ADMIN", "WORKSHOP"]);
   if (!guard.ok) return guard.response;
 
   try {
     const body = await parseJson(req, createInlineRepairOrderSchema);
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     if (!branchId) {
       throw new ApiError("Không xác định được chi nhánh hiện tại", 400, "BRANCH_REQUIRED");
     }
@@ -152,29 +200,80 @@ export async function POST(req: NextRequest) {
 
     await ensureCustomerBranch(customerId, branchId);
 
-    const ro = await prisma.repairOrder.create({
-      data: {
-        customerId,
-        plateNumber: body.plateNumber,
-        vehicleModel: body.vehicleModel,
-        kmIn: body.kmIn || 0,
-        symptoms: body.symptoms,
-        photos: body.photos || [],
-        status: body.status || "DOING",
-        technicianId: body.technicianId,
-        createdById: guard.userId,
-        laborCost: body.laborCost || 0,
-        partsCost: body.partsCost || 0,
-        totalAmount: (body.laborCost || 0) + (body.partsCost || 0),
-        branchId,
-      },
-      include: { customer: true, technician: true },
-    });
+    const ro = await prisma.$transaction(async (tx) => {
+      if (body.technicianId) {
+        const technician = await tx.technician.findFirst({
+          where: { id: body.technicianId, branchId },
+          select: { id: true },
+        });
+        if (!technician) {
+          throw new ApiError(
+            "Kỹ thuật viên không thuộc cơ sở hiện tại.",
+            400,
+            "TECHNICIAN_BRANCH_MISMATCH",
+          );
+        }
+      }
 
-    // Update technician status
-    if (body.technicianId) {
-      await prisma.technician.update({ where: { id: body.technicianId }, data: { status: "WORKING" } });
-    }
+      const laborCost = Number(body.laborCost || 0);
+      const partsCost = Number(body.partsCost || 0);
+      const rawTotal = laborCost + partsCost;
+      let appliedDiscount: AppliedDiscount | null = null;
+
+      if (body.discountCodeId) {
+        appliedDiscount = await applyDiscountCode(tx, {
+          discountCodeId: body.discountCodeId,
+          branchId,
+          scope: "WORKSHOP",
+          subtotal: rawTotal,
+          serviceSubtotal: laborCost,
+          partsSubtotal: partsCost,
+        });
+      }
+
+      const serviceDiscountPercent =
+        appliedDiscount?.discountType === "PERCENTAGE" &&
+        appliedDiscount.target === "SERVICE"
+          ? appliedDiscount.value
+          : 0;
+      const partsDiscountPercent =
+        appliedDiscount?.discountType === "PERCENTAGE" &&
+        appliedDiscount.target === "PARTS"
+          ? appliedDiscount.value
+          : 0;
+
+      const created = await tx.repairOrder.create({
+        data: {
+          customerId,
+          plateNumber: body.plateNumber,
+          vehicleModel: body.vehicleModel,
+          kmIn: body.kmIn || 0,
+          symptoms: body.symptoms,
+          photos: body.photos || [],
+          status: body.status || "DOING",
+          technicianId: body.technicianId,
+          createdById: guard.userId,
+          laborCost,
+          partsCost,
+          discountPercent: serviceDiscountPercent,
+          serviceDiscountPercent,
+          partsDiscountPercent,
+          ...discountSnapshotData(appliedDiscount),
+          totalAmount: Math.max(0, rawTotal - Number(appliedDiscount?.amount || 0)),
+          branchId,
+        },
+        include: { customer: true, technician: true },
+      });
+
+      if (body.technicianId) {
+        await tx.technician.update({
+          where: { id: body.technicianId },
+          data: { status: "WORKING" },
+        });
+      }
+
+      return created;
+    });
 
     return NextResponse.json(serializeRepairOrder(ro), { status: 201 });
   } catch (error: unknown) {

@@ -6,7 +6,14 @@ const money = z.coerce.number().finite().min(0).max(10_000_000_000);
 export const requisitionItemSchema = z.object({
   productId: z.coerce.number().int().positive(),
   quantity: z.coerce.number().finite().positive().max(100_000),
-  unitPrice: money,
+  // Kept for backward-compatible clients. The server ignores this value and
+  // resolves the current RETAIL price from the product catalogue.
+  unitPrice: money.optional(),
+}).strict();
+
+export const workshopServiceLineSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  cost: money,
 }).strict();
 
 export const createWorkshopWithRequisitionSchema = z.object({
@@ -18,10 +25,16 @@ export const createWorkshopWithRequisitionSchema = z.object({
   symptoms: z.string().max(10_000).optional().nullable(),
   carCondition: z.string().max(5_000).optional().nullable(),
   technicianId: optionalPositiveId,
+  // Kept for backward compatibility only. The authoritative total is the sum
+  // of services[].cost.
   laborCost: money.default(0),
+  services: z.array(workshopServiceLineSchema).min(1).max(100),
   items: z.array(requisitionItemSchema).max(200).default([]),
   pointsToRedeem: z.coerce.number().int().min(0).max(10_000_000).default(0),
-  discountPercent: z.coerce.number().min(0).max(100).default(0),
+  discountPercent: z.coerce.number().refine((value) => value === 0, {
+    message: "Lệnh mới chỉ được giảm giá bằng mã giảm giá.",
+  }).default(0),
+  discountCodeId: optionalPositiveId,
   birthday: z.union([z.string().date(), z.literal("")]).optional(),
 }).strict();
 
@@ -59,4 +72,5 @@ export const createInlineRepairOrderSchema = z.object({
   technicianId: optionalPositiveId,
   laborCost: money.default(0),
   partsCost: money.default(0),
+  discountCodeId: optionalPositiveId,
 }).strict();

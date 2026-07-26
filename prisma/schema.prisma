@@ -61,6 +61,7 @@ model Branch {
   inventoryOrders     InventoryOrder[]
   paymentTransactions PaymentTransaction[]
   stockMovements      StockMovement[]
+  discountCodes       DiscountCode[]
   isDeleted           Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -71,6 +72,7 @@ model Product {
   id                    Int                    @id @default(autoincrement())
   sku                   String                 @unique
   name                  String
+  vehicleModel          String?
   parentId              Int?
   parent                Product?               @relation("ProductHierarchy", fields: [parentId], references: [id])
   children              Product[]              @relation("ProductHierarchy")
@@ -89,6 +91,7 @@ model Product {
   updatedAt             DateTime               @updatedAt
 
   @@index([sku])
+  @@index([vehicleModel])
   @@index([parentId])
   @@index([category])
 }
@@ -188,37 +191,45 @@ model Technician {
 }
 
 model RepairOrder {
-  id                     Int                @id @default(autoincrement())
-  customerId             Int
-  customer               Customer           @relation(fields: [customerId], references: [id])
-  plateNumber            String
-  vehicleModel           String?
-  kmIn                   Int                @default(0)
-  symptoms               String?
-  status                 String             @default("PENDING") // PENDING, DIAGNOSING, DOING, WAITING_PARTS, DONE, DELIVERED
-  technicianId           Int?
-  technician             Technician?        @relation(fields: [technicianId], references: [id])
-  createdById            Int?
-  createdBy              User?              @relation("CreatedBy", fields: [createdById], references: [id])
-  items                  OrderItem[]
-  laborCost              Decimal            @default(0)
-  partsCost              Decimal            @default(0)
-  discountPercent        Int                @default(0)
-  discountAmount         Decimal            @default(0)
-  serviceDiscountPercent Int                @default(0)
-  partsDiscountPercent   Int                @default(0)
-  servicesJson           Json?
-  totalAmount            Decimal            @default(0)
-  paidAmount             Decimal            @default(0)
-  debtAmount             Decimal            @default(0)
-  photos                 String[]
-  completedAt            DateTime?
-  isDeleted              Boolean            @default(false)
-  partsRequisitions      PartsRequisition[]
-  branchId               Int?
-  branch                 Branch?            @relation(fields: [branchId], references: [id])
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
+  id                       Int                @id @default(autoincrement())
+  customerId               Int
+  customer                 Customer           @relation(fields: [customerId], references: [id])
+  plateNumber              String
+  vehicleModel             String?
+  kmIn                     Int                @default(0)
+  symptoms                 String?
+  status                   String             @default("PENDING") // PENDING, DIAGNOSING, DOING, WAITING_PARTS, DONE, DELIVERED
+  technicianId             Int?
+  technician               Technician?        @relation(fields: [technicianId], references: [id])
+  createdById              Int?
+  createdBy                User?              @relation("CreatedBy", fields: [createdById], references: [id])
+  items                    OrderItem[]
+  laborCost                Decimal            @default(0)
+  partsCost                Decimal            @default(0)
+  discountPercent          Int                @default(0)
+  discountAmount           Decimal            @default(0)
+  discountCodeId           Int?
+  discountCode             DiscountCode?      @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  appliedDiscountCode      String?
+  appliedDiscountName      String?
+  appliedDiscountType      String?
+  appliedDiscountValue     Decimal            @default(0)
+  appliedDiscountMaxAmount Decimal?
+  appliedDiscountTarget    String?
+  serviceDiscountPercent   Int                @default(0)
+  partsDiscountPercent     Int                @default(0)
+  servicesJson             Json?
+  totalAmount              Decimal            @default(0)
+  paidAmount               Decimal            @default(0)
+  debtAmount               Decimal            @default(0)
+  photos                   String[]
+  completedAt              DateTime?
+  isDeleted                Boolean            @default(false)
+  partsRequisitions        PartsRequisition[]
+  branchId                 Int?
+  branch                   Branch?            @relation(fields: [branchId], references: [id])
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   @@index([plateNumber])
   @@index([customerId])
@@ -227,6 +238,8 @@ model RepairOrder {
   @@index([branchId])
   @@index([branchId, isDeleted, status, createdAt])
   @@index([customerId, branchId, createdAt])
+  @@index([discountCodeId])
+  @@index([branchId, discountCodeId, createdAt])
 }
 
 model OrderItem {
@@ -246,45 +259,86 @@ model OrderItem {
 
 // ========== VEHICLE SALES ==========
 model Vehicle {
-  id                Int                @id @default(autoincrement())
-  vin               String             @unique
-  sku               String?
-  engineNumber      String?
-  importPrice       Decimal?           @default(0)
-  importDate        DateTime?          @default(now())
-  stockCount        String?
-  model             String
-  variant           String?
-  color             String?
-  year              Int
-  status            String             @default("AVAILABLE") // AVAILABLE, RESERVED, INCOMING, SOLD
-  listPrice         Decimal
-  floorPrice        Decimal
-  paidAmount        Decimal            @default(0)
-  debtAmount        Decimal            @default(0)
-  image             String?
-  customerId        Int?
-  customer          Customer?          @relation(fields: [customerId], references: [id])
-  bankStatus        String?
-  plateStatus       String?
-  plateCost         Decimal?           @default(0)
-  accessoriesJson   Json?              @default("[]")
-  saleType          String             @default("RETAIL") // RETAIL, WHOLESALE
-  notes             String?
-  warehouse         String?
-  branchId          Int?
-  branch            Branch?            @relation(fields: [branchId], references: [id])
-  partsRequisitions PartsRequisition[]
-  inventoryOrders   InventoryOrder[]
-  stockMovements    StockMovement[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                       Int                @id @default(autoincrement())
+  vin                      String             @unique
+  sku                      String?
+  engineNumber             String?
+  importPrice              Decimal?           @default(0)
+  importDate               DateTime?          @default(now())
+  stockCount               String?
+  model                    String
+  variant                  String?
+  color                    String?
+  year                     Int
+  status                   String             @default("AVAILABLE") // AVAILABLE, RESERVED, INCOMING, SOLD
+  listPrice                Decimal
+  originalListPrice        Decimal?
+  floorPrice               Decimal
+  discountAmount           Decimal            @default(0)
+  discountCodeId           Int?
+  discountCode             DiscountCode?      @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  appliedDiscountCode      String?
+  appliedDiscountName      String?
+  appliedDiscountType      String?
+  appliedDiscountValue     Decimal            @default(0)
+  appliedDiscountMaxAmount Decimal?
+  appliedDiscountTarget    String?
+  paidAmount               Decimal            @default(0)
+  debtAmount               Decimal            @default(0)
+  image                    String?
+  customerId               Int?
+  customer                 Customer?          @relation(fields: [customerId], references: [id])
+  bankStatus               String?
+  plateStatus              String?
+  plateCost                Decimal?           @default(0)
+  accessoriesJson          Json?              @default("[]")
+  saleType                 String             @default("RETAIL") // RETAIL, WHOLESALE
+  notes                    String?
+  warehouse                String?
+  branchId                 Int?
+  branch                   Branch?            @relation(fields: [branchId], references: [id])
+  partsRequisitions        PartsRequisition[]
+  inventoryOrders          InventoryOrder[]
+  stockMovements           StockMovement[]
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   @@index([vin])
   @@index([status])
   @@index([branchId])
   @@index([branchId, status, updatedAt])
   @@index([customerId, branchId])
+  @@index([discountCodeId])
+  @@index([branchId, discountCodeId, updatedAt])
+}
+
+/// Branch-scoped discount definitions. Orders keep snapshot fields so their
+/// history remains correct even if a code is edited or disabled later.
+model DiscountCode {
+  id                Int           @id @default(autoincrement())
+  code              String
+  name              String
+  scope             String // SALES, WORKSHOP
+  discountType      String // PERCENTAGE, FIXED_AMOUNT
+  target            String        @default("ORDER") // ORDER, SERVICE, PARTS
+  value             Decimal
+  maxDiscountAmount Decimal?
+  minOrderAmount    Decimal       @default(0)
+  usageLimit        Int?
+  usedCount         Int           @default(0)
+  startsAt          DateTime?
+  endsAt            DateTime?
+  isActive          Boolean       @default(true)
+  branchId          Int
+  branch            Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  vehicles          Vehicle[]
+  repairOrders      RepairOrder[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([branchId, code, scope])
+  @@index([branchId, scope, isActive])
+  @@index([scope, startsAt, endsAt])
 }
 
 // ========== CRM ==========
@@ -375,6 +429,7 @@ model ZnsLog {
 
   @@index([branchId])
   @@index([branchId, sentAt])
+  @@index([branchId, status, sentAt])
   @@index([customerId, templateId, sentAt])
 }
 
@@ -432,6 +487,18 @@ model SystemConfig {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+/// Shared login throttling state. This survives container restarts and is
+/// consistent when more than one application container is running.
+model LoginRateLimit {
+  key             String    @id @db.VarChar(64)
+  failedCount     Int       @default(0)
+  windowStartedAt DateTime
+  lockedUntil     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@index([updatedAt])
 }
 
 // ========== CASHFLOW ==========

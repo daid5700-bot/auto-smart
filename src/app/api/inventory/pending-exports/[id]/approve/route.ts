@@ -4,9 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
 // POST /api/inventory/pending-exports/[id]/approve — Warehouse approves → deduct stock
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const orderId = parseInt(params.id);
+    const orderId = parseInt((await params).id);
 
     const order = await prisma.inventoryOrder.findUnique({
       where: { id: orderId },
@@ -123,9 +123,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 // POST reject
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const orderId = parseInt(params.id);
+    const orderId = parseInt((await params).id);
     const { reason } = await req.json().catch(() => ({ reason: "Từ chối bởi nhân viên kho" }));
 
     const order = await prisma.inventoryOrder.findUnique({ where: { id: orderId } });

@@ -16,7 +16,7 @@ export async function GET() {
     }
   };
 
-  const branchId = getActiveBranchId();
+  const branchId = await getActiveBranchId();
   steps["info"] = { branchId, activeBranchCookieExists: typeof branchId === "number" };
 
   await runQuery("1. count_products", () => 

@@ -20,7 +20,7 @@ async function getCrmData(req: NextRequest) {
   const query = crmQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
   const { tab, search, category: customerCategory } = query;
   const allBranches = query.allBranches && tab === "customers";
-  const branchId = allBranches ? null : getActiveBranchId();
+  const branchId = allBranches ? null : await getActiveBranchId();
 
   const page = query.page;
   const limit = tab === "reminders" ? query.limit : Math.min(100, query.limit);
@@ -215,8 +215,18 @@ async function getCrmData(req: NextRequest) {
 
 
   if (tab === "zns") {
+    const znsStatus = query.status;
+    const statusWhere =
+      znsStatus === "SUCCESS"
+        ? { status: { in: ["SENT", "SUCCESS", "DELIVERED"] } }
+        : znsStatus === "FAILED"
+          ? { status: "FAILED" }
+          : znsStatus === "PENDING"
+            ? { status: "PENDING" }
+            : {};
     const baseWhere = {
       ...(branchId ? { branchId } : {}),
+      ...statusWhere,
       ...(search ? {
         OR: [
           { phone: { contains: search, mode: "insensitive" } },
@@ -303,7 +313,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await parseJson(req, createCrmEntrySchema);
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     if (body.type === "customer") {
       const customer = await prisma.$transaction(async (tx) => {
         const created = await tx.customer.create({

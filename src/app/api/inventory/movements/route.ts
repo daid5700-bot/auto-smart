@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search") || "";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const where: any = {};
     if (branchId) {

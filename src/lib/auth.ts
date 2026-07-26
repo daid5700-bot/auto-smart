@@ -1,5 +1,13 @@
-const DEFAULT_SECRET = "super-secret-key-auto-smart-crm-erp";
-const SECRET = process.env.COOKIE_SIGN_SECRET || DEFAULT_SECRET;
+const DEVELOPMENT_SECRET = "development-only-change-me";
+
+function getSecret() {
+  const configured = process.env.COOKIE_SIGN_SECRET;
+  if (configured && configured.length >= 32) return configured;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("COOKIE_SIGN_SECRET phải được cấu hình tối thiểu 32 ký tự.");
+  }
+  return configured || DEVELOPMENT_SECRET;
+}
 
 const encoder = new TextEncoder();
 
@@ -25,6 +33,7 @@ async function hmacSha256(message: string, secret: string): Promise<string> {
 }
 
 export async function signRole(role: string): Promise<string> {
+  const SECRET = getSecret();
   const data = `${role}:${SECRET}`;
   const signature = await hmacSha256(data, SECRET);
   return `${role}.${signature}`;
@@ -51,26 +60,18 @@ export async function verifyRole(cookieValue: string | undefined): Promise<strin
   if (parts.length !== 2) return null;
   const [role, signature] = parts;
 
-  // Try verifying with the active SECRET
+  const SECRET = getSecret();
   const data = `${role}:${SECRET}`;
   const expectedSignature = await hmacSha256(data, SECRET);
   if (signature === expectedSignature) {
     return role;
   }
 
-  // Fallback: try verifying with the default secret if active SECRET is different
-  if (SECRET !== DEFAULT_SECRET) {
-    const fallbackData = `${role}:${DEFAULT_SECRET}`;
-    const fallbackSignature = await hmacSha256(fallbackData, DEFAULT_SECRET);
-    if (signature === fallbackSignature) {
-      return role;
-    }
-  }
-
   return null;
 }
 
 export async function signData(value: string): Promise<string> {
+  const SECRET = getSecret();
   const data = `${value}:${SECRET}`;
   const signature = await hmacSha256(data, SECRET);
   return `${value}.${signature}`;
@@ -96,20 +97,11 @@ export async function verifyData(cookieValue: string | undefined): Promise<strin
   if (parts.length !== 2) return null;
   const [data, signature] = parts;
 
-  // Try verifying with the active SECRET
+  const SECRET = getSecret();
   const message = `${data}:${SECRET}`;
   const expectedSignature = await hmacSha256(message, SECRET);
   if (signature === expectedSignature) {
     return data;
-  }
-
-  // Fallback: try verifying with the default secret
-  if (SECRET !== DEFAULT_SECRET) {
-    const fallbackMessage = `${data}:${DEFAULT_SECRET}`;
-    const fallbackSignature = await hmacSha256(fallbackMessage, DEFAULT_SECRET);
-    if (signature === fallbackSignature) {
-      return data;
-    }
   }
 
   return null;

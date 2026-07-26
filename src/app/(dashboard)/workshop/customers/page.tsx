@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Users, Search, MapPin, Phone, User, DollarSign, Receipt, Eye, X, Edit3, Wrench, Calendar } from "lucide-react";
 import { formatCurrency, formatDate, statusText, statusBadge, fetchWithDedup } from "@/lib/utils";
+import { ModalPortal } from "@/components/modal-portal";
 import { NumericInput } from "@/components/NumericInput";
 import { toast } from "@/lib/toast";
 
@@ -233,166 +234,170 @@ export default function WorkshopCustomersPage() {
       </div>
 
       {selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-card w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl border border-border overflow-hidden flex flex-col animate-scale-up">
-            <div className="flex items-center justify-between p-6 border-b border-border bg-secondary/15">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary">
-                  <User size={20} />
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-card w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl border border-border overflow-hidden flex flex-col animate-scale-up">
+              <div className="flex items-center justify-between p-6 border-b border-border bg-secondary/15">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-foreground">{selectedCustomer.name}</h3>
+                    <p className="text-xs text-muted-foreground font-mono">{selectedCustomer.phone}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-black text-foreground">{selectedCustomer.name}</h3>
-                  <p className="text-xs text-muted-foreground font-mono">{selectedCustomer.phone}</p>
-                </div>
+                <button onClick={() => setSelectedCustomer(null)} className="p-2 hover:bg-secondary rounded-xl text-muted-foreground hover:text-foreground">
+                  <X size={20} />
+                </button>
               </div>
-              <button onClick={() => setSelectedCustomer(null)} className="p-2 hover:bg-secondary rounded-xl text-muted-foreground hover:text-foreground">
-                <X size={20} />
-              </button>
-            </div>
 
-            <div className="p-6 overflow-y-auto space-y-4 flex-1">
-              <h4 className="text-sm font-bold uppercase text-muted-foreground tracking-wider mb-2">Danh sách hóa đơn sửa chữa xe</h4>
-              
-              {loadingOrders ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">Đang tải danh sách hóa đơn...</div>
-              ) : customerOrders.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm italic">Khách hàng chưa có hóa đơn sửa chữa nào hoàn thành.</div>
-              ) : (
-                <div className="border border-border/40 rounded-xl overflow-hidden bg-card">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-secondary/10 border-b border-border/40">
-                        <th className="p-3 font-bold text-muted-foreground">Mã RO</th>
-                        <th className="p-3 font-bold text-muted-foreground">Biển số</th>
-                        <th className="p-3 font-bold text-muted-foreground">Ngày lập</th>
-                        <th className="p-3 font-bold text-muted-foreground text-right">Tổng chi phí</th>
-                        <th className="p-3 font-bold text-muted-foreground text-right">Đã trả</th>
-                        <th className="p-3 font-bold text-muted-foreground text-right">Còn nợ</th>
-                        <th className="p-3 font-bold text-muted-foreground">Trạng thái xe</th>
-                        <th className="p-3 font-bold text-muted-foreground text-center">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customerOrders.map((order) => (
-                        <tr key={order.id} className="border-b border-border/40 hover:bg-secondary/5">
-                          <td className="p-3 font-mono font-bold text-foreground">{formatRoCode(order.id, order.createdAt)}</td>
-                          <td className="p-3 font-extrabold text-primary">{order.plateNumber}</td>
-                          <td className="p-3 text-muted-foreground">{formatDate(order.createdAt)}</td>
-                          <td className="p-3 text-right font-semibold">{formatCurrency(Number(order.totalAmount))}</td>
-                          <td className="p-3 text-right font-semibold text-emerald-600">{formatCurrency(Number(order.paidAmount))}</td>
-                          <td className="p-3 text-right font-bold text-rose-600">
-                            {Number(order.debtAmount) > 0 ? formatCurrency(Number(order.debtAmount)) : "—"}
-                          </td>
-                          <td className="p-3">
-                            <span className={`badge ${statusBadge(order.status)} text-[10px]`}>
-                              {statusText(order.status)}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right">
-                            {(order.status === "DONE" || order.status === "DELIVERED") && Number(order.debtAmount) > 0 ? (
-                              <button
-                                onClick={() => {
-                                  setEditingOrder(order);
-                                  setPaymentInput(order.debtAmount?.toString() || "0");
-                                  setDeliverOnPayment(order.status !== "DELIVERED");
-                                }}
-                                className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors inline-flex items-center justify-center mx-auto"
-                                title={order.status === "DONE" ? "Thanh toán & Bàn giao" : "Cập nhật thanh toán"}
-                              >
-                                <DollarSign size={14} />
-                              </button>
-                            ) : (
-                              <span className="text-muted-foreground font-semibold text-[10px]">—</span>
-                            )}
-                          </td>
+              <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                <h4 className="text-sm font-bold uppercase text-muted-foreground tracking-wider mb-2">Danh sách hóa đơn sửa chữa xe</h4>
+                
+                {loadingOrders ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">Đang tải danh sách hóa đơn...</div>
+                ) : customerOrders.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm italic">Khách hàng chưa có hóa đơn sửa chữa nào hoàn thành.</div>
+                ) : (
+                  <div className="border border-border/40 rounded-xl overflow-hidden bg-card">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-secondary/10 border-b border-border/40">
+                          <th className="p-3 font-bold text-muted-foreground">Mã RO</th>
+                          <th className="p-3 font-bold text-muted-foreground">Biển số</th>
+                          <th className="p-3 font-bold text-muted-foreground">Ngày lập</th>
+                          <th className="p-3 font-bold text-muted-foreground text-right">Tổng chi phí</th>
+                          <th className="p-3 font-bold text-muted-foreground text-right">Đã trả</th>
+                          <th className="p-3 font-bold text-muted-foreground text-right">Còn nợ</th>
+                          <th className="p-3 font-bold text-muted-foreground">Trạng thái xe</th>
+                          <th className="p-3 font-bold text-muted-foreground text-center">Thao tác</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                      </thead>
+                      <tbody>
+                        {customerOrders.map((order) => (
+                          <tr key={order.id} className="border-b border-border/40 hover:bg-secondary/5">
+                            <td className="p-3 font-mono font-bold text-foreground">{formatRoCode(order.id, order.createdAt)}</td>
+                            <td className="p-3 font-extrabold text-primary">{order.plateNumber}</td>
+                            <td className="p-3 text-muted-foreground">{formatDate(order.createdAt)}</td>
+                            <td className="p-3 text-right font-semibold">{formatCurrency(Number(order.totalAmount))}</td>
+                            <td className="p-3 text-right font-semibold text-emerald-600">{formatCurrency(Number(order.paidAmount))}</td>
+                            <td className="p-3 text-right font-bold text-rose-600">
+                              {Number(order.debtAmount) > 0 ? formatCurrency(Number(order.debtAmount)) : "—"}
+                            </td>
+                            <td className="p-3">
+                              <span className={`badge ${statusBadge(order.status)} text-[10px]`}>
+                                {statusText(order.status)}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              {(order.status === "DONE" || order.status === "DELIVERED") && Number(order.debtAmount) > 0 ? (
+                                <button
+                                  onClick={() => {
+                                    setEditingOrder(order);
+                                    setPaymentInput(order.debtAmount?.toString() || "0");
+                                    setDeliverOnPayment(order.status !== "DELIVERED");
+                                  }}
+                                  className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors inline-flex items-center justify-center mx-auto"
+                                  title={order.status === "DONE" ? "Thanh toán & Bàn giao" : "Cập nhật thanh toán"}
+                                >
+                                  <DollarSign size={14} />
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground font-semibold text-[10px]">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
-            <div className="p-5 border-t border-border bg-secondary/5 flex justify-end">
-              <button onClick={() => setSelectedCustomer(null)} className="px-5 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-colors">
-                Đóng
-              </button>
+              <div className="p-5 border-t border-border bg-secondary/5 flex justify-end">
+                <button onClick={() => setSelectedCustomer(null)} className="px-5 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-colors">
+                  Đóng
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {editingOrder && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-scale-up">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-bold">
-                {editingOrder.status !== "DELIVERED" && deliverOnPayment ? "Thanh toán & Bàn giao xe" : "Cập nhật thanh toán"}
-              </h3>
-              <button onClick={() => setEditingOrder(null)} className="text-muted-foreground hover:text-foreground">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={submitPayment} className="p-6 space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground mb-1">Tổng tiền đơn sửa chữa</p>
-                <p className="font-bold text-lg">{formatCurrency(Number(editingOrder.totalAmount || 0))}</p>
-              </div>
-              <div className="flex justify-between items-center bg-secondary/20 p-3 rounded-xl border border-border">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">Đã trả (Cũ)</p>
-                  <p className="font-bold text-emerald-600">{formatCurrency(Number(editingOrder.paidAmount || 0))}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-semibold text-muted-foreground">Còn nợ (Cũ)</p>
-                  <p className="font-bold text-rose-600">{formatCurrency(Number(editingOrder.debtAmount || 0))}</p>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase">
-                    Khách trả thêm
-                  </label>
-                  <button 
-                    type="button" 
-                    onClick={() => setPaymentInput(editingOrder.debtAmount?.toString() || "0")}
-                    className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
-                  >
-                    Trả toàn bộ
-                  </button>
-                </div>
-                <NumericInput
-                  required
-                  value={paymentInput}
-                  onChange={setPaymentInput}
-                  className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                />
-              </div>
-
-              {editingOrder.status !== "DELIVERED" && (
-                <div className="flex items-center gap-2 pt-2 pb-1">
-                  <input
-                    type="checkbox"
-                    id="deliverOnPayment"
-                    checked={deliverOnPayment}
-                    onChange={(e) => setDeliverOnPayment(e.target.checked)}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-border bg-card cursor-pointer"
-                  />
-                  <label htmlFor="deliverOnPayment" className="text-xs font-bold text-foreground cursor-pointer select-none">
-                    Đồng thời bàn giao xe cho khách
-                  </label>
-                </div>
-              )}
-
-              <div className="flex gap-3 justify-end pt-4 border-t border-border mt-4">
-                <button type="button" onClick={() => setEditingOrder(null)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
-                <button disabled={submittingPayment} type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
-                  {submittingPayment ? "Đang xử lý..." : (editingOrder.status !== "DELIVERED" && deliverOnPayment ? "Xác nhận & Bàn giao" : "Xác nhận & Lưu")}
+        <ModalPortal>
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-scale-up">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <h3 className="text-lg font-bold">
+                  {editingOrder.status !== "DELIVERED" && deliverOnPayment ? "Thanh toán & Bàn giao xe" : "Cập nhật thanh toán"}
+                </h3>
+                <button onClick={() => setEditingOrder(null)} className="text-muted-foreground hover:text-foreground">
+                  <X size={20} />
                 </button>
               </div>
-            </form>
+              <form onSubmit={submitPayment} className="p-6 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">Tổng tiền đơn sửa chữa</p>
+                  <p className="font-bold text-lg">{formatCurrency(Number(editingOrder.totalAmount || 0))}</p>
+                </div>
+                <div className="flex justify-between items-center bg-secondary/20 p-3 rounded-xl border border-border">
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Đã trả (Cũ)</p>
+                    <p className="font-bold text-emerald-600">{formatCurrency(Number(editingOrder.paidAmount || 0))}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-muted-foreground">Còn nợ (Cũ)</p>
+                    <p className="font-bold text-rose-600">{formatCurrency(Number(editingOrder.debtAmount || 0))}</p>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase">
+                      Khách trả thêm
+                    </label>
+                    <button 
+                      type="button" 
+                      onClick={() => setPaymentInput(editingOrder.debtAmount?.toString() || "0")}
+                      className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
+                    >
+                      Trả toàn bộ
+                    </button>
+                  </div>
+                  <NumericInput
+                    required
+                    value={paymentInput}
+                    onChange={setPaymentInput}
+                    className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-sm font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                  />
+                </div>
+
+                {editingOrder.status !== "DELIVERED" && (
+                  <div className="flex items-center gap-2 pt-2 pb-1">
+                    <input
+                      type="checkbox"
+                      id="deliverOnPayment"
+                      checked={deliverOnPayment}
+                      onChange={(e) => setDeliverOnPayment(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-border bg-card cursor-pointer"
+                    />
+                    <label htmlFor="deliverOnPayment" className="text-xs font-bold text-foreground cursor-pointer select-none">
+                      Đồng thời bàn giao xe cho khách
+                    </label>
+                  </div>
+                )}
+
+                <div className="flex gap-3 justify-end pt-4 border-t border-border mt-4">
+                  <button type="button" onClick={() => setEditingOrder(null)} className="px-4 py-2 border border-border rounded-xl text-sm font-medium hover:bg-secondary/40">Hủy</button>
+                  <button disabled={submittingPayment} type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                    {submittingPayment ? "Đang xử lý..." : (editingOrder.status !== "DELIVERED" && deliverOnPayment ? "Xác nhận & Bàn giao" : "Xác nhận & Lưu")}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

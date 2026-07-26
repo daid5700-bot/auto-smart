@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
+    const id = parseInt((await params).id);
     const body = await req.json();
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
 
     const currentTech = await prisma.technician.findFirst({
       where: {
@@ -31,10 +31,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
-    const branchId = getActiveBranchId();
+    const id = parseInt((await params).id);
+    const branchId = await getActiveBranchId();
 
     const currentTech = await prisma.technician.findFirst({
       where: {

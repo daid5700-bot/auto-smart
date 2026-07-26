@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       endDate = temp;
     }
 
-    const branchId = getActiveBranchId();
+    const branchId = await getActiveBranchId();
     const cacheKey = `dashboard_${branchId ?? "all"}_${startDateStr ?? ""}_${endDateStr ?? ""}`;
 
     // Return cached data if still fresh

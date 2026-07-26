@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
-    const branchId = getActiveBranchId();
+    const id = parseInt((await params).id);
+    const branchId = await getActiveBranchId();
 
     const vehicle = await prisma.vehicle.findUnique({
       where: { id },
