@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
+import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Loader2, DollarSign, X, Edit3, Eye, Search, Calendar, CalendarDays } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
+import { getAppDatePresetRange } from "@/lib/date-range";
 
 function InventoryHistoryContent() {
   const modal = useModal();
@@ -31,15 +32,12 @@ function InventoryHistoryContent() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [activePreset, setActivePreset] = useState<"today" | "week" | "month" | null>(null);
+  const activeMovementRequest = useRef<AbortController | null>(null);
 
   const applyPreset = (preset: "today" | "week" | "month") => {
-    const now = new Date();
-    const toISO = (d: Date) => d.toISOString().slice(0, 10);
-    if (preset === "today") { setDateFrom(toISO(now)); setDateTo(toISO(now)); }
-    else if (preset === "week") {
-      const s = new Date(now); s.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
-      setDateFrom(toISO(s)); setDateTo(toISO(now));
-    } else { setDateFrom(toISO(new Date(now.getFullYear(), now.getMonth(), 1))); setDateTo(toISO(now)); }
+    const range = getAppDatePresetRange(preset);
+    setDateFrom(range.from);
+    setDateTo(range.to);
     setActivePreset(preset);
     setCurrentPage(1);
   };
@@ -120,22 +118,33 @@ function InventoryHistoryContent() {
   };
 
   const fetchMovements = async (p: number, currentTab = activeTab, from = dateFrom, to = dateTo) => {
+    activeMovementRequest.current?.abort();
+    const controller = new AbortController();
+    activeMovementRequest.current = controller;
     const isFirstLoad = history.length === 0 && p === 1 && !debouncedSearch && !from && !to;
     if (isFirstLoad) setInitialLoading(true); else setTableLoading(true);
     try {
       const typeParam = currentTab === "ALL" ? "" : `&type=${currentTab}`;
       const dateParam = `${from ? `&dateFrom=${from}` : ""}${to ? `&dateTo=${to}` : ""}`;
-      const data = await fetchWithDedup(`/api/inventory/movements?page=${p}&limit=50&search=${encodeURIComponent(debouncedSearch)}${typeParam}${dateParam}`);
+      const response = await fetch(
+        `/api/inventory/movements?page=${p}&limit=50&search=${encodeURIComponent(debouncedSearch)}${typeParam}${dateParam}`,
+        { signal: controller.signal },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không thể tải lịch sử kho");
       setHistory(data.movements || []);
       if (data.pagination) setTotalPages(data.pagination.totalPages || 1);
       if (data.counts) setTabCounts(data.counts);
       return data.movements || [];
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.name === "AbortError") return [];
       console.error("Lỗi tải lịch sử kho:", e);
       return [];
     } finally {
-      setInitialLoading(false);
-      setTableLoading(false);
+      if (!controller.signal.aborted) {
+        setInitialLoading(false);
+        setTableLoading(false);
+      }
     }
   };
 
@@ -152,6 +161,7 @@ function InventoryHistoryContent() {
         }
       }
     });
+    return () => activeMovementRequest.current?.abort();
   }, [currentPage, debouncedSearch, activeTab, dateFrom, dateTo]);
 
   const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);

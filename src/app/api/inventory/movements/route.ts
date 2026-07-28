@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { parseAppDateRange } from "@/lib/date-range";
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,10 +38,11 @@ export async function GET(req: NextRequest) {
     // Date range filter
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
-    if (dateFrom || dateTo) {
+    const { startDate, endDate } = parseAppDateRange(dateFrom, dateTo);
+    if (startDate || endDate) {
       where.createdAt = {
-        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-        ...(dateTo ? { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : {}),
+        ...(startDate ? { gte: startDate } : {}),
+        ...(endDate ? { lte: endDate } : {}),
       };
     }
 

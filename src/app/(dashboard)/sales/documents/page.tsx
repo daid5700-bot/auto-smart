@@ -11,6 +11,7 @@ import { NumericInput } from "@/components/NumericInput";
 import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
 import { CustomSelect } from "@/components/CustomSelect";
+import { formatAppDateInput, getAppDatePresetRange } from "@/lib/date-range";
 
 
 interface Accessory {
@@ -46,20 +47,9 @@ export default function DocumentsPage() {
   const [activePreset, setActivePreset] = useState<"today" | "week" | "month" | null>(null);
 
   const applyPreset = (preset: "today" | "week" | "month") => {
-    const now = new Date();
-    const toISO = (d: Date) => d.toISOString().slice(0, 10);
-    if (preset === "today") {
-      setDateFrom(toISO(now));
-      setDateTo(toISO(now));
-    } else if (preset === "week") {
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
-      setDateFrom(toISO(startOfWeek));
-      setDateTo(toISO(now));
-    } else if (preset === "month") {
-      setDateFrom(toISO(new Date(now.getFullYear(), now.getMonth(), 1)));
-      setDateTo(toISO(now));
-    }
+    const range = getAppDatePresetRange(preset);
+    setDateFrom(range.from);
+    setDateTo(range.to);
     setActivePreset(preset);
     setPage(1);
   };
@@ -162,7 +152,10 @@ export default function DocumentsPage() {
       } else {
         setTableLoading(true);
       }
-      let url = `/api/sales?status=RESERVED,SOLD&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}&includeCounts=${targetPage === 1 ? "true" : "false"}`;
+      const requestedStatus =
+        statusFilter === "ALL" ? "RESERVED,SOLD" : statusFilter;
+      let url = `/api/sales?status=${requestedStatus}&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}&includeCounts=${targetPage === 1 ? "true" : "false"}`;
+      if (plateFilter !== "ALL") url += `&plateStatus=${plateFilter}`;
       if (from) url += `&dateFrom=${from}`;
       if (to) url += `&dateTo=${to}`;
       if (discountFilter !== "ALL") url += `&discount=${discountFilter}`;
@@ -197,7 +190,7 @@ export default function DocumentsPage() {
       window.clearTimeout(timer);
       activeSalesRequest.current?.abort();
     };
-  }, [saleTypeFilter, searchQuery, dateFrom, dateTo, discountFilter]);
+  }, [saleTypeFilter, searchQuery, statusFilter, plateFilter, dateFrom, dateTo, discountFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -237,7 +230,7 @@ export default function DocumentsPage() {
     };
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery, dateFrom, dateTo, discountFilter]);
+  }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery, statusFilter, plateFilter, dateFrom, dateTo, discountFilter]);
 
   const parseAccessories = (val: any): Accessory[] => {
     try {
@@ -391,7 +384,7 @@ export default function DocumentsPage() {
     if (saleTypeFilter !== "WHOLESALE") return [];
     const groups: Record<string, any> = {};
     filteredVehicles.forEach((v: any) => {
-      const dateKey = v.updatedAt ? new Date(v.updatedAt).toISOString().split('T')[0] : "unknown";
+      const dateKey = v.updatedAt ? formatAppDateInput(v.updatedAt) : "unknown";
       const key = v.customerId ? `${v.customerId}_${dateKey}` : `v_${v.id}`;
       
       if (!groups[key]) {

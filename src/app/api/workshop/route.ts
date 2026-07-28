@@ -11,6 +11,7 @@ import {
   discountSnapshotData,
   type AppliedDiscount,
 } from "@/lib/discounts";
+import { parseAppDateRange } from "@/lib/date-range";
 
 const serializeRepairOrder = (ro: any) => {
   if (!ro) return null;
@@ -91,10 +92,11 @@ export async function GET(req: NextRequest) {
   // Date range filter
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
-  if (dateFrom || dateTo) {
+  const { startDate, endDate } = parseAppDateRange(dateFrom, dateTo);
+  if (startDate || endDate) {
     whereClause.createdAt = {
-      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-      ...(dateTo ? { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : {}),
+      ...(startDate ? { gte: startDate } : {}),
+      ...(endDate ? { lte: endDate } : {}),
     };
   }
 

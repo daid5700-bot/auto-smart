@@ -6,6 +6,7 @@ import { toast } from "@/lib/toast";
 import { useModal } from "@/components/ModalProvider";
 import { CustomSelect } from "@/components/CustomSelect";
 import { ModalPortal } from "@/components/modal-portal";
+import { formatAppDateInput, getAppDatePresetRange } from "@/lib/date-range";
 
 
 export default function HistoryPage() {
@@ -30,20 +31,9 @@ export default function HistoryPage() {
 
   // Quick date presets
   const applyPreset = (preset: "today" | "week" | "month") => {
-    const now = new Date();
-    const toISO = (d: Date) => d.toISOString().slice(0, 10);
-    if (preset === "today") {
-      setDateFrom(toISO(now));
-      setDateTo(toISO(now));
-    } else if (preset === "week") {
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
-      setDateFrom(toISO(startOfWeek));
-      setDateTo(toISO(now));
-    } else if (preset === "month") {
-      setDateFrom(toISO(new Date(now.getFullYear(), now.getMonth(), 1)));
-      setDateTo(toISO(now));
-    }
+    const range = getAppDatePresetRange(preset);
+    setDateFrom(range.from);
+    setDateTo(range.to);
     setActivePreset(preset);
     setPage(1);
   };
@@ -168,7 +158,7 @@ export default function HistoryPage() {
 
   const formatRoCode = (id: number, dateStr: string) => {
     const d = new Date(dateStr);
-    const yyyymmdd = d.toISOString().slice(0, 10).replace(/-/g, "");
+    const yyyymmdd = formatAppDateInput(d).replace(/-/g, "");
     return `RO-${yyyymmdd}-${id}`;
   };
 
