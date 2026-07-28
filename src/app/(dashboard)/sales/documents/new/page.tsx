@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  ArrowLeft, Loader2, Plus, X, Search, User, Info, 
+  ArrowLeft, Loader2, Plus, Minus, X, Search, User, Info,
   Sparkles, Receipt, Car, Trash2, ChevronDown
 } from "lucide-react";
 import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
@@ -23,6 +23,7 @@ interface Accessory {
   sku: string;
   price: number;
   quantity: number | "";
+  stockCount?: number;
 }
 
 export default function NewDocumentPage() {
@@ -62,7 +63,7 @@ export default function NewDocumentPage() {
   const [listPrice, setListPrice] = useState("");
   const [status, setStatus] = useState("RESERVED"); // RESERVED, SOLD
   const [bankStatus, setBankStatus] = useState("NONE");
-  const [plateStatus, setPlateStatus] = useState("PENDING");
+  const [hasPlateService, setHasPlateService] = useState(false);
   
   // Customer details
   const [customerName, setCustomerName] = useState("");
@@ -84,8 +85,7 @@ export default function NewDocumentPage() {
   const [warehouseVehicles, setWarehouseVehicles] = useState<any[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
 
-  // Metadata: Plate cost & Accessories
-  const [plateCost, setPlateCost] = useState("");
+  // Metadata: Accessories
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
   const [giftItems, setGiftItems] = useState<Accessory[]>([]);
   const [rawNotes, setRawNotes] = useState("");
@@ -168,16 +168,17 @@ export default function NewDocumentPage() {
   }, [customerSearchQuery]);
 
   const handleAddAccessory = (p: any) => {
+    const stock = p.stockCount ?? 9999;
     const exists = selectedAccessories.find(a => a.id === p.id);
     if (exists) {
       setSelectedAccessories(
-        selectedAccessories.map(a => a.id === p.id ? { ...a, quantity: (Number(a.quantity) || 0) + 1 } : a)
+        selectedAccessories.map(a => a.id === p.id ? { ...a, quantity: Math.min(stock, (Number(a.quantity) || 0) + 1), stockCount: stock } : a)
       );
     } else {
       const retailPrice = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
       setSelectedAccessories([
         ...selectedAccessories,
-        { id: p.id, name: p.name, sku: p.sku, price: Number(retailPrice), quantity: 1 }
+        { id: p.id, name: p.name, sku: p.sku, price: Number(retailPrice), quantity: 1, stockCount: stock }
       ]);
     }
   };
@@ -188,21 +189,27 @@ export default function NewDocumentPage() {
 
   const handleUpdateAccessoryQty = (id: number, qty: number | "") => {
     setSelectedAccessories(
-      selectedAccessories.map(a => a.id === id ? { ...a, quantity: qty === "" ? "" : Math.max(1, qty) } : a)
+      selectedAccessories.map(a => {
+        if (a.id !== id) return a;
+        if (qty === "") return { ...a, quantity: "" };
+        const maxStock = a.stockCount ?? 9999;
+        return { ...a, quantity: Math.max(1, Math.min(maxStock, qty)) };
+      })
     );
   };
 
   const handleAddGiftItem = (p: any) => {
+    const stock = p.stockCount ?? 9999;
     const exists = giftItems.find(a => a.id === p.id);
     if (exists) {
       setGiftItems(
-        giftItems.map(a => a.id === p.id ? { ...a, quantity: (Number(a.quantity) || 0) + 1 } : a)
+        giftItems.map(a => a.id === p.id ? { ...a, quantity: Math.min(stock, (Number(a.quantity) || 0) + 1), stockCount: stock } : a)
       );
     } else {
       const costPrice = p.movingAvgCost || 0;
       setGiftItems([
         ...giftItems,
-        { id: p.id, name: p.name, sku: p.sku, price: Number(costPrice), quantity: 1 }
+        { id: p.id, name: p.name, sku: p.sku, price: Number(costPrice), quantity: 1, stockCount: stock }
       ]);
     }
   };
@@ -213,7 +220,12 @@ export default function NewDocumentPage() {
 
   const handleUpdateGiftItemQty = (id: number, qty: number | "") => {
     setGiftItems(
-      giftItems.map(a => a.id === id ? { ...a, quantity: qty === "" ? "" : Math.max(1, qty) } : a)
+      giftItems.map(a => {
+        if (a.id !== id) return a;
+        if (qty === "") return { ...a, quantity: "" };
+        const maxStock = a.stockCount ?? 9999;
+        return { ...a, quantity: Math.max(1, Math.min(maxStock, qty)) };
+      })
     );
   };
 
@@ -311,8 +323,7 @@ export default function NewDocumentPage() {
         vin, model, variant, color,
         year: Number(year)||new Date().getFullYear(),
         listPrice: Number(listPrice)||0,
-        status, bankStatus, plateStatus,
-        plateCost: Number(plateCost)||0,
+        status, bankStatus, hasPlateService,
         accessoriesJson: JSON.stringify(selectedAccessories.map(a=>({...a, quantity:Number(a.quantity)||1}))),
         giftItemsJson: JSON.stringify(giftItems.map(a=>({...a, quantity:Number(a.quantity)||1}))),
         notes: rawNotes, customerName, customerPhone,
@@ -356,11 +367,15 @@ export default function NewDocumentPage() {
 
   const filteredAccessories = useMemo(() => {
     const term = accessorySearch.toLowerCase().trim();
-    if (!term) return products;
-    return products.filter(p => 
+    const list = !term ? [...products] : products.filter(p =>
       p.name.toLowerCase().includes(term) ||
       p.sku.toLowerCase().includes(term)
     );
+    return list.sort((a, b) => {
+      const hasStockA = (a.stockCount || 0) > 0 ? 1 : 0;
+      const hasStockB = (b.stockCount || 0) > 0 ? 1 : 0;
+      return hasStockB - hasStockA;
+    });
   }, [products, accessorySearch]);
 
   const filteredCustomers = useMemo(() => {
@@ -397,11 +412,15 @@ export default function NewDocumentPage() {
 
   const filteredGifts = useMemo(() => {
     const term = giftSearch.toLowerCase().trim();
-    if (!term) return products;
-    return products.filter(p => 
+    const list = !term ? [...products] : products.filter(p =>
       p.name.toLowerCase().includes(term) ||
       p.sku.toLowerCase().includes(term)
     );
+    return list.sort((a, b) => {
+      const hasStockA = (a.stockCount || 0) > 0 ? 1 : 0;
+      const hasStockB = (b.stockCount || 0) > 0 ? 1 : 0;
+      return hasStockB - hasStockA;
+    });
   }, [products, giftSearch]);
 
   return (
@@ -652,18 +671,17 @@ export default function NewDocumentPage() {
                 />
               </div>
 
-              {/* Cột 2 (Hàng 2): Thủ tục bấm biển */}
+              {/* Cột 2 (Hàng 2): Dịch vụ biển */}
               <div className="space-y-1.5">
                 <div className="h-5 flex items-center">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Thủ tục bấm biển</label>
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Dịch vụ biển</label>
                 </div>
                 <CustomSelect
-                  value={plateStatus}
-                  onChange={(val) => setPlateStatus(val)}
+                  value={hasPlateService ? "YES" : "NO"}
+                  onChange={(val) => setHasPlateService(val === "YES")}
                   options={[
-                    { value: "PENDING", label: "Chờ nộp thuế (Đợi biển)", badge: "Chờ thuế", badgeVariant: "warning" },
-                    { value: "TAX_PAID", label: "Đã nộp thuế trước bạ", badge: "Nộp thuế", badgeVariant: "info" },
-                    { value: "PLATE_DONE", label: "Đã bấm biển & Bàn giao xe", badge: "Bàn giao", badgeVariant: "success" },
+                    { value: "NO", label: "Không sử dụng dịch vụ biển" },
+                    { value: "YES", label: "Có sử dụng dịch vụ biển", badge: "Có", badgeVariant: "success" },
                   ]}
                 />
               </div>
@@ -837,9 +855,9 @@ export default function NewDocumentPage() {
           )}
         </div>
 
-        {/* ── ROW 2: RETAIL only ── */}
+        {/* ── ROW 2 & 3: RETAIL only ── */}
         {saleMode==="RETAIL" && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="space-y-5">
 
           {/* ── CARD 2: Thông tin Khách hàng ── */}
           <div className="bg-card border border-border shadow-sm rounded-2xl p-4 sm:p-6 space-y-4">
@@ -943,14 +961,7 @@ export default function NewDocumentPage() {
               <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Dịch vụ đi kèm &amp; Ghi chú</h4>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground">Chi phí làm biển (VNĐ)</label>
-                <NumericInput placeholder="Tự điền chi phí biển..."
-                  value={plateCost}
-                  onChange={setPlateCost}
-                  className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary font-bold text-emerald-600 dark:text-emerald-400" />
-              </div>
+            <div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-muted-foreground">Ghi chú thủ tục</label>
                 <input type="text" placeholder="VD: Đợi chuyển khoản tiền thuế..." value={rawNotes} onChange={(e)=>setRawNotes(e.target.value)}
@@ -967,13 +978,25 @@ export default function NewDocumentPage() {
                     <input type="text" placeholder="Tìm phụ tùng..." value={accessorySearch} onChange={(e)=>setAccessorySearch(e.target.value)}
                       className="w-full pl-8 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary" />
                   </div>
-                  <div className="max-h-[150px] overflow-y-auto space-y-1 divide-y divide-border/60">
+                  <div className="max-h-[190px] overflow-y-auto space-y-1 divide-y divide-border/60 pr-2.5">
                     {filteredAccessories.map((p)=>{
                       const price=p.prices?.find((pr:any)=>pr.type==="RETAIL")?.amount||0;
+                      const isOut = (p.stockCount || 0) <= 0;
                       return (
-                        <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
-                          <div className="flex-1 min-w-0 pr-1"><p className="font-bold text-foreground truncate">{p.name}</p><p className="text-[10px] text-muted-foreground">{formatCurrency(price)}</p></div>
-                          <button type="button" onClick={()=>handleAddAccessory(p)} className="px-2 py-1 bg-primary text-white text-[10px] font-bold rounded-lg shrink-0">Chọn</button>
+                        <div key={p.id} className={`flex items-center justify-between pt-1.5 text-xs ${isOut ? "opacity-60" : ""}`}>
+                          <div className="flex-1 min-w-0 pr-1"><p className="font-bold text-foreground truncate">{p.name}</p><p className="text-[10px] text-muted-foreground">Tồn: {p.stockCount || 0} • {formatCurrency(price)}</p></div>
+                          <button
+                            type="button"
+                            disabled={isOut}
+                            onClick={()=>handleAddAccessory(p)}
+                            className={`px-2 py-1 text-[10px] font-bold rounded-lg shrink-0 transition-all ${
+                              isOut
+                                ? "bg-secondary text-muted-foreground cursor-not-allowed border border-border/40"
+                                : "bg-primary text-white hover:scale-105 active:scale-95"
+                            }`}
+                          >
+                            {isOut ? "Hết hàng" : "Chọn"}
+                          </button>
                         </div>
                       );
                     })}
@@ -982,14 +1005,32 @@ export default function NewDocumentPage() {
                 </div>
                 <div className="border border-border rounded-xl p-3 space-y-2 bg-secondary/5">
                   <p className="text-xs font-bold text-primary">Danh sách mua kèm:</p>
-                  <div className="max-h-[150px] overflow-y-auto space-y-1.5">
+                  <div className="max-h-[190px] overflow-y-auto space-y-1.5 pr-2.5">
                     {selectedAccessories.map((a)=>(
                       <div key={a.id} className="flex items-center gap-2 text-xs bg-background p-2 rounded-lg border border-border">
                         <div className="flex-1 min-w-0"><p className="font-bold text-foreground truncate">{a.name}</p><p className="text-[10px] text-muted-foreground">{formatCurrency(a.price)}</p></div>
-                        <NumericInput
-                          value={a.quantity}
-                          onChange={(c)=>handleUpdateAccessoryQty(a.id,c===""?"":parseInt(c,10))}
-                          className="w-10 text-center py-0.5 border border-border rounded bg-secondary/30 text-xs font-bold shrink-0" />
+                        <div className="flex items-center gap-1 border border-border rounded-md p-0.5 bg-secondary/20 shrink-0">
+                          <button
+                            type="button"
+                            disabled={Number(a.quantity) <= 1}
+                            onClick={() => handleUpdateAccessoryQty(a.id, (Number(a.quantity) || 1) - 1)}
+                            className="p-1 hover:bg-background rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Minus size={12} />
+                          </button>
+                          <NumericInput
+                            value={a.quantity}
+                            onChange={(c)=>handleUpdateAccessoryQty(a.id,c===""?"":parseInt(c,10))}
+                            className="w-8 text-center py-0.5 border-none bg-transparent text-xs font-bold shrink-0 outline-none focus:ring-0" />
+                          <button
+                            type="button"
+                            disabled={a.stockCount !== undefined && Number(a.quantity) >= a.stockCount}
+                            onClick={() => handleUpdateAccessoryQty(a.id, (Number(a.quantity) || 1) + 1)}
+                            className="p-1 hover:bg-background rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Plus size={12} />
+                          </button>
+                        </div>
                         <button type="button" onClick={()=>handleRemoveAccessory(a.id)} className="p-1 hover:bg-rose-500/10 text-rose-500 rounded shrink-0"><Trash2 size={13}/></button>
                       </div>
                     ))}
@@ -1010,12 +1051,24 @@ export default function NewDocumentPage() {
                     <input type="text" placeholder="Tìm phụ tùng tặng..." value={giftSearch} onChange={(e)=>setGiftSearch(e.target.value)}
                       className="w-full pl-8 pr-2 py-1.5 bg-background border border-emerald-500/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
-                  <div className="max-h-[150px] overflow-y-auto space-y-1 divide-y divide-emerald-500/20">
+                  <div className="max-h-[190px] overflow-y-auto space-y-1 divide-y divide-emerald-500/20 pr-2.5">
                     {filteredGifts.map((p)=>{
+                      const isOut = (p.stockCount || 0) <= 0;
                       return (
-                        <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
+                        <div key={p.id} className={`flex items-center justify-between pt-1.5 text-xs ${isOut ? "opacity-60" : ""}`}>
                           <div className="flex-1 min-w-0 pr-1"><p className="font-bold text-foreground truncate">{p.name}</p><p className="text-[10px] text-muted-foreground">Tồn: {p.stockCount||0}</p></div>
-                          <button type="button" onClick={()=>handleAddGiftItem(p)} className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg shrink-0">Tặng</button>
+                          <button
+                            type="button"
+                            disabled={isOut}
+                            onClick={()=>handleAddGiftItem(p)}
+                            className={`px-2 py-1 text-[10px] font-bold rounded-lg shrink-0 transition-all ${
+                              isOut
+                                ? "bg-secondary text-muted-foreground cursor-not-allowed border border-border/40"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 active:scale-95"
+                            }`}
+                          >
+                            {isOut ? "Hết hàng" : "Tặng"}
+                          </button>
                         </div>
                       );
                     })}
@@ -1023,14 +1076,32 @@ export default function NewDocumentPage() {
                 </div>
                 <div className="border border-emerald-500/20 rounded-xl p-3 space-y-2 bg-emerald-500/5">
                   <p className="text-xs font-bold text-emerald-600">Danh sách quà tặng:</p>
-                  <div className="max-h-[150px] overflow-y-auto space-y-1.5">
+                  <div className="max-h-[190px] overflow-y-auto space-y-1.5 pr-2.5">
                     {giftItems.map((a)=>(
                       <div key={a.id} className="flex items-center gap-2 text-xs bg-background p-2 rounded-lg border border-emerald-500/20">
                         <div className="flex-1 min-w-0"><p className="font-bold text-foreground truncate">{a.name}</p><p className="text-[10px] text-muted-foreground">Q.tặng</p></div>
-                        <NumericInput
-                          value={a.quantity}
-                          onChange={(c)=>handleUpdateGiftItemQty(a.id,c===""?"":parseInt(c,10))}
-                          className="w-10 text-center py-0.5 border border-emerald-500/40 rounded bg-secondary/30 text-xs font-bold shrink-0 text-emerald-600" />
+                        <div className="flex items-center gap-0.5 border border-emerald-500/30 rounded-md p-0.5 bg-emerald-500/5 shrink-0">
+                          <button
+                            type="button"
+                            disabled={Number(a.quantity) <= 1}
+                            onClick={() => handleUpdateGiftItemQty(a.id, (Number(a.quantity) || 1) - 1)}
+                            className="p-1 hover:bg-background rounded text-emerald-600/80 hover:text-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Minus size={12} />
+                          </button>
+                          <NumericInput
+                            value={a.quantity}
+                            onChange={(c)=>handleUpdateGiftItemQty(a.id,c===""?"":parseInt(c,10))}
+                            className="w-8 text-center py-0.5 border-none bg-transparent text-xs font-bold shrink-0 text-emerald-600 outline-none focus:ring-0" />
+                          <button
+                            type="button"
+                            disabled={a.stockCount !== undefined && Number(a.quantity) >= a.stockCount}
+                            onClick={() => handleUpdateGiftItemQty(a.id, (Number(a.quantity) || 1) + 1)}
+                            className="p-1 hover:bg-background rounded text-emerald-600/80 hover:text-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Plus size={12} />
+                          </button>
+                        </div>
                         <button type="button" onClick={()=>handleRemoveGiftItem(a.id)} className="p-1 hover:bg-rose-500/10 text-rose-500 rounded shrink-0"><Trash2 size={13}/></button>
                       </div>
                     ))}

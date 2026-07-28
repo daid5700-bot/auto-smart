@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Users, Loader2, Search, Filter, Award, CalendarClock, Car, Plus, Edit, Trash2, X } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
@@ -45,7 +45,7 @@ export default function CustomersPage() {
     tags: "",
   });
 
-  const fetchData = async (targetPage = 1, append = false) => {
+  const fetchData = useCallback(async (targetPage = 1, append = false) => {
     const branchKey = activeBranch?.id ? String(activeBranch.id) : "all";
     const cacheKey = `${branchKey}:${activeTab}:${searchTerm.trim().toLowerCase()}:${targetPage}`;
     const cached = customerCache.current.get(cacheKey);
@@ -93,12 +93,12 @@ export default function CustomersPage() {
         setLoadingMore(false);
       }
     }
-  };
+  }, [activeBranch, activeTab, searchTerm]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => fetchData(1, false), 300);
     return () => window.clearTimeout(timer);
-  }, [searchTerm, activeTab, activeBranch?.id]);
+  }, [fetchData]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -108,7 +108,7 @@ export default function CustomersPage() {
     };
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, [loading, loadingMore, page, totalPages, searchTerm, activeTab, activeBranch?.id]);
+  }, [fetchData, loading, loadingMore, page, totalPages]);
 
   const handleDeleteCustomer = async (id: number) => {
     const confirmed = await modal.confirm({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Users, Search, MapPin, Phone, User, DollarSign, Receipt, Eye, X, Edit3 } from "lucide-react";
 import { handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
@@ -36,7 +36,7 @@ export default function CustomerDebtsPage() {
   const [paymentInput, setPaymentInput] = useState<number | string>("");
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
-  const fetchCustomers = async (p = 1) => {
+  const fetchCustomers = useCallback(async (p = 1) => {
     try {
       setLoading(true);
       const data = await fetchWithDedup(`/api/inventory/customers?page=${p}&limit=20&search=${encodeURIComponent(debouncedSearch)}`);
@@ -47,11 +47,11 @@ export default function CustomerDebtsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearch]);
 
   useEffect(() => {
     fetchCustomers(page);
-  }, [page, debouncedSearch]);
+  }, [fetchCustomers, page]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(val);

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCurrency, formatDate, statusText, statusBadge, parseSymptoms } from "@/lib/utils";
 import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle, CalendarDays, TicketPercent } from "lucide-react";
 import { toast } from "@/lib/toast";
@@ -23,6 +23,7 @@ export default function HistoryPage() {
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
   const activeListRequest = useRef<AbortController | null>(null);
+  const hasLoadedList = useRef(false);
 
   // Date filter state
   const [dateFrom, setDateFrom] = useState("");
@@ -79,9 +80,9 @@ export default function HistoryPage() {
     }
   };
 
-  const fetchData = async (pageVal = 1, searchVal = "", from = "", to = "") => {
+  const fetchData = useCallback(async (pageVal = 1, searchVal = "", from = "", to = "") => {
     // First load: show full-page spinner. Subsequent: only overlay on table.
-    if (orders.length === 0 && pageVal === 1 && !searchVal && !from && !to) {
+    if (!hasLoadedList.current && pageVal === 1 && !searchVal && !from && !to) {
       setInitialLoading(true);
     } else {
       setTableLoading(true);
@@ -106,11 +107,12 @@ export default function HistoryPage() {
       console.error(e);
     } finally {
       if (!controller.signal.aborted) {
+        hasLoadedList.current = true;
         setInitialLoading(false);
         setTableLoading(false);
       }
     }
-  };
+  }, [discountFilter]);
 
   const openOrderDetail = async (orderId: number) => {
     try {
@@ -141,7 +143,7 @@ export default function HistoryPage() {
       clearTimeout(delayDebounceFn);
       activeListRequest.current?.abort();
     };
-  }, [page, search, dateFrom, dateTo, discountFilter]);
+  }, [fetchData, page, search, dateFrom, dateTo]);
 
   useEffect(() => {
     const controller = new AbortController();

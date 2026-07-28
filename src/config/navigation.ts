@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Package, Warehouse, ClipboardList, DollarSign,
   Wrench, UserCog, History, TrendingUp, Car, FileText,
   Users, MessageSquare, Gift, Bell, BarChart3, ShieldCheck, Settings, Building2, Plus,
-  BadgePercent, type LucideIcon,
+  BadgePercent, BadgeCheck, type LucideIcon,
 } from "lucide-react";
 import { type UserRole, type Permission, hasPermission } from "./rbac";
 
@@ -35,6 +35,7 @@ const NAV: NavSection[] = [
     { title: "Kho xe", href: "/sales", icon: Car, perm: "sales.view" },
     { title: "Lịch sử hồ sơ", href: "/sales/documents", icon: FileText, perm: "sales.manage" },
     { title: "Tạo hồ sơ mới", href: "/sales/documents/new", icon: Plus, perm: "sales.manage" },
+    { title: "Dịch vụ biển", href: "/sales/plate-services", icon: BadgeCheck, perm: "sales.manage" },
     { title: "Quản lý giảm giá", href: "/sales/discounts", icon: BadgePercent, perm: "sales.manage" },
     { title: "Khách hàng & Công nợ", href: "/sales/customers", icon: Users, perm: "sales.manage" },
   ]},

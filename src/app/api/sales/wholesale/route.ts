@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
             status: body.status,
             bankStatus: "NONE",
             plateStatus: "PENDING",
+            hasPlateService: false,
             plateCost: 0,
             listPrice: originalListPrice,
             accessoriesJson: "[]",

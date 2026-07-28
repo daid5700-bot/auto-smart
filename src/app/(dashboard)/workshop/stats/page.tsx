@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCurrency, formatDate, fetchWithDedup } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import {
@@ -32,14 +32,14 @@ export default function WorkshopStatsPage() {
     </div>
   );
 
-  const fetchStats = async (force = false) => {
+  const fetchStats = useCallback(async (force = false) => {
     let requestId = 0;
     try {
       const params = new URLSearchParams();
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
       const fetchKey = params.toString();
-      if (!force && lastStatsFetchKey.current === fetchKey && (loading || data)) return;
+      if (!force && lastStatsFetchKey.current === fetchKey) return;
       lastStatsFetchKey.current = fetchKey;
       requestId = activeStatsRequestId.current + 1;
       activeStatsRequestId.current = requestId;
@@ -62,11 +62,11 @@ export default function WorkshopStatsPage() {
       if (activeStatsRequestId.current !== requestId) return;
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchStats();
-  }, [startDate, endDate]);
+  }, [fetchStats]);
 
   const applyDateFilter = () => {
     if (!draftStartDate || !draftEndDate) {

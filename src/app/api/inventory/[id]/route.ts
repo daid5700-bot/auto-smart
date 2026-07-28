@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
-import { parseOptionalVehicleModel } from "@/lib/validation/inventory";
+import { parseOptionalVehicleModels } from "@/lib/validation/inventory";
 import { requireAuth } from "@/lib/guard";
 
 // PATCH /api/inventory/[id] — update product details & prices
@@ -13,6 +13,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const id = parseInt((await params).id);
     const body = await req.json();
     const branchId = await getActiveBranchId();
+    const hasVehicleModels =
+      Object.prototype.hasOwnProperty.call(body, "vehicleModels") ||
+      Object.prototype.hasOwnProperty.call(body, "vehicleModel");
+    const vehicleModels = hasVehicleModels
+      ? parseOptionalVehicleModels(
+          Object.prototype.hasOwnProperty.call(body, "vehicleModels")
+            ? body.vehicleModels
+            : body.vehicleModel,
+        )
+      : undefined;
 
     // Release SKUs of any old INACTIVE products to avoid unique constraint failures on update
     try {
@@ -63,8 +73,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data: {
         sku: body.sku,
         name: body.name,
-        ...(Object.prototype.hasOwnProperty.call(body, "vehicleModel")
-          ? { vehicleModel: parseOptionalVehicleModel(body.vehicleModel) }
+        ...(vehicleModels
+          ? {
+              vehicleModel: vehicleModels.length > 0 ? vehicleModels.join(", ") : null,
+              vehicleModels,
+            }
           : {}),
         category: body.category,
         unit: body.unit,

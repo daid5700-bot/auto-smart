@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Plus, Search, DollarSign, FileText, X } from "lucide-react";
 import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
@@ -20,7 +20,7 @@ export default function InventoryOrdersPage() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/inventory/orders?search=${encodeURIComponent(searchQuery)}`);
@@ -31,14 +31,14 @@ export default function InventoryOrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery]);
 
   useEffect(() => {
     const delay = setTimeout(() => {
       fetchOrders();
     }, 300);
     return () => clearTimeout(delay);
-  }, [searchQuery]);
+  }, [fetchOrders]);
 
   const openPaymentModal = (order: any) => {
     setSelectedOrder(order);

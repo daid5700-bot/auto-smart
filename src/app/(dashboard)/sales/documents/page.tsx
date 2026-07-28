@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { 
   Loader2, FileText, Plus, Edit, Trash2, Search, User, 
@@ -33,13 +33,14 @@ export default function DocumentsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, RESERVED, SOLD
-  const [plateFilter, setPlateFilter] = useState("ALL"); // ALL, PENDING, TAX_PAID, PLATE_DONE
+  const [plateFilter, setPlateFilter] = useState("ALL"); // ALL, YES, NO
   const [saleTypeFilter, setSaleTypeFilter] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
   const [retailCount, setRetailCount] = useState<number | null>(null);
   const [wholesaleCount, setWholesaleCount] = useState<number | null>(null);
   const [discountFilter, setDiscountFilter] = useState("ALL");
   const [discounts, setDiscounts] = useState<any[]>([]);
   const activeSalesRequest = useRef<AbortController | null>(null);
+  const hasLoadedSalesList = useRef(false);
 
   // Date filter
   const [dateFrom, setDateFrom] = useState("");
@@ -139,12 +140,12 @@ export default function DocumentsPage() {
     }
   };
 
-  const fetchData = async (targetPage = 1, append = false, from = dateFrom, to = dateTo) => {
+  const fetchData = useCallback(async (targetPage = 1, append = false, from = dateFrom, to = dateTo) => {
     activeSalesRequest.current?.abort();
     const controller = new AbortController();
     activeSalesRequest.current = controller;
     try {
-      const isFirstLoad = vehicles.length === 0 && targetPage === 1 && !searchQuery && !from && !to;
+      const isFirstLoad = !hasLoadedSalesList.current && targetPage === 1 && !searchQuery && !from && !to;
       if (append) {
         setLoadingMore(true);
       } else if (isFirstLoad) {
@@ -155,7 +156,9 @@ export default function DocumentsPage() {
       const requestedStatus =
         statusFilter === "ALL" ? "RESERVED,SOLD" : statusFilter;
       let url = `/api/sales?status=${requestedStatus}&limit=20&page=${targetPage}&saleType=${saleTypeFilter}&search=${encodeURIComponent(searchQuery)}&includeCounts=${targetPage === 1 ? "true" : "false"}`;
-      if (plateFilter !== "ALL") url += `&plateStatus=${plateFilter}`;
+      if (plateFilter !== "ALL") {
+        url += `&hasPlateService=${plateFilter === "YES" ? "true" : "false"}`;
+      }
       if (from) url += `&dateFrom=${from}`;
       if (to) url += `&dateTo=${to}`;
       if (discountFilter !== "ALL") url += `&discount=${discountFilter}`;
@@ -176,13 +179,22 @@ export default function DocumentsPage() {
       console.error(e);
     } finally {
       if (!controller.signal.aborted) {
+        hasLoadedSalesList.current = true;
         setLoading(false);
         setInitialLoading(false);
         setLoadingMore(false);
         setTableLoading(false);
       }
     }
-  };
+  }, [
+    dateFrom,
+    dateTo,
+    discountFilter,
+    plateFilter,
+    saleTypeFilter,
+    searchQuery,
+    statusFilter,
+  ]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => fetchData(1, false, dateFrom, dateTo), 300);
@@ -190,7 +202,7 @@ export default function DocumentsPage() {
       window.clearTimeout(timer);
       activeSalesRequest.current?.abort();
     };
-  }, [saleTypeFilter, searchQuery, statusFilter, plateFilter, dateFrom, dateTo, discountFilter]);
+  }, [dateFrom, dateTo, fetchData]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -230,7 +242,7 @@ export default function DocumentsPage() {
     };
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, [loading, loadingMore, page, totalPages, saleTypeFilter, searchQuery, statusFilter, plateFilter, dateFrom, dateTo, discountFilter]);
+  }, [dateFrom, dateTo, fetchData, loading, loadingMore, page, totalPages]);
 
   const parseAccessories = (val: any): Accessory[] => {
     try {
@@ -373,7 +385,9 @@ export default function DocumentsPage() {
         (v.customer?.phone || "").toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesStatus = statusFilter === "ALL" || v.status === statusFilter;
-      const matchesPlate = plateFilter === "ALL" || (v.plateStatus || "PENDING") === plateFilter;
+      const matchesPlate =
+        plateFilter === "ALL" ||
+        Boolean(v.hasPlateService) === (plateFilter === "YES");
       const matchesSaleType = (v.saleType || "RETAIL") === saleTypeFilter;
 
       return matchesSearch && matchesStatus && matchesPlate && matchesSaleType;
@@ -479,16 +493,15 @@ export default function DocumentsPage() {
             />
           </div>
 
-          {/* Col 3: Thủ tục biển */}
+          {/* Col 3: Dịch vụ biển */}
           <div>
             <CustomSelect
               value={plateFilter}
               onChange={(val) => setPlateFilter(val)}
               options={[
-                { value: "ALL", label: "Tất cả thủ tục biển" },
-                { value: "PENDING", label: "Chờ nộp thuế (Đợi biển)", badge: "Chờ thuế", badgeVariant: "warning" },
-                { value: "TAX_PAID", label: "Đã nộp thuế trước bạ", badge: "Nộp thuế", badgeVariant: "info" },
-                { value: "PLATE_DONE", label: "Đã bấm biển & Bàn giao xe", badge: "Bàn giao", badgeVariant: "success" },
+                { value: "ALL", label: "Tất cả dịch vụ biển" },
+                { value: "YES", label: "Có dịch vụ biển", badge: "Có", badgeVariant: "success" },
+                { value: "NO", label: "Không có dịch vụ biển" },
               ]}
               size="sm"
             />
@@ -741,14 +754,13 @@ export default function DocumentsPage() {
                 <th className="p-4">Dòng xe & Phiên bản</th>
                 <th className="p-4">Khách hàng mua</th>
                 <th className="p-4">Tiến độ Ngân hàng (Trả góp)</th>
-                <th className="p-4">Thủ tục Bấm biển</th>
+                <th className="p-4">Dịch vụ biển</th>
                 <th className="p-4">Thanh toán & Công nợ</th>
                 <th className="p-4 text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredVehicles.map((v: any) => {
-                const plateCostVal = Number(v.plateCost || 0);
                 const accessoriesList = parseAccessories(v.accessoriesJson);
                 const notesText = v.notes || "";
                 return (
@@ -816,17 +828,13 @@ export default function DocumentsPage() {
                       )}
                     </td>
                     <td className="p-4">
-                      {(v.plateStatus || "PENDING") === "PENDING" ? (
-                        <span className="badge bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold py-1 px-2 rounded-full whitespace-nowrap">
-                          Chờ nộp thuế (Đợi biển)
-                        </span>
-                      ) : (v.plateStatus || "PENDING") === "TAX_PAID" ? (
-                        <span className="badge bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[10px] font-bold py-1 px-2 rounded-full whitespace-nowrap">
-                          Đã nộp thuế trước bạ
+                      {v.hasPlateService ? (
+                        <span className="badge bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold py-1 px-2 rounded-full whitespace-nowrap">
+                          Có dịch vụ biển
                         </span>
                       ) : (
-                        <span className="badge bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold py-1 px-2 rounded-full whitespace-nowrap">
-                          Đã bấm biển & Bàn giao
+                        <span className="badge bg-secondary text-muted-foreground border border-border text-[10px] font-bold py-1 px-2 rounded-full whitespace-nowrap">
+                          Không
                         </span>
                       )}
                     </td>
@@ -1030,16 +1038,10 @@ export default function DocumentsPage() {
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-muted-foreground">Thủ tục Bấm biển</p>
+                  <p className="text-xs font-bold text-muted-foreground">Dịch vụ biển</p>
                   <p className="text-sm font-semibold text-foreground">
-                    {selectedVehicle.plateStatus === "PENDING" ? "Đợi biển / Chờ nộp thuế" :
-                     selectedVehicle.plateStatus === "TAX_PAID" ? "Đã nộp thuế trước bạ" : "Đã có biển & Bàn giao"}
+                    {selectedVehicle.hasPlateService ? "Có sử dụng dịch vụ biển" : "Không sử dụng"}
                   </p>
-                  {Number(selectedVehicle.plateCost || 0) > 0 && (
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Phí làm biển: <span className="text-foreground font-bold">{formatCurrency(Number(selectedVehicle.plateCost))}</span>
-                    </p>
-                  )}
                 </div>
               </div>
 

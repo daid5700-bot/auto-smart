@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import { formatCurrency, statusText, statusBadge, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Car, Plus, Search, Grid3X3, List, Eye, Edit, Trash2, X, Loader2, Upload } from "lucide-react";
@@ -85,7 +86,7 @@ export default function SalesPage() {
     return () => clearTimeout(handler);
   }, [search]);
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (statusF) params.set("status", statusF);
@@ -101,7 +102,7 @@ export default function SalesPage() {
         }
       })
       .finally(() => setLoading(false));
-  };
+  }, [colorF, debouncedSearch, page, statusF]);
 
   useEffect(() => {
     setPage(1);
@@ -109,7 +110,7 @@ export default function SalesPage() {
 
   useEffect(() => {
     fetchData();
-  }, [debouncedSearch, statusF, colorF, page]);
+  }, [fetchData]);
 
   const handleDelete = async (id: number) => {
     const confirmed = await modal.confirm({
@@ -437,7 +438,7 @@ export default function SalesPage() {
               {/* Image / Thumbnail Section */}
               <div className="h-32 bg-gradient-to-tr from-slate-100 via-slate-50 to-blue-50/30 flex items-center justify-center relative overflow-hidden border-b border-border/30 shrink-0">
                 {v.image ? (
-                  <img src={v.image} alt={v.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <Image src={v.image} alt={v.model} width={480} height={128} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                   <div className="flex flex-col items-center gap-1.5">
                     <div className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10">
@@ -546,7 +547,7 @@ export default function SalesPage() {
                   <td>
                     <div className="flex items-center gap-3">
                       {v.image ? (
-                        <img src={v.image} alt={v.model} className="w-10 h-10 rounded-lg object-cover bg-secondary border border-border shrink-0" />
+                        <Image src={v.image} alt={v.model} width={40} height={40} className="w-10 h-10 rounded-lg object-cover bg-secondary border border-border shrink-0" />
                       ) : (
                         <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center border border-border shrink-0">
                           <Car size={16} className="text-muted-foreground/50" />
@@ -841,7 +842,7 @@ export default function SalesPage() {
                   <div className="flex items-center gap-4">
                     {formData.image ? (
                       <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-border bg-secondary shrink-0">
-                        <img src={formData.image} alt="Vehicle preview" className="w-full h-full object-cover" />
+                        <Image src={formData.image} alt="Vehicle preview" width={96} height={96} className="w-full h-full object-cover" />
                         <button
                           type="button"
                           onClick={() => setFormData({ ...formData, image: "" })}
@@ -899,9 +900,11 @@ export default function SalesPage() {
               {/* Header Info with Image */}
               <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start pb-4 border-b border-border/50">
                 {selectedVehicle.image ? (
-                  <img 
+                  <Image
                     src={selectedVehicle.image} 
                     alt={selectedVehicle.model} 
+                    width={128}
+                    height={128}
                     className="w-32 h-32 rounded-xl object-cover border border-border bg-secondary shrink-0"
                   />
                 ) : (

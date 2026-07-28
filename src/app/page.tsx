@@ -12,7 +12,7 @@ export default function Home() {
   useEffect(() => {
     hydrate();
     setHydrated(true);
-  }, []);
+  }, [hydrate]);
 
   useEffect(() => {
     if (hydrated) {

@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCurrency, formatNumber, statusText, statusBadge, checkSlowMoving, exportToCsv } from "@/lib/utils";
 import { Package, Search, Plus, AlertTriangle, TrendingUp, TrendingDown, ChevronRight, Edit, Trash2, Eye, Loader2, X, Download, Sliders, DollarSign, Layers, Tag } from "lucide-react";
 import { useAuth } from "@/lib/store";
 import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
 import { CustomSelect } from "@/components/CustomSelect";
+import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
 
 
 import { useSearchParams } from "next/navigation";
@@ -41,6 +42,21 @@ const NumericInput = ({ value, onChange, className, ...props }: any) => {
       {...props}
     />
   );
+};
+
+const normalizeVehicleModelName = (value: string) =>
+  value.trim().replace(/\s+/g, " ");
+
+const getProductVehicleModels = (product: any): string[] => {
+  if (Array.isArray(product?.vehicleModels) && product.vehicleModels.length > 0) {
+    return product.vehicleModels.filter(
+      (vehicleModel: unknown): vehicleModel is string =>
+        typeof vehicleModel === "string" && Boolean(vehicleModel.trim()),
+    );
+  }
+  return typeof product?.vehicleModel === "string" && product.vehicleModel.trim()
+    ? [product.vehicleModel.trim()]
+    : [];
 };
 
 function InventoryContent() {
@@ -84,12 +100,13 @@ function InventoryContent() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isCreatingVehicleModel, setIsCreatingVehicleModel] = useState(false);
+  const [newVehicleModel, setNewVehicleModel] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formData, setFormData] = useState<{
     sku: string;
     name: string;
-    vehicleModel: string;
+    vehicleModels: string[];
     category: string;
     unit: string;
     stockCount: number | "";
@@ -103,7 +120,7 @@ function InventoryContent() {
   }>({
     sku: "",
     name: "",
-    vehicleModel: "",
+    vehicleModels: [],
     category: "",
     unit: "",
     stockCount: "",
@@ -116,7 +133,7 @@ function InventoryContent() {
     branchId: "",
   });
 
-  const fetchData = (force = false) => {
+  const fetchData = useCallback((force = false) => {
     if (!userRole) return;
     const params = new URLSearchParams();
     if (search) params.set("search", search);
@@ -129,7 +146,15 @@ function InventoryContent() {
       params.set("scope", scope);
     }
     const fetchKey = params.toString();
-    if (!force && lastInventoryFetchKey.current === fetchKey) return;
+    const activeRequest = activeInventoryRequest.current;
+    if (
+      !force &&
+      lastInventoryFetchKey.current === fetchKey &&
+      activeRequest &&
+      !activeRequest.signal.aborted
+    ) {
+      return;
+    }
     lastInventoryFetchKey.current = fetchKey;
 
     activeInventoryRequest.current?.abort();
@@ -152,17 +177,22 @@ function InventoryContent() {
         }));
       })
       .catch((error) => {
-        if (error?.name !== "AbortError") console.error(error);
+        if (error?.name !== "AbortError") {
+          console.error(error);
+        }
+        if (activeInventoryRequest.current === controller) {
+          lastInventoryFetchKey.current = "";
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-  };
+  }, [catFilter, page, scope, search, statFilter, userRole]);
 
   useEffect(() => {
     fetchData();
     return () => activeInventoryRequest.current?.abort();
-  }, [search, catFilter, scope, statFilter, userRole, page]);
+  }, [fetchData]);
 
   const handleDelete = async (id: number) => {
     const confirmed = await modal.confirm({
@@ -202,10 +232,11 @@ function InventoryContent() {
   const handleOpenAdd = () => {
     setEditingId(null);
     setIsCreatingVehicleModel(false);
+    setNewVehicleModel("");
     setFormData({
       sku: "",
       name: "",
-      vehicleModel: "",
+      vehicleModels: [],
       category: "Lọc",
       unit: "Cái",
       stockCount: 0,
@@ -224,13 +255,14 @@ function InventoryContent() {
   const handleOpenEdit = (p: any) => {
     setEditingId(p.id);
     setIsCreatingVehicleModel(false);
+    setNewVehicleModel("");
     const retail = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
     const wholesale = p.prices?.find((pr: any) => pr.type === "WHOLESALE")?.amount || 0;
     const insurance = p.prices?.find((pr: any) => pr.type === "INSURANCE")?.amount || 0;
     setFormData({
       sku: p.sku,
       name: p.name,
-      vehicleModel: p.vehicleModel || "",
+      vehicleModels: getProductVehicleModels(p),
       category: p.category,
       unit: p.unit,
       stockCount: p.stockCount,
@@ -246,6 +278,30 @@ function InventoryContent() {
     setModalOpen(true);
   };
 
+  const handleAddVehicleModel = () => {
+    const normalized = normalizeVehicleModelName(newVehicleModel);
+    if (!normalized) return;
+    if (normalized.length > 120) {
+      setFormMessage({ type: "error", text: "Tên xe không được vượt quá 120 ký tự." });
+      return;
+    }
+
+    setFormData((current) => {
+      const exists = current.vehicleModels.some(
+        (vehicleModel) =>
+          vehicleModel.toLocaleLowerCase("vi") === normalized.toLocaleLowerCase("vi"),
+      );
+      if (exists) return current;
+      return {
+        ...current,
+        vehicleModels: [...current.vehicleModels, normalized],
+      };
+    });
+    setNewVehicleModel("");
+    setIsCreatingVehicleModel(false);
+    setFormMessage(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -253,11 +309,22 @@ function InventoryContent() {
       setFormMessage(null);
       const method = editingId ? "PATCH" : "POST";
       const url = editingId ? `/api/inventory/${editingId}` : "/api/inventory";
+      const pendingVehicleModel = normalizeVehicleModelName(newVehicleModel);
+      const vehicleModels = pendingVehicleModel
+        ? Array.from(
+            new Map(
+              [...formData.vehicleModels, pendingVehicleModel].map((vehicleModel) => [
+                vehicleModel.toLocaleLowerCase("vi"),
+                vehicleModel,
+              ]),
+            ).values(),
+          )
+        : formData.vehicleModels;
 
       const payload = {
         sku: formData.sku,
         name: formData.name,
-        vehicleModel: formData.vehicleModel,
+        vehicleModels,
         category: formData.category,
         unit: formData.unit,
         stockCount: editingId ? Number(formData.stockCount) : 0,
@@ -326,7 +393,7 @@ function InventoryContent() {
       return [
         p.sku,
         p.name,
-        p.vehicleModel || "",
+        getProductVehicleModels(p).join(", "),
         p.category,
         p.unit,
         p.stockCount.toString(),
@@ -538,7 +605,20 @@ function InventoryContent() {
                         {isSlowMoving && <span className="bg-amber-600 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-sm">Tồn lâu ngày</span>}
                       </div>
                     </td>
-                    <td className="text-muted-foreground">{p.vehicleModel || "—"}</td>
+                    <td className="text-muted-foreground">
+                      {getProductVehicleModels(p).length > 0 ? (
+                        <div className="flex max-w-xs flex-wrap gap-1">
+                          {getProductVehicleModels(p).map((vehicleModel) => (
+                            <span
+                              key={vehicleModel}
+                              className="rounded-md border border-border bg-secondary/40 px-1.5 py-0.5 text-[11px] font-medium text-foreground"
+                            >
+                              {vehicleModel}
+                            </span>
+                          ))}
+                        </div>
+                      ) : "—"}
+                    </td>
                     <td><span className="badge badge-primary">{p.category}</span></td>
                     <td className="text-muted-foreground">{p.unit}{p.conversionUnit && <span className="text-xs block">1 {p.conversionUnit} = {p.conversionFactor} {p.unit}</span>}</td>
                     <td><span className={`font-semibold ${Number(p.stockCount) <= Number(p.stockMin) ? "text-destructive" : ""}`}>{formatNumber(p.stockCount)}</span></td>
@@ -670,52 +750,67 @@ function InventoryContent() {
                   <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">
                     Tên xe áp dụng <span className="normal-case font-normal text-muted-foreground">(không bắt buộc)</span>
                   </label>
-                  {isCreatingVehicleModel ? (
-                    <div className="flex gap-2">
+                  <div className="flex gap-2">
+                    <div className="min-w-0 flex-1">
+                      <CheckboxMultiSelect
+                        id="inventory-vehicle-models"
+                        value={formData.vehicleModels}
+                        onChange={(vehicleModels) =>
+                          setFormData((current) => ({ ...current, vehicleModels }))
+                        }
+                        options={vehicleModels}
+                        placeholder="-- Không chọn tên xe --"
+                        searchPlaceholder="Tìm tên xe..."
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingVehicleModel(true)}
+                      className="rounded-xl border border-primary/20 bg-primary/10 px-3.5 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
+                      aria-label="Nhập tên xe mới"
+                      title="Nhập tên xe mới"
+                    >
+                      + Mới
+                    </button>
+                  </div>
+                  {isCreatingVehicleModel && (
+                    <div className="mt-2 flex gap-2">
                       <input
                         autoFocus
-                        value={formData.vehicleModel}
-                        onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
+                        value={newVehicleModel}
+                        onChange={(event) => setNewVehicleModel(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleAddVehicleModel();
+                          }
+                          if (event.key === "Escape") {
+                            setNewVehicleModel("");
+                            setIsCreatingVehicleModel(false);
+                          }
+                        }}
                         className="flex-1 min-w-0 px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
                         placeholder="VD: Toyota Camry"
                         maxLength={120}
                       />
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsCreatingVehicleModel(false);
-                          setFormData({ ...formData, vehicleModel: "" });
-                        }}
-                        className="px-3.5 py-2.5 bg-secondary hover:bg-secondary/80 border border-border rounded-xl text-xs font-semibold whitespace-nowrap transition-all"
+                        disabled={!normalizeVehicleModelName(newVehicleModel)}
+                        onClick={handleAddVehicleModel}
+                        className="rounded-xl bg-primary px-3.5 py-2.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Chọn từ danh sách
+                        Thêm
                       </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <div className="flex-1 min-w-0">
-                        <CustomSelect
-                          value={formData.vehicleModel}
-                          onChange={(val) => setFormData({ ...formData, vehicleModel: val })}
-                          placeholder="-- Không chọn tên xe --"
-                          searchable
-                          options={[
-                            { value: "", label: "-- Không chọn tên xe --" },
-                            ...vehicleModels.map((model) => ({ value: model, label: model })),
-                          ]}
-                        />
-                      </div>
                       <button
                         type="button"
                         onClick={() => {
-                          setIsCreatingVehicleModel(true);
-                          setFormData({ ...formData, vehicleModel: "" });
+                          setNewVehicleModel("");
+                          setIsCreatingVehicleModel(false);
                         }}
-                        className="px-3.5 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-bold hover:bg-primary/20 transition-colors"
-                        aria-label="Nhập tên xe mới"
-                        title="Nhập tên xe mới"
+                        className="rounded-xl border border-border bg-secondary px-3.5 py-2.5 text-xs font-semibold transition-colors hover:bg-secondary/80"
+                        aria-label="Hủy nhập tên xe mới"
                       >
-                        + Mới
+                        Hủy
                       </button>
                     </div>
                   )}

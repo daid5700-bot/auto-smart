@@ -1,8 +1,12 @@
 .git
 .github
 .next
+.next-dev
+.codegraph
 node_modules
 backups
+coverage
+prisma/postgres_data
 
 .env
 .env.*

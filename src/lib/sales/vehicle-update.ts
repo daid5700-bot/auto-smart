@@ -27,7 +27,7 @@ export function buildVehicleUpdateData(
   const {
     vin, sku, engineNumber, importPrice, importDate, stockCount,
     branchId, warehouse, model, variant, color, year, status, listPrice,
-    floorPrice, image, bankStatus, plateStatus, plateCost, accessoriesJson,
+    floorPrice, image, bankStatus, plateStatus, hasPlateService, plateCost, accessoriesJson,
     notes, saleType,
   } = body;
 
@@ -48,6 +48,7 @@ export function buildVehicleUpdateData(
   if (image !== undefined) data.image = image;
   if (bankStatus !== undefined) data.bankStatus = bankStatus;
   if (plateStatus !== undefined) data.plateStatus = plateStatus;
+  if (hasPlateService !== undefined) data.hasPlateService = hasPlateService;
   if (plateCost !== undefined) data.plateCost = Number(plateCost);
   if (accessoriesJson !== undefined) data.accessoriesJson = accessoriesJson;
   if (notes !== undefined) data.notes = notes;

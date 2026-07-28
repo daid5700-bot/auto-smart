@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchWithDedup, formatCurrency, formatDate } from "@/lib/utils";
 import { Car, DollarSign, CheckCircle, TrendingUp, TrendingDown, Banknote, ShieldCheck, Loader2, RefreshCw, X, Tag, Package, Boxes, BarChart2, Clock } from "lucide-react";
@@ -30,7 +30,7 @@ export default function SalesStatsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true); setError(null);
       const q = new URLSearchParams();
@@ -40,9 +40,9 @@ export default function SalesStatsPage() {
       const [d1, d2] = await Promise.all([fetchWithDedup(`/api/stats/sales?${qs}`), fetchWithDedup(`/api/stats/inventory?${qs}`)]);
       setData(d1); setInvData(d2);
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
-  };
+  }, [startDate, endDate]);
 
-  useEffect(() => { fetchStats(); }, [startDate, endDate]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   if (loading) return <div className="flex items-center justify-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary"/></div>;
   if (error || !data) return <div className="p-6 text-center"><p className="text-destructive mb-4">{error}</p><button onClick={fetchStats} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold inline-flex items-center gap-2"><RefreshCw size={14}/> Thử lại</button></div>;

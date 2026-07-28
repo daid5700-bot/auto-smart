@@ -62,6 +62,7 @@ model Branch {
   paymentTransactions PaymentTransaction[]
   stockMovements      StockMovement[]
   discountCodes       DiscountCode[]
+  plateServices       PlateService[]
   isDeleted           Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -73,6 +74,7 @@ model Product {
   sku                   String                 @unique
   name                  String
   vehicleModel          String?
+  vehicleModels         String[]               @default([])
   parentId              Int?
   parent                Product?               @relation("ProductHierarchy", fields: [parentId], references: [id])
   children              Product[]              @relation("ProductHierarchy")
@@ -86,6 +88,7 @@ model Product {
   orderItems            OrderItem[]
   partsRequisitionItems PartsRequisitionItem[]
   productBranches       ProductBranch[]
+  plateServices         PlateService[]         @relation("PlateFrameProduct")
   isDeleted             Boolean                @default(false)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
@@ -138,6 +141,8 @@ model StockMovement {
   inventoryOrder   InventoryOrder? @relation(fields: [inventoryOrderId], references: [id], onDelete: Cascade)
   vehicleId        Int?
   vehicle          Vehicle?        @relation(fields: [vehicleId], references: [id])
+  plateServiceId   Int?
+  plateService     PlateService?   @relation(fields: [plateServiceId], references: [id], onDelete: SetNull)
   branchId         Int?
   branch           Branch?         @relation(fields: [branchId], references: [id])
   createdBy        String
@@ -147,6 +152,7 @@ model StockMovement {
   @@index([createdAt])
   @@index([inventoryOrderId])
   @@index([branchId])
+  @@index([plateServiceId])
 }
 
 model InventoryOrder {
@@ -291,6 +297,7 @@ model Vehicle {
   bankStatus               String?
   plateStatus              String?
   plateCost                Decimal?           @default(0)
+  hasPlateService          Boolean            @default(false)
   accessoriesJson          Json?              @default("[]")
   saleType                 String             @default("RETAIL") // RETAIL, WHOLESALE
   notes                    String?
@@ -300,6 +307,7 @@ model Vehicle {
   partsRequisitions        PartsRequisition[]
   inventoryOrders          InventoryOrder[]
   stockMovements           StockMovement[]
+  plateService             PlateService?
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 
@@ -310,6 +318,48 @@ model Vehicle {
   @@index([customerId, branchId])
   @@index([discountCodeId])
   @@index([branchId, discountCodeId, updatedAt])
+  @@index([branchId, hasPlateService, updatedAt])
+}
+
+/// Hồ sơ dịch vụ đăng ký/bấm biển phát sinh từ một hồ sơ bán xe.
+/// Giá vốn ốp biển được chụp lại để lịch sử lợi nhuận không thay đổi
+/// khi giá kho được cập nhật về sau.
+model PlateService {
+  id                      Int             @id @default(autoincrement())
+  vehicleId               Int             @unique
+  vehicle                 Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  branchId                Int
+  branch                  Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  registrationNumber      String
+  dossierCode             String
+  portalPasswordEncrypted String
+  plateNumber             String?
+  totalRevenue            Decimal         @default(0)
+  registrationTax         Decimal         @default(0)
+  plateFee                Decimal         @default(0)
+  policeFee               Decimal         @default(0)
+  plateFrameProductId     Int?
+  plateFrameProduct       Product?        @relation("PlateFrameProduct", fields: [plateFrameProductId], references: [id], onDelete: SetNull)
+  plateFrameQuantity      Int             @default(0)
+  plateFrameUnitCost      Decimal         @default(0)
+  plateFrameTotalCost     Decimal         @default(0)
+  profit                  Decimal         @default(0)
+  status                  String          @default("TAX_SUBMITTED") // TAX_SUBMITTED, DECLARED, PLATE_ISSUED, DOCUMENTS_READY, DELIVERED_TO_CUSTOMER, RETURNED_AFTER_TAX
+  notes                   String?
+  completedAt             DateTime?
+  createdById             Int
+  stockMovements          StockMovement[]
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  // Case-insensitive, branch-scoped uniqueness for non-blank registration
+  // numbers and dossier codes is enforced by a partial unique index in
+  // 20260729110000_harden_plate_service_concurrency_search.
+
+  @@index([branchId, status, createdAt])
+  @@index([branchId, createdAt])
+  @@index([plateFrameProductId])
+  @@index([registrationNumber])
+  @@index([dossierCode])
 }
 
 /// Branch-scoped discount definitions. Orders keep snapshot fields so their
