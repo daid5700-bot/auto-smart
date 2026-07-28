@@ -21,7 +21,8 @@ assert.ok(salesNew.includes('fetch("/api/sales/wholesale"'));
 assert.doesNotMatch(salesNew, /for \(const wv of wholesaleVehicles\)/);
 
 const discountManager = source("src/components/discounts/DiscountManager.tsx");
-assert.match(discountManager, /limit:\s*"20"/);
+assert.match(discountManager, /const PAGE_SIZE = 20/);
+assert.match(discountManager, /limit:\s*String\(PAGE_SIZE\)/);
 assert.match(discountManager, /AbortController/);
 assert.match(discountManager, /totalPages/);
 

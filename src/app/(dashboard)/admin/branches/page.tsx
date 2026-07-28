@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Building2, Loader2, Plus, Edit, Trash2, X, MapPin, Phone, Upload } from "lucide-react";
 import { useAuth } from "@/lib/store";
 import { useModal } from "@/components/ModalProvider";
@@ -248,15 +249,15 @@ export default function BranchesPage() {
                     <div className="flex items-center gap-3">
                       {b.logoUrl ? (
                         <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-sm">
-                          <img src={b.logoUrl} alt={`${b.name} Logo`} className="w-full h-full object-contain" />
+                          <Image src={b.logoUrl} alt={`${b.name} Logo`} width={36} height={36} className="w-full h-full object-contain" />
                         </div>
                       ) : b.name.toLowerCase().includes("vinfast") ? (
                         <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
-                          <img src="/vinfast.png" alt="Vinfast Logo" className="w-full h-full object-contain" />
+                          <Image src="/vinfast.png" alt="Vinfast Logo" width={36} height={36} className="w-full h-full object-contain" />
                         </div>
                       ) : b.name.toLowerCase().includes("yamaha") ? (
                         <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
-                          <img src="/yamaha.png" alt="Yamaha Logo" className="w-full h-full object-contain" />
+                          <Image src="/yamaha.png" alt="Yamaha Logo" width={36} height={36} className="w-full h-full object-contain" />
                         </div>
                       ) : (
                         <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white shrink-0">
@@ -385,7 +386,7 @@ export default function BranchesPage() {
                   <div className="flex items-center gap-4 bg-secondary/10 p-3 rounded-xl border border-border">
                     {formData.logoUrl ? (
                       <div className="relative w-16 h-16 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                        <img src={formData.logoUrl} alt="Preview Logo" className="w-full h-full object-contain" />
+                        <Image src={formData.logoUrl} alt="Preview Logo" width={64} height={64} className="w-full h-full object-contain" />
                         <button
                           type="button"
                           onClick={() => setFormData({ ...formData, logoUrl: "" })}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Users, Search, MapPin, Phone, User, DollarSign, Receipt, Eye, X, Edit3, Wrench, Calendar } from "lucide-react";
 import { formatCurrency, formatDate, statusText, statusBadge, fetchWithDedup } from "@/lib/utils";
 import { ModalPortal } from "@/components/modal-portal";
@@ -35,7 +35,7 @@ export default function WorkshopCustomersPage() {
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [deliverOnPayment, setDeliverOnPayment] = useState(false);
 
-  const fetchCustomers = async (p = 1) => {
+  const fetchCustomers = useCallback(async (p = 1) => {
     try {
       setLoading(true);
       const data = await fetchWithDedup(`/api/workshop/customers?page=${p}&limit=20&search=${encodeURIComponent(debouncedSearch)}`);
@@ -46,11 +46,11 @@ export default function WorkshopCustomersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearch]);
 
   useEffect(() => {
     fetchCustomers(page);
-  }, [page, debouncedSearch]);
+  }, [fetchCustomers, page]);
 
   const openCustomerModal = async (customer: any) => {
     setCustomerOrders([]);

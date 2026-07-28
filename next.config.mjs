@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   // Keep development HMR artifacts separate from production build artifacts.
   // This prevents `next build` from replacing CSS/chunks while `next dev` is running.
   distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
@@ -13,9 +14,9 @@ const nextConfig = {
     const contentSecurityPolicy = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
-      "style-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       "connect-src 'self' https: wss:",
       "frame-ancestors 'none'",
       "base-uri 'self'",

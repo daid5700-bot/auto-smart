@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/lib/store";
 import { getNavForRole } from "@/config/navigation";
 import { roleName, roleColor } from "@/config/rbac";
@@ -51,7 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     hydrate();
     setHydrated(true);
-  }, []);
+  }, [hydrate]);
 
   useEffect(() => {
     if (hydrated && user) {
@@ -341,15 +342,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border shrink-0">
           {activeBranch?.logoUrl ? (
             <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-sm">
-              <img src={activeBranch.logoUrl} alt={`${activeBranch.name} Logo`} className="w-full h-full object-contain" />
+              <Image src={activeBranch.logoUrl} alt={`${activeBranch.name} Logo`} width={40} height={40} className="w-full h-full object-contain" />
             </div>
           ) : activeBranch?.name?.toLowerCase().includes("vinfast") ? (
             <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
-              <img src="/vinfast.png" alt="Vinfast Logo" className="w-full h-full object-contain" />
+              <Image src="/vinfast.png" alt="Vinfast Logo" width={40} height={40} className="w-full h-full object-contain" />
             </div>
           ) : activeBranch?.name?.toLowerCase().includes("yamaha") ? (
             <div className="w-10 h-10 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
-              <img src="/yamaha.png" alt="Yamaha Logo" className="w-full h-full object-contain" />
+              <Image src="/yamaha.png" alt="Yamaha Logo" width={40} height={40} className="w-full h-full object-contain" />
             </div>
           ) : (
             <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shrink-0 glow-blue">

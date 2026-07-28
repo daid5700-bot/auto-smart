@@ -39,6 +39,7 @@ export const updateVehicleSchema = z.object({
   image: z.string().max(2_000_000).optional().nullable(),
   bankStatus: textOrNull,
   plateStatus: textOrNull,
+  hasPlateService: z.boolean().optional(),
   plateCost: numericValue,
   accessoriesJson: itemJson,
   giftItemsJson: itemJson,

@@ -24,11 +24,6 @@ export const NumericInput: React.FC<NumericInputProps> = ({
     const clean = toCleanString(value);
     if (!isFocused) {
       setLocalValue(clean === "" ? "" : Number(clean).toLocaleString("vi-VN"));
-    } else {
-      const cleanLocal = toCleanString(localValue);
-      if (cleanLocal !== clean) {
-        setLocalValue(clean);
-      }
     }
   }, [value, isFocused]);
 

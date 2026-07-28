@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/store";
 import {
@@ -15,7 +15,7 @@ export default function AdminDashboard() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const fetchDashboardData = () => {
+  const fetchDashboardData = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams();
     if (startDate) params.set("startDate", startDate);
@@ -26,11 +26,11 @@ export default function AdminDashboard() {
       .then(setData)
       .catch((e) => console.error("Error loading dashboard data:", e))
       .finally(() => setLoading(false));
-  };
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [startDate, endDate]);
+  }, [fetchDashboardData]);
 
   if (loading) {
     return (

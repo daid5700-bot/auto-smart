@@ -27,7 +27,7 @@ while true; do
 done
 
 echo "[migration] Applying pending Prisma migrations..."
-./node_modules/.bin/prisma migrate deploy
+node ./node_modules/prisma/build/index.js migrate deploy
 echo "[migration] Database is up to date."
 
 if [ "$#" -gt 0 ]; then

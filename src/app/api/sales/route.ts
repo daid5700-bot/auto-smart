@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const saleType = searchParams.get("saleType") || "";
   const color = searchParams.get("color") || "";
   const plateStatus = searchParams.get("plateStatus") || "";
+  const hasPlateService = searchParams.get("hasPlateService") || "";
   const discountFilter = searchParams.get("discount") || "";
 
   // Pagination params
@@ -35,6 +36,9 @@ export async function GET(req: NextRequest) {
   if (branchId) where.branchId = branchId;
   if (saleType) where.saleType = saleType;
   if (color) where.color = color;
+  if (hasPlateService === "true" || hasPlateService === "false") {
+    where.hasPlateService = hasPlateService === "true";
+  }
   if (plateStatus) {
     if (plateStatus === "PENDING") {
       where.OR = [{ plateStatus: "PENDING" }, { plateStatus: null }];
@@ -97,6 +101,11 @@ export async function GET(req: NextRequest) {
   const countConditions: Prisma.Sql[] = [Prisma.sql`TRUE`];
   if (branchId) countConditions.push(Prisma.sql`v."branchId" = ${branchId}`);
   if (color) countConditions.push(Prisma.sql`v."color" = ${color}`);
+  if (hasPlateService === "true" || hasPlateService === "false") {
+    countConditions.push(
+      Prisma.sql`v."hasPlateService" = ${hasPlateService === "true"}`,
+    );
+  }
   if (plateStatus === "PENDING") {
     countConditions.push(Prisma.sql`COALESCE(v."plateStatus", 'PENDING') = 'PENDING'`);
   } else if (plateStatus) {
@@ -326,7 +335,7 @@ export async function POST(req: NextRequest) {
     const {
       vin, sku, engineNumber, importPrice, importDate, stockCount, warehouse,
       model, variant, color, year, status, listPrice, floorPrice, image,
-      bankStatus, plateStatus, plateCost, accessoriesJson, notes, saleType,
+      bankStatus, plateStatus, hasPlateService, plateCost, accessoriesJson, notes, saleType,
       customerName, customerPhone, customerBirthday
     } = body;
 
@@ -383,6 +392,7 @@ export async function POST(req: NextRequest) {
           image: image || null,
           bankStatus: bankStatus || "NONE",
           plateStatus: plateStatus || "PENDING",
+          hasPlateService: Boolean(hasPlateService),
           plateCost: parsedPlateCost,
           accessoriesJson: normalizedAccessoriesJson,
           debtAmount: initialDebtAmount,

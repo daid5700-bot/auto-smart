@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDate } from "@/lib/utils";
 import { 
   Loader2, 
@@ -21,7 +21,7 @@ export default function ZnsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const activeRequest = useRef<AbortController | null>(null);
 
-  const fetchData = async (pageVal = 1, searchVal = "", statusVal = statusFilter) => {
+  const fetchData = useCallback(async (pageVal = 1, searchVal = "", statusVal = statusFilter) => {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
@@ -43,7 +43,7 @@ export default function ZnsPage() {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
   useEffect(() => {
     setPage(1);
@@ -58,7 +58,7 @@ export default function ZnsPage() {
       clearTimeout(delayDebounceFn);
       activeRequest.current?.abort();
     };
-  }, [page, logsSearch, statusFilter]);
+  }, [fetchData, page, logsSearch, statusFilter]);
 
   const znsLabel = (type: string) => {
     switch (type) {

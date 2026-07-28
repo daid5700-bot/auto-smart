@@ -6,11 +6,15 @@ const LEGACY_REMOVAL_MIGRATION = "20260710120000_remove_technician_commission";
 const prisma = new PrismaClient();
 
 function runPrisma(args) {
-  const result = spawnSync("./node_modules/.bin/prisma", args, {
+  const result = spawnSync(
+    process.execPath,
+    ["./node_modules/prisma/build/index.js", ...args],
+    {
     cwd: process.cwd(),
     env: process.env,
     stdio: "inherit",
-  });
+    },
+  );
 
   if (result.error) throw result.error;
   if (result.status !== 0) {

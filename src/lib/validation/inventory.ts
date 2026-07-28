@@ -38,3 +38,36 @@ const optionalVehicleModelSchema = z
 export function parseOptionalVehicleModel(value: unknown) {
   return optionalVehicleModelSchema.parse(value);
 }
+
+const optionalVehicleModelsSchema = z
+  .union([
+    z.array(z.string()).max(30, "Mỗi phụ tùng chỉ được áp dụng tối đa 30 tên xe."),
+    z.string(),
+    z.null(),
+    z.undefined(),
+  ])
+  .transform((value) => {
+    const rawValues = Array.isArray(value)
+      ? value
+      : typeof value === "string"
+        ? [value]
+        : [];
+    const seen = new Set<string>();
+
+    return rawValues
+      .map((item) => item.trim().replace(/\s+/g, " "))
+      .filter(Boolean)
+      .filter((item) => {
+        const key = item.toLocaleLowerCase("vi");
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  })
+  .refine((values) => values.every((value) => value.length <= 120), {
+    message: "Mỗi tên xe không được vượt quá 120 ký tự.",
+  });
+
+export function parseOptionalVehicleModels(value: unknown) {
+  return optionalVehicleModelsSchema.parse(value);
+}

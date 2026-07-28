@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   BarChart3, TrendingUp, TrendingDown, Users, DollarSign, Wrench,
   Car, Package, Loader2, Download, Printer, Minus, RefreshCw, X, Calendar
@@ -78,7 +78,7 @@ export default function ReportsPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -95,9 +95,9 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
-  useEffect(() => { fetchData(); }, [startDate, endDate]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleExportExcel = () => {
     if (!data) return;

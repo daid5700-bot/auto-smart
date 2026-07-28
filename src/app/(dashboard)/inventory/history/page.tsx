@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, Suspense } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
@@ -22,7 +22,7 @@ function InventoryHistoryContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
   const [tabCounts, setTabCounts] = useState({ all: 0, import: 0, export: 0 });
-  const [autoOpenMovementId, setAutoOpenMovementId] = useState<number | null>(initialMovementId);
+  const autoOpenMovementId = useRef<number | null>(initialMovementId);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -33,6 +33,7 @@ function InventoryHistoryContent() {
   const [dateTo, setDateTo] = useState("");
   const [activePreset, setActivePreset] = useState<"today" | "week" | "month" | null>(null);
   const activeMovementRequest = useRef<AbortController | null>(null);
+  const hasLoadedMovements = useRef(false);
 
   const applyPreset = (preset: "today" | "week" | "month") => {
     const range = getAppDatePresetRange(preset);
@@ -117,11 +118,11 @@ function InventoryHistoryContent() {
     return `${prefix}-${cleanDate}`;
   };
 
-  const fetchMovements = async (p: number, currentTab = activeTab, from = dateFrom, to = dateTo) => {
+  const fetchMovements = useCallback(async (p: number, currentTab = activeTab, from = dateFrom, to = dateTo) => {
     activeMovementRequest.current?.abort();
     const controller = new AbortController();
     activeMovementRequest.current = controller;
-    const isFirstLoad = history.length === 0 && p === 1 && !debouncedSearch && !from && !to;
+    const isFirstLoad = !hasLoadedMovements.current && p === 1 && !debouncedSearch && !from && !to;
     if (isFirstLoad) setInitialLoading(true); else setTableLoading(true);
     try {
       const typeParam = currentTab === "ALL" ? "" : `&type=${currentTab}`;
@@ -142,27 +143,29 @@ function InventoryHistoryContent() {
       return [];
     } finally {
       if (!controller.signal.aborted) {
+        hasLoadedMovements.current = true;
         setInitialLoading(false);
         setTableLoading(false);
       }
     }
-  };
+  }, [activeTab, dateFrom, dateTo, debouncedSearch]);
 
   useEffect(() => {
     fetchMovements(currentPage).then((movements) => {
-      if (autoOpenMovementId && movements.length > 0) {
+      const movementId = autoOpenMovementId.current;
+      if (movementId && movements.length > 0) {
         const grouped = groupMovementsIntoReceipts(movements);
         const target = grouped.find((r: any) =>
-          r.items.some((item: any) => item.id === autoOpenMovementId)
+          r.items.some((item: any) => item.id === movementId)
         );
         if (target) {
           setSelectedReceipt(target);
-          setAutoOpenMovementId(null);
+          autoOpenMovementId.current = null;
         }
       }
     });
     return () => activeMovementRequest.current?.abort();
-  }, [currentPage, debouncedSearch, activeTab, dateFrom, dateTo]);
+  }, [currentPage, fetchMovements]);
 
   const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
 

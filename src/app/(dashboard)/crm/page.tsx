@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { formatCurrency, formatDate, statusText, statusBadge } from "@/lib/utils";
 import { Users, UserPlus, MessageSquare, Loader2, Edit, Trash2, X } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
@@ -39,7 +39,7 @@ export default function CRMPage() {
     tags: "",
   });
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const r = await fetch("/api/crm?tab=stats");
       if (!r.ok) { console.warn("[CRM] fetchStats HTTP error:", r.status); return; }
@@ -49,9 +49,9 @@ export default function CRMPage() {
     } catch (e) {
       console.error("[CRM] fetchStats failed:", e);
     }
-  };
+  }, []);
 
-  const fetchTabData = async () => {
+  const fetchTabData = useCallback(async () => {
     setLoading(true);
     try {
       // Use limit=100 and track pagination for lead pipeline overflow
@@ -67,10 +67,10 @@ export default function CRMPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tab]);
 
-  useEffect(() => { fetchStats(); }, []);
-  useEffect(() => { fetchTabData(); }, [tab]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => { fetchTabData(); }, [fetchTabData]);
 
   const handleDeleteLead = async (id: number) => {
     const confirmed = await modal.confirm({

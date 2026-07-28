@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
-  ArrowLeft, Loader2, Plus, X, Search, User, Info, 
+  ArrowLeft, Loader2, Plus, Minus, X, Search, User, Info,
   Sparkles, Receipt, Car, Trash2, ChevronDown
 } from "lucide-react";
 import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/utils";
@@ -18,6 +18,7 @@ interface Accessory {
   sku: string;
   price: number;
   quantity: number | "";
+  stockCount?: number;
 }
 
 export default function EditDocumentPage() {
@@ -51,7 +52,7 @@ export default function EditDocumentPage() {
   const [listPrice, setListPrice] = useState("");
   const [status, setStatus] = useState("RESERVED"); // RESERVED, SOLD
   const [bankStatus, setBankStatus] = useState("NONE");
-  const [plateStatus, setPlateStatus] = useState("PENDING");
+  const [hasPlateService, setHasPlateService] = useState(false);
   
   // Customer details
   const [customerName, setCustomerName] = useState("");
@@ -65,8 +66,7 @@ export default function EditDocumentPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
 
-  // Metadata: Plate cost & Accessories
-  const [plateCost, setPlateCost] = useState("");
+  // Metadata: Accessories
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
   const [giftItems, setGiftItems] = useState<Accessory[]>([]);
   const [isGiftLocked, setIsGiftLocked] = useState(false);
@@ -92,103 +92,101 @@ export default function EditDocumentPage() {
     }
   };
 
-  const fetchVehicleAndData = async () => {
-    try {
-      setLoading(true);
-      // Fetch the specific vehicle first to get its branchId
-      const vehicle = await fetchWithDedup(`/api/sales/${vehicleId}`);
+  useEffect(() => {
+    const fetchVehicleAndData = async () => {
+      try {
+        setLoading(true);
+        // Fetch the specific vehicle first to get its branchId
+        const vehicle = await fetchWithDedup(`/api/sales/${vehicleId}`);
 
-      if (vehicle) {
-        // Fetch products filtering by vehicle's branch, and customers
-        const [productsData, customersData] = await Promise.all([
-          fetchWithDedup(`/api/inventory?limit=100&branchFilter=${vehicle.branchId || ""}`),
-          fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true")
-        ]);
+        if (vehicle) {
+          // Fetch products filtering by vehicle's branch, and customers
+          const [productsData, customersData] = await Promise.all([
+            fetchWithDedup(`/api/inventory?limit=100&branchFilter=${vehicle.branchId || ""}`),
+            fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true")
+          ]);
 
-        setProducts(productsData.products || []);
+          setProducts(productsData.products || []);
 
-        const loadedCustomers = customersData.customers || [];
-        setSystemCustomers(loadedCustomers);
+          const loadedCustomers = customersData.customers || [];
+          setSystemCustomers(loadedCustomers);
 
-        setVin(vehicle.vin || "");
-        setModel(vehicle.model || "");
-        setVariant(vehicle.variant || "");
-        setColor(vehicle.color || "");
-        setYear((vehicle.year || new Date().getFullYear()).toString());
-        setListPrice(vehicle.listPrice ? Number(vehicle.listPrice).toString() : "");
-        setStatus(vehicle.status || "RESERVED");
-        setBankStatus(vehicle.bankStatus || "NONE");
-        setPlateStatus(vehicle.plateStatus || "PENDING");
-        
-        setCustomerName(vehicle.customer?.name || "");
-        setCustomerPhone(vehicle.customer?.phone || "");
-        setCustomerBirthday(
-          vehicle.customer?.birthday 
-            ? new Date(vehicle.customer.birthday).toISOString().split("T")[0] 
-            : ""
-        );
-        setCustomerAddress(vehicle.customer?.address || "");
+          setVin(vehicle.vin || "");
+          setModel(vehicle.model || "");
+          setVariant(vehicle.variant || "");
+          setColor(vehicle.color || "");
+          setYear((vehicle.year || new Date().getFullYear()).toString());
+          setListPrice(vehicle.listPrice ? Number(vehicle.listPrice).toString() : "");
+          setStatus(vehicle.status || "RESERVED");
+          setBankStatus(vehicle.bankStatus || "NONE");
+          setHasPlateService(Boolean(vehicle.hasPlateService));
 
-        if (vehicle.customerId) {
-          setSelectedCustomerId(vehicle.customerId.toString());
-          setIsNewCustomer(false);
-        } else {
-          setSelectedCustomerId("");
-          setIsNewCustomer(false);
-        }
+          setCustomerName(vehicle.customer?.name || "");
+          setCustomerPhone(vehicle.customer?.phone || "");
+          setCustomerBirthday(
+            vehicle.customer?.birthday
+              ? new Date(vehicle.customer.birthday).toISOString().split("T")[0]
+              : ""
+          );
+          setCustomerAddress(vehicle.customer?.address || "");
 
-        const plateCostVal = Number(vehicle.plateCost || 0);
-        setPlateCost(plateCostVal > 0 ? plateCostVal.toString() : "");
-        setSelectedAccessories(parseAccessories(vehicle.accessoriesJson));
-        
-        // Check lock status for accessories
-        if (vehicle.accessoriesExportStatus === "PAID") {
-          setIsAccLocked(true);
-        }
-
-        // Extract gift items from partsRequisitions if available
-        if (vehicle.partsRequisitions && vehicle.partsRequisitions.length > 0) {
-          const req = vehicle.partsRequisitions[0];
-          
-          // Lock if requisition is APPROVED or REJECTED
-          if (req.status === "APPROVED" || req.status === "REJECTED") {
-            setIsGiftLocked(true);
+          if (vehicle.customerId) {
+            setSelectedCustomerId(vehicle.customerId.toString());
+            setIsNewCustomer(false);
+          } else {
+            setSelectedCustomerId("");
+            setIsNewCustomer(false);
           }
 
-          const mappedGifts = req.items.map((item: any) => ({
-            id: item.product.id,
-            name: item.product.name,
-            sku: item.product.sku,
-            price: Number(item.product.movingAvgCost || 0),
-            quantity: item.quantity
-          }));
-          setGiftItems(mappedGifts);
-        }
+          setSelectedAccessories(parseAccessories(vehicle.accessoriesJson));
+          
+          // Check lock status for accessories
+          if (vehicle.accessoriesExportStatus === "PAID") {
+            setIsAccLocked(true);
+          }
 
-        setRawNotes(vehicle.notes || "");
-      } else {
+          // Extract gift items from partsRequisitions if available
+          if (vehicle.partsRequisitions && vehicle.partsRequisitions.length > 0) {
+            const req = vehicle.partsRequisitions[0];
+
+            // Lock if requisition is APPROVED or REJECTED
+            if (req.status === "APPROVED" || req.status === "REJECTED") {
+              setIsGiftLocked(true);
+            }
+
+            const mappedGifts = req.items.map((item: any) => ({
+              id: item.product.id,
+              name: item.product.name,
+              sku: item.product.sku,
+              price: Number(item.product.movingAvgCost || 0),
+              quantity: item.quantity
+            }));
+            setGiftItems(mappedGifts);
+          }
+
+          setRawNotes(vehicle.notes || "");
+        } else {
+          await modal.alert({
+            title: "Thất bại",
+            message: "Không tìm thấy hồ sơ xe này",
+            type: "error",
+          });
+          router.push("/sales/documents");
+        }
+      } catch (e: any) {
+        console.error(e);
         await modal.alert({
-          title: "Thất bại",
-          message: "Không tìm thấy hồ sơ xe này",
+          title: "Lỗi",
+          message: e.message || "Lỗi khi nạp dữ liệu",
           type: "error",
         });
-        router.push("/sales/documents");
+      } finally {
+        setLoading(false);
       }
-    } catch (e: any) {
-      console.error(e);
-      await modal.alert({
-        title: "Lỗi",
-        message: e.message || "Lỗi khi nạp dữ liệu",
-        type: "error",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  useEffect(() => {
     fetchVehicleAndData();
-  }, [vehicleId]);
+  }, [vehicleId, modal, router]);
 
   useEffect(() => {
     if (customerSearchQuery.trim().length > 1) {
@@ -211,16 +209,17 @@ export default function EditDocumentPage() {
   }, [customerSearchQuery]);
 
   const handleAddAccessory = (p: any) => {
+    const stock = p.stockCount ?? 9999;
     const exists = selectedAccessories.find(a => a.id === p.id);
     if (exists) {
       setSelectedAccessories(
-        selectedAccessories.map(a => a.id === p.id ? { ...a, quantity: (Number(a.quantity) || 0) + 1 } : a)
+        selectedAccessories.map(a => a.id === p.id ? { ...a, quantity: Math.min(stock, (Number(a.quantity) || 0) + 1), stockCount: stock } : a)
       );
     } else {
       const retailPrice = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
       setSelectedAccessories([
         ...selectedAccessories,
-        { id: p.id, name: p.name, sku: p.sku, price: Number(retailPrice), quantity: 1 }
+        { id: p.id, name: p.name, sku: p.sku, price: Number(retailPrice), quantity: 1, stockCount: stock }
       ]);
     }
   };
@@ -231,21 +230,27 @@ export default function EditDocumentPage() {
 
   const handleUpdateAccessoryQty = (id: number, qty: number | "") => {
     setSelectedAccessories(
-      selectedAccessories.map(a => a.id === id ? { ...a, quantity: qty === "" ? "" : Math.max(1, qty) } : a)
+      selectedAccessories.map(a => {
+        if (a.id !== id) return a;
+        if (qty === "") return { ...a, quantity: "" };
+        const maxStock = a.stockCount ?? 9999;
+        return { ...a, quantity: Math.max(1, Math.min(maxStock, qty)) };
+      })
     );
   };
 
   const handleAddGiftItem = (p: any) => {
+    const stock = p.stockCount ?? 9999;
     const exists = giftItems.find(a => a.id === p.id);
     if (exists) {
       setGiftItems(
-        giftItems.map(a => a.id === p.id ? { ...a, quantity: (Number(a.quantity) || 0) + 1 } : a)
+        giftItems.map(a => a.id === p.id ? { ...a, quantity: Math.min(stock, (Number(a.quantity) || 0) + 1), stockCount: stock } : a)
       );
     } else {
       const costPrice = p.movingAvgCost || 0;
       setGiftItems([
         ...giftItems,
-        { id: p.id, name: p.name, sku: p.sku, price: Number(costPrice), quantity: 1 }
+        { id: p.id, name: p.name, sku: p.sku, price: Number(costPrice), quantity: 1, stockCount: stock }
       ]);
     }
   };
@@ -256,7 +261,12 @@ export default function EditDocumentPage() {
 
   const handleUpdateGiftItemQty = (id: number, qty: number | "") => {
     setGiftItems(
-      giftItems.map(a => a.id === id ? { ...a, quantity: qty === "" ? "" : Math.max(1, qty) } : a)
+      giftItems.map(a => {
+        if (a.id !== id) return a;
+        if (qty === "") return { ...a, quantity: "" };
+        const maxStock = a.stockCount ?? 9999;
+        return { ...a, quantity: Math.max(1, Math.min(maxStock, qty)) };
+      })
     );
   };
 
@@ -282,8 +292,7 @@ export default function EditDocumentPage() {
         listPrice: Number(listPrice) || 0,
         status,
         bankStatus,
-        plateStatus,
-        plateCost: Number(plateCost) || 0,
+        hasPlateService,
         accessoriesJson: JSON.stringify(selectedAccessories.map(a => ({ ...a, quantity: Number(a.quantity) || 1 }))),
         giftItemsJson: JSON.stringify(giftItems.map(a => ({ ...a, quantity: Number(a.quantity) || 1 }))),
         notes: rawNotes,
@@ -329,11 +338,15 @@ export default function EditDocumentPage() {
 
   const filteredAccessories = useMemo(() => {
     const term = accessorySearch.toLowerCase().trim();
-    if (!term) return products;
-    return products.filter(p => 
+    const list = !term ? [...products] : products.filter(p =>
       p.name.toLowerCase().includes(term) ||
       p.sku.toLowerCase().includes(term)
     );
+    return list.sort((a, b) => {
+      const hasStockA = (a.stockCount || 0) > 0 ? 1 : 0;
+      const hasStockB = (b.stockCount || 0) > 0 ? 1 : 0;
+      return hasStockB - hasStockA;
+    });
   }, [products, accessorySearch]);
 
   const filteredCustomers = useMemo(() => {
@@ -352,11 +365,15 @@ export default function EditDocumentPage() {
 
   const filteredGifts = useMemo(() => {
     const term = giftSearch.toLowerCase().trim();
-    if (!term) return products;
-    return products.filter(p => 
+    const list = !term ? [...products] : products.filter(p =>
       p.name.toLowerCase().includes(term) ||
       p.sku.toLowerCase().includes(term)
     );
+    return list.sort((a, b) => {
+      const hasStockA = (a.stockCount || 0) > 0 ? 1 : 0;
+      const hasStockB = (b.stockCount || 0) > 0 ? 1 : 0;
+      return hasStockB - hasStockA;
+    });
   }, [products, giftSearch]);
 
   if (loading) {
@@ -435,14 +452,13 @@ export default function EditDocumentPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground">Thủ tục bấm biển</label>
+              <label className="text-xs font-bold text-muted-foreground">Dịch vụ biển</label>
               <CustomSelect
-                value={plateStatus}
-                onChange={(val) => setPlateStatus(val)}
+                value={hasPlateService ? "YES" : "NO"}
+                onChange={(val) => setHasPlateService(val === "YES")}
                 options={[
-                  { value: "PENDING", label: "Chờ nộp thuế (Đợi biển)", badge: "Chờ thuế", badgeVariant: "warning" },
-                  { value: "TAX_PAID", label: "Đã nộp thuế trước bạ", badge: "Nộp thuế", badgeVariant: "info" },
-                  { value: "PLATE_DONE", label: "Đã bấm biển & Bàn giao xe", badge: "Bàn giao", badgeVariant: "success" },
+                  { value: "NO", label: "Không sử dụng dịch vụ biển" },
+                  { value: "YES", label: "Có sử dụng dịch vụ biển", badge: "Có", badgeVariant: "success" },
                 ]}
               />
             </div>
@@ -647,20 +663,9 @@ export default function EditDocumentPage() {
             <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Dịch vụ đi kèm & Ghi chú</h4>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Plate Cost */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground">Chi phí làm biển tự điền (VNĐ)</label>
-              <NumericInput
-                placeholder="Tự điền chi phí biển..."
-                value={plateCost}
-                onChange={setPlateCost}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-emerald-600 dark:text-emerald-400"
-              />
-            </div>
-            
+          <div>
             {/* Notes */}
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground">Ghi chú thủ tục</label>
               <input
                 type="text"
@@ -714,21 +719,27 @@ export default function EditDocumentPage() {
                       className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
-                  <div className="max-h-[160px] overflow-y-auto space-y-1.5 divide-y divide-border/60">
+                  <div className="max-h-[190px] overflow-y-auto space-y-1.5 divide-y divide-border/60 pr-2.5">
                     {filteredAccessories.map((p) => {
                       const price = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
+                      const isOut = (p.stockCount || 0) <= 0;
                       return (
-                        <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
+                        <div key={p.id} className={`flex items-center justify-between pt-1.5 text-xs ${isOut ? "opacity-60" : ""}`}>
                           <div>
                             <p className="font-bold text-foreground">{p.name}</p>
-                            <p className="text-[10px] text-muted-foreground">{p.sku} • {formatCurrency(price)}</p>
+                            <p className="text-[10px] text-muted-foreground">{p.sku} • Tồn: {p.stockCount || 0} • {formatCurrency(price)}</p>
                           </div>
                           <button
                             type="button"
+                            disabled={isOut}
                             onClick={() => handleAddAccessory(p)}
-                            className="px-2 py-1 bg-primary text-white text-[10px] font-bold rounded-lg hover:scale-105 active:scale-95 transition-all"
+                            className={`px-2 py-1 text-[10px] font-bold rounded-lg shrink-0 transition-all ${
+                              isOut
+                                ? "bg-secondary text-muted-foreground cursor-not-allowed border border-border/40"
+                                : "bg-primary text-white hover:scale-105 active:scale-95"
+                            }`}
                           >
-                            Chọn
+                            {isOut ? "Hết hàng" : "Chọn"}
                           </button>
                         </div>
                       );
@@ -742,19 +753,37 @@ export default function EditDocumentPage() {
                 {/* Right Column: Selected list */}
                 <div className="border border-border rounded-xl p-4 space-y-3 bg-secondary/5">
                   <p className="text-xs font-bold text-primary">Danh sách đã chọn:</p>
-                  <div className="max-h-[160px] overflow-y-auto space-y-2">
+                  <div className="max-h-[190px] overflow-y-auto space-y-2 pr-2.5">
                     {selectedAccessories.map((a) => (
                       <div key={a.id} className="flex items-center justify-between text-xs bg-background p-2 rounded-lg border border-border">
                         <div className="flex-1 min-w-0 pr-2">
                           <p className="font-bold text-foreground truncate">{a.name}</p>
                           <p className="text-[10px] text-muted-foreground">{formatCurrency(a.price)}</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <NumericInput
-                            value={a.quantity}
-                            onChange={(c) => handleUpdateAccessoryQty(a.id, c === "" ? "" : parseInt(c, 10))}
-                            className="w-12 text-center py-0.5 border border-border rounded bg-secondary/30 text-xs font-bold"
-                          />
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1 border border-border rounded-md p-0.5 bg-secondary/20">
+                            <button
+                              type="button"
+                              disabled={Number(a.quantity) <= 1}
+                              onClick={() => handleUpdateAccessoryQty(a.id, (Number(a.quantity) || 1) - 1)}
+                              className="p-1 hover:bg-background rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <Minus size={12} />
+                            </button>
+                            <NumericInput
+                              value={a.quantity}
+                              onChange={(c) => handleUpdateAccessoryQty(a.id, c === "" ? "" : parseInt(c, 10))}
+                              className="w-8 text-center py-0.5 border-none bg-transparent text-xs font-bold outline-none focus:ring-0"
+                            />
+                            <button
+                              type="button"
+                              disabled={a.stockCount !== undefined && Number(a.quantity) >= a.stockCount}
+                              onClick={() => handleUpdateAccessoryQty(a.id, (Number(a.quantity) || 1) + 1)}
+                              className="p-1 hover:bg-background rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveAccessory(a.id)}
@@ -791,7 +820,7 @@ export default function EditDocumentPage() {
                 <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
                   * Bộ phận kho đã phê duyệt hoặc từ chối phiếu quà tặng này. Danh sách quà tặng hiện đã bị khóa và không thể chỉnh sửa từ hồ sơ xe.
                 </p>
-                <div className="bg-background rounded-xl p-3 border border-emerald-500/10 max-h-[160px] overflow-y-auto space-y-2">
+                <div className="bg-background rounded-xl p-3 border border-emerald-500/10 max-h-[190px] overflow-y-auto space-y-2 pr-2.5">
                   {giftItems.map((a) => (
                     <div key={a.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                       <span className="font-bold text-foreground truncate">{a.name}</span>
@@ -816,20 +845,26 @@ export default function EditDocumentPage() {
                       className="w-full pl-8 pr-3 py-1.5 bg-background border border-emerald-500/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
-                  <div className="max-h-[160px] overflow-y-auto space-y-1.5 divide-y divide-emerald-500/20">
+                  <div className="max-h-[190px] overflow-y-auto space-y-1.5 divide-y divide-emerald-500/20 pr-2.5">
                     {filteredGifts.map((p) => {
+                      const isOut = (p.stockCount || 0) <= 0;
                       return (
-                        <div key={p.id} className="flex items-center justify-between pt-1.5 text-xs">
+                        <div key={p.id} className={`flex items-center justify-between pt-1.5 text-xs ${isOut ? "opacity-60" : ""}`}>
                           <div>
                             <p className="font-bold text-foreground">{p.name}</p>
                             <p className="text-[10px] text-muted-foreground">Tồn: {p.stockCount||0}</p>
                           </div>
                           <button
                             type="button"
+                            disabled={isOut}
                             onClick={() => handleAddGiftItem(p)}
-                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg hover:scale-105 active:scale-95 transition-all"
+                            className={`px-2 py-1 text-[10px] font-bold rounded-lg shrink-0 transition-all ${
+                              isOut
+                                ? "bg-secondary text-muted-foreground cursor-not-allowed border border-border/40"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 active:scale-95"
+                            }`}
                           >
-                            Tặng
+                            {isOut ? "Hết hàng" : "Tặng"}
                           </button>
                         </div>
                       );
@@ -842,19 +877,37 @@ export default function EditDocumentPage() {
 
                 <div className="border border-emerald-500/20 rounded-xl p-4 space-y-3 bg-emerald-500/5">
                   <p className="text-xs font-bold text-emerald-600">Danh sách quà tặng:</p>
-                  <div className="max-h-[160px] overflow-y-auto space-y-2">
+                  <div className="max-h-[190px] overflow-y-auto space-y-2 pr-2.5">
                     {giftItems.map((a) => (
                       <div key={a.id} className="flex items-center justify-between text-xs bg-background p-2 rounded-lg border border-emerald-500/20">
                         <div className="flex-1 min-w-0 pr-2">
                           <p className="font-bold text-foreground truncate">{a.name}</p>
                           <p className="text-[10px] text-muted-foreground">Quà tặng</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <NumericInput
-                            value={a.quantity}
-                            onChange={(c) => handleUpdateGiftItemQty(a.id, c === "" ? "" : parseInt(c, 10))}
-                            className="w-12 text-center py-0.5 border border-emerald-500/40 rounded bg-secondary/30 text-xs font-bold text-emerald-600"
-                          />
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-0.5 border border-emerald-500/30 rounded-md p-0.5 bg-emerald-500/5">
+                            <button
+                              type="button"
+                              disabled={Number(a.quantity) <= 1}
+                              onClick={() => handleUpdateGiftItemQty(a.id, (Number(a.quantity) || 1) - 1)}
+                              className="p-1 hover:bg-background rounded text-emerald-600/80 hover:text-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <Minus size={12} />
+                            </button>
+                            <NumericInput
+                              value={a.quantity}
+                              onChange={(c) => handleUpdateGiftItemQty(a.id, c === "" ? "" : parseInt(c, 10))}
+                              className="w-8 text-center py-0.5 border-none bg-transparent text-xs font-bold text-emerald-600 outline-none focus:ring-0"
+                            />
+                            <button
+                              type="button"
+                              disabled={a.stockCount !== undefined && Number(a.quantity) >= a.stockCount}
+                              onClick={() => handleUpdateGiftItemQty(a.id, (Number(a.quantity) || 1) + 1)}
+                              className="p-1 hover:bg-background rounded text-emerald-600/80 hover:text-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveGiftItem(a.id)}

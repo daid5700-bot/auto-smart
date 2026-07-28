@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
-import { ChevronDown, Check, Search, X } from "lucide-react";
+import React, { useCallback, useState, useRef, useEffect } from "react";
+import { ChevronDown, Check, Loader2, Search, X } from "lucide-react";
 import { ModalPortal } from "./modal-portal";
 
 export interface SelectOption {
@@ -28,6 +28,8 @@ export interface CustomSelectProps {
   icon?: React.ReactNode;
   name?: string;
   id?: string;
+  onSearchChange?: (search: string) => void;
+  searchLoading?: boolean;
 }
 
 export function CustomSelect({
@@ -42,6 +44,8 @@ export function CustomSelect({
   size = "md",
   icon,
   id,
+  onSearchChange,
+  searchLoading = false,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -62,7 +66,7 @@ export function CustomSelect({
   const isSearchable = searchable ?? options.length > 6;
 
   // Calculate dropdown position
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const dropdownHeight = Math.min(options.length * 40 + (isSearchable ? 50 : 20), 280);
@@ -75,7 +79,12 @@ export function CustomSelect({
       width: Math.max(rect.width, 180),
       placeAbove,
     });
-  };
+  }, [isSearchable, options.length]);
+
+  const resetSearch = useCallback(() => {
+    setSearch("");
+    onSearchChange?.("");
+  }, [onSearchChange]);
 
   useEffect(() => {
     if (isOpen) {
@@ -89,7 +98,7 @@ export function CustomSelect({
         window.removeEventListener("resize", handleScrollOrResize);
       };
     }
-  }, [isOpen]);
+  }, [isOpen, updatePosition]);
 
   // Focus search input on open
   useEffect(() => {
@@ -110,19 +119,19 @@ export function CustomSelect({
         !dropdownRef.current.contains(target)
       ) {
         setIsOpen(false);
-        setSearch("");
+        resetSearch();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, resetSearch]);
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (disabled) return;
     if (e.key === "Escape") {
       setIsOpen(false);
-      setSearch("");
+      resetSearch();
     } else if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
       if (!isOpen) {
         e.preventDefault();
@@ -132,6 +141,7 @@ export function CustomSelect({
   };
 
   const filteredOptions = options.filter((opt) => {
+    if (onSearchChange) return true;
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
@@ -143,7 +153,7 @@ export function CustomSelect({
   const handleSelect = (val: string | number) => {
     onChange(val);
     setIsOpen(false);
-    setSearch("");
+    resetSearch();
   };
 
   // Size styling
@@ -205,6 +215,7 @@ export function CustomSelect({
               onClick={(e) => {
                 e.stopPropagation();
                 onChange("");
+                resetSearch();
               }}
               className="p-0.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
             >
@@ -242,18 +253,27 @@ export function CustomSelect({
                     ref={searchInputRef}
                     type="text"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      onSearchChange?.(e.target.value);
+                    }}
                     placeholder="Tìm kiếm..."
                     className="w-full pl-8 pr-3 py-1.5 bg-background border border-border/60 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/20"
                   />
-                  {search && (
+                  {searchLoading ? (
+                    <Loader2
+                      size={13}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 animate-spin text-primary"
+                    />
+                  ) : search ? (
                     <button
-                      onClick={() => setSearch("")}
+                      type="button"
+                      onClick={resetSearch}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
                       <X size={12} />
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )}
