@@ -5,6 +5,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { Prisma } from "@prisma/client";
 import { handleApiError } from "@/lib/api-response";
 import { requireAuth } from "@/lib/guard";
+import { parseAppDateRange } from "@/lib/date-range";
 
 export async function GET(req: NextRequest) {
   const guard = await requireAuth(req);
@@ -15,22 +16,7 @@ export async function GET(req: NextRequest) {
     const startDateStr = searchParams.get("startDate");
     const endDateStr = searchParams.get("endDate");
 
-    let startDate: Date | undefined = undefined;
-    let endDate: Date | undefined = undefined;
-
-    if (startDateStr) {
-      const parsed = new Date(startDateStr);
-      if (!isNaN(parsed.getTime())) {
-        startDate = parsed;
-      }
-    }
-    if (endDateStr) {
-      const parsed = new Date(endDateStr);
-      if (!isNaN(parsed.getTime())) {
-        endDate = parsed;
-        endDate.setHours(23, 59, 59, 999);
-      }
-    }
+    const { startDate, endDate } = parseAppDateRange(startDateStr, endDateStr);
 
     const branchId = await getActiveBranchId();
 

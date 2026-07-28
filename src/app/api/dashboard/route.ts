@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { formatAppDateInput, parseAppDate, parseAppDateRange } from "@/lib/date-range";
 
 // --- In-memory cache (L1) — 60-second TTL per branchId & date range ---
 const dashboardCache = new Map<string, { data: any; expiresAt: number }>();
@@ -14,27 +15,8 @@ export async function GET(req: NextRequest) {
     const startDateStr = searchParams.get("startDate");
     const endDateStr = searchParams.get("endDate");
 
-    let startDate: Date | undefined = undefined;
-    let endDate: Date | undefined = undefined;
-
-    if (startDateStr) {
-      const parsed = new Date(startDateStr);
-      if (!isNaN(parsed.getTime())) {
-        startDate = parsed;
-      }
-    }
-    if (endDateStr) {
-      const parsed = new Date(endDateStr);
-      if (!isNaN(parsed.getTime())) {
-        endDate = parsed;
-        endDate.setHours(23, 59, 59, 999);
-      }
-    }
-    if (startDate && endDate && startDate > endDate) {
-      const temp = startDate;
-      startDate = endDate;
-      endDate = temp;
-    }
+    const { startDate, endDate } = parseAppDateRange(startDateStr, endDateStr);
+    const startOfToday = parseAppDate(formatAppDateInput())!;
 
     const branchId = await getActiveBranchId();
     const cacheKey = `dashboard_${branchId ?? "all"}_${startDateStr ?? ""}_${endDateStr ?? ""}`;
@@ -59,7 +41,7 @@ export async function GET(req: NextRequest) {
         ...(endDate ? { lte: endDate } : {}),
       }
     } : {
-      sentAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+      sentAt: { gte: startOfToday }
     };
 
     const roTodayFilter = (startDate || endDate) ? {
@@ -68,7 +50,7 @@ export async function GET(req: NextRequest) {
         ...(endDate ? { lte: endDate } : {}),
       }
     } : {
-      createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+      createdAt: { gte: startOfToday }
     };
 
     // 1. Basic counts

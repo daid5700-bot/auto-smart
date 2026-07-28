@@ -9,6 +9,7 @@ import { handleApiError, parseJson } from "@/lib/api-response";
 import { createVehicleSchema } from "@/lib/validation/sales";
 import { parseItemArray } from "@/lib/sales/vehicle-update";
 import { Prisma } from "@prisma/client";
+import { parseAppDateRange } from "@/lib/date-range";
 
 // GET /api/sales — list vehicles
 export async function GET(req: NextRequest) {
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") || "";
   const saleType = searchParams.get("saleType") || "";
   const color = searchParams.get("color") || "";
+  const plateStatus = searchParams.get("plateStatus") || "";
   const discountFilter = searchParams.get("discount") || "";
 
   // Pagination params
@@ -33,6 +35,13 @@ export async function GET(req: NextRequest) {
   if (branchId) where.branchId = branchId;
   if (saleType) where.saleType = saleType;
   if (color) where.color = color;
+  if (plateStatus) {
+    if (plateStatus === "PENDING") {
+      where.OR = [{ plateStatus: "PENDING" }, { plateStatus: null }];
+    } else {
+      where.plateStatus = plateStatus;
+    }
+  }
   if (discountFilter === "ANY") {
     where.discountAmount = { gt: 0 };
   } else if (discountFilter === "NONE") {
@@ -52,6 +61,8 @@ export async function GET(req: NextRequest) {
           { vin: { contains: keyword, mode: "insensitive" } },
           { variant: { contains: keyword, mode: "insensitive" } },
           { engineNumber: { contains: keyword, mode: "insensitive" } },
+          { customer: { name: { contains: keyword, mode: "insensitive" } } },
+          { customer: { phone: { contains: keyword } } },
         ];
 
         if (/^\d+$/.test(keyword)) {
@@ -74,10 +85,11 @@ export async function GET(req: NextRequest) {
   // Date range filter
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
-  if (dateFrom || dateTo) {
+  const { startDate, endDate } = parseAppDateRange(dateFrom, dateTo);
+  if (startDate || endDate) {
     where.createdAt = {
-      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-      ...(dateTo ? { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : {}),
+      ...(startDate ? { gte: startDate } : {}),
+      ...(endDate ? { lte: endDate } : {}),
     };
   }
 
@@ -85,6 +97,11 @@ export async function GET(req: NextRequest) {
   const countConditions: Prisma.Sql[] = [Prisma.sql`TRUE`];
   if (branchId) countConditions.push(Prisma.sql`v."branchId" = ${branchId}`);
   if (color) countConditions.push(Prisma.sql`v."color" = ${color}`);
+  if (plateStatus === "PENDING") {
+    countConditions.push(Prisma.sql`COALESCE(v."plateStatus", 'PENDING') = 'PENDING'`);
+  } else if (plateStatus) {
+    countConditions.push(Prisma.sql`v."plateStatus" = ${plateStatus}`);
+  }
   if (customerId) countConditions.push(Prisma.sql`v."customerId" = ${Number(customerId)}`);
   if (discountFilter === "ANY") {
     countConditions.push(Prisma.sql`v."discountAmount" > 0`);
@@ -99,12 +116,8 @@ export async function GET(req: NextRequest) {
   } else {
     countConditions.push(Prisma.sql`v."status" <> 'CANCELLED'`);
   }
-  if (dateFrom) countConditions.push(Prisma.sql`v."createdAt" >= ${new Date(dateFrom)}`);
-  if (dateTo) {
-    countConditions.push(
-      Prisma.sql`v."createdAt" <= ${new Date(new Date(dateTo).setHours(23, 59, 59, 999))}`,
-    );
-  }
+  if (startDate) countConditions.push(Prisma.sql`v."createdAt" >= ${startDate}`);
+  if (endDate) countConditions.push(Prisma.sql`v."createdAt" <= ${endDate}`);
   for (const keyword of search.trim().split(/\s+/).filter(Boolean)) {
     const pattern = `%${keyword}%`;
     const numericId = /^\d+$/.test(keyword) ? Number(keyword) : -1;
@@ -113,6 +126,8 @@ export async function GET(req: NextRequest) {
       OR v."vin" ILIKE ${pattern}
       OR COALESCE(v."variant", '') ILIKE ${pattern}
       OR COALESCE(v."engineNumber", '') ILIKE ${pattern}
+      OR COALESCE(c."name", '') ILIKE ${pattern}
+      OR COALESCE(c."phone", '') ILIKE ${pattern}
       OR v."id" = ${numericId}
     )`);
   }
@@ -133,6 +148,7 @@ export async function GET(req: NextRequest) {
             ELSE NULL
           END)::integer AS "wholesaleCount"
         FROM "Vehicle" v
+        LEFT JOIN "Customer" c ON c."id" = v."customerId"
         WHERE ${Prisma.join(countConditions, " AND ")}
       `)
     : Promise.resolve(null);

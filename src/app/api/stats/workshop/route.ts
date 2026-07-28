@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
+import { parseAppDateRange } from "@/lib/date-range";
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,22 +10,7 @@ export async function GET(req: NextRequest) {
     const startDateStr = searchParams.get("startDate");
     const endDateStr = searchParams.get("endDate");
 
-    let startDate: Date | undefined = undefined;
-    let endDate: Date | undefined = undefined;
-
-    if (startDateStr) {
-      const parsed = new Date(startDateStr);
-      if (!isNaN(parsed.getTime())) {
-        startDate = parsed;
-      }
-    }
-    if (endDateStr) {
-      const parsed = new Date(endDateStr);
-      if (!isNaN(parsed.getTime())) {
-        endDate = parsed;
-        endDate.setHours(23, 59, 59, 999);
-      }
-    }
+    const { startDate, endDate } = parseAppDateRange(startDateStr, endDateStr);
 
     const branchId = await getActiveBranchId();
 
