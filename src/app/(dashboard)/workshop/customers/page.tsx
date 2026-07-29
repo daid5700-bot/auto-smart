@@ -1,20 +1,31 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
-import { Users, Search, MapPin, Phone, User, DollarSign, Receipt, Eye, X, Edit3, Wrench, Calendar } from "lucide-react";
-import { formatCurrency, formatDate, statusText, statusBadge, fetchWithDedup } from "@/lib/utils";
+import { useCallback, useState, useEffect, useRef } from "react";
+import { Search, User, DollarSign, Eye, X, RotateCcw } from "lucide-react";
+import { formatCurrency, formatDate, statusText, statusBadge } from "@/lib/utils";
 import { ModalPortal } from "@/components/modal-portal";
 import { NumericInput } from "@/components/NumericInput";
+import { Pagination } from "@/components/Pagination";
 import { toast } from "@/lib/toast";
+
+type PaymentStatus = "all" | "debt" | "unpaid" | "partial" | "paid";
 
 export default function WorkshopCustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("all");
+  const [draftDateFrom, setDraftDateFrom] = useState("");
+  const [draftDateTo, setDraftDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCustomers, setTotalCustomers] = useState(0);
+  const activeRequest = useRef<AbortController | null>(null);
+  const requestSequence = useRef(0);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -36,21 +47,81 @@ export default function WorkshopCustomersPage() {
   const [deliverOnPayment, setDeliverOnPayment] = useState(false);
 
   const fetchCustomers = useCallback(async (p = 1) => {
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    const requestId = ++requestSequence.current;
+    activeRequest.current = controller;
+
     try {
       setLoading(true);
-      const data = await fetchWithDedup(`/api/workshop/customers?page=${p}&limit=20&search=${encodeURIComponent(debouncedSearch)}`);
+      const params = new URLSearchParams({
+        page: String(p),
+        limit: "20",
+        search: debouncedSearch,
+        paymentStatus,
+      });
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+
+      const response = await fetch(`/api/workshop/customers?${params.toString()}`, {
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Không thể tải danh sách khách hàng");
+      }
+
+      const data = await response.json();
+      if (requestId !== requestSequence.current) return;
+      const nextTotalPages = data.pagination?.totalPages || 1;
+      if (p > nextTotalPages) {
+        setTotalPages(nextTotalPages);
+        setTotalCustomers(data.pagination?.total || 0);
+        setPage(nextTotalPages);
+        return;
+      }
       setCustomers(data.customers || []);
-      if (data.pagination) setTotalPages(data.pagination.totalPages);
-    } catch (e) {
-      console.error(e);
+      setTotalPages(nextTotalPages);
+      setTotalCustomers(data.pagination?.total || 0);
+    } catch (e: any) {
+      if (e.name !== "AbortError") {
+        console.error(e);
+        toast.error("Không thể tải dữ liệu", e.message);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, paymentStatus, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchCustomers(page);
+    return () => activeRequest.current?.abort();
   }, [fetchCustomers, page]);
+
+  const applyDateFilter = () => {
+    if (draftDateFrom && draftDateTo && draftDateFrom > draftDateTo) {
+      toast.error("Khoảng ngày không hợp lệ", "Ngày bắt đầu không được lớn hơn ngày kết thúc");
+      return;
+    }
+    setPage(1);
+    setDateFrom(draftDateFrom);
+    setDateTo(draftDateTo);
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setPaymentStatus("all");
+    setDraftDateFrom("");
+    setDraftDateTo("");
+    setDateFrom("");
+    setDateTo("");
+    setPage(1);
+  };
+
+  const hasActiveFilters =
+    Boolean(search || dateFrom || dateTo) ||
+    paymentStatus !== "all";
 
   const openCustomerModal = async (customer: any) => {
     setCustomerOrders([]);
@@ -121,15 +192,77 @@ export default function WorkshopCustomersPage() {
   return (
     <div className="space-y-6 stagger">
 
-      <div className="flex gap-3 max-w-md">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo tên, SĐT hoặc ID khách..."
-            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30"
-          />
+      <div className="glass-card rounded-2xl border border-border/40 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-[200px] flex-1 space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Tìm khách hàng</span>
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tên, SĐT hoặc ID khách..."
+                className="h-10 w-full rounded-xl border border-border bg-card pl-9 pr-3 text-sm outline-none transition focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          </label>
+
+          <label className="w-[190px] shrink-0 space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Trạng thái thanh toán</span>
+            <select
+              value={paymentStatus}
+              onChange={(e) => {
+                setPaymentStatus(e.target.value as PaymentStatus);
+                setPage(1);
+              }}
+              className="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-medium outline-none transition focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="debt">Còn công nợ</option>
+              <option value="unpaid">Chưa thanh toán</option>
+              <option value="partial">Đã thanh toán một phần</option>
+              <option value="paid">Đã thanh toán đủ</option>
+            </select>
+          </label>
+
+          <label className="w-[145px] shrink-0 space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Từ ngày</span>
+            <input
+              type="date"
+              value={draftDateFrom}
+              onChange={(e) => setDraftDateFrom(e.target.value)}
+              className="h-10 w-full rounded-xl border border-border bg-card px-2.5 text-xs outline-none transition focus:ring-2 focus:ring-primary/30"
+            />
+          </label>
+
+          <label className="w-[145px] shrink-0 space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Đến ngày</span>
+            <input
+              type="date"
+              value={draftDateTo}
+              onChange={(e) => setDraftDateTo(e.target.value)}
+              className="h-10 w-full rounded-xl border border-border bg-card px-2.5 text-xs outline-none transition focus:ring-2 focus:ring-primary/30"
+            />
+          </label>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={applyDateFilter}
+              className="h-10 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground transition hover:opacity-90"
+            >
+              Áp dụng
+            </button>
+            <button
+              type="button"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters && !draftDateFrom && !draftDateTo}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-muted-foreground transition hover:bg-secondary/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <RotateCcw size={14} />
+              Xóa lọc
+            </button>
+          </div>
         </div>
       </div>
 
@@ -212,24 +345,15 @@ export default function WorkshopCustomersPage() {
           </table>
         </div>
 
-        {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
-            <p className="text-xs text-muted-foreground">
-              Trang <span className="font-semibold text-foreground">{page}</span> / <span className="font-semibold text-foreground">{totalPages}</span>
-            </p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed">«</button>
-              <button onClick={() => setPage(p => Math.max(p - 1, 1))} disabled={page === 1} className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed">‹</button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
-                return (
-                  <button key={p} onClick={() => setPage(p)} className={`px-3 py-1 rounded-lg text-xs font-semibold border ${p === page ? "border-primary bg-primary text-white" : "border-border hover:bg-secondary/40"}`}>{p}</button>
-                );
-              })}
-              <button onClick={() => setPage(p => Math.min(p + 1, totalPages))} disabled={page === totalPages} className="px-3 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed">›</button>
-              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1 rounded-lg text-xs font-medium border border-border hover:bg-secondary/40 disabled:opacity-40 disabled:cursor-not-allowed">»</button>
-            </div>
-          </div>
+        {!loading && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalCustomers}
+            itemLabel="khách hàng"
+            hideOnSinglePage={false}
+            onPageChange={setPage}
+          />
         )}
       </div>
 
