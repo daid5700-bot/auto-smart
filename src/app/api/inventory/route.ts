@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const search = searchParams.get("search") || "";
     const category = searchParams.get("category") || "";
+    const vehicleModel = searchParams.get("vehicleModel")?.trim() || "";
     const scope = searchParams.get("scope") || "current";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const branchId = await getActiveBranchId();
@@ -67,6 +68,21 @@ export async function GET(req: NextRequest) {
       }
     }
     if (category) where.category = category;
+    if (vehicleModel) {
+      where.AND = [
+        {
+          OR: [
+            { vehicleModels: { has: vehicleModel } },
+            {
+              vehicleModel: {
+                equals: vehicleModel,
+                mode: "insensitive",
+              },
+            },
+          ],
+        },
+      ];
+    }
 
     if (isSelector) {
       const rawProducts = await (prisma.product as any).findMany({
@@ -140,6 +156,17 @@ export async function GET(req: NextRequest) {
     }
     if (category) {
       summaryConditions.push(Prisma.sql`p."category" = ${category}`);
+    }
+    if (vehicleModel) {
+      summaryConditions.push(
+        Prisma.sql`(
+          p."vehicleModels" @> ARRAY[${vehicleModel}]::TEXT[]
+          OR (
+            CARDINALITY(p."vehicleModels") = 0
+            AND LOWER(BTRIM(COALESCE(p."vehicleModel", ''))) = LOWER(${vehicleModel})
+          )
+        )`,
+      );
     }
 
     const statFilter = searchParams.get("statFilter");
