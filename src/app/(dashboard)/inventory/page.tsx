@@ -84,6 +84,7 @@ function InventoryContent() {
   }, [searchInput]);
 
   const [catFilter, setCatFilter] = useState("");
+  const [vehicleModelFilter, setVehicleModelFilter] = useState("");
   const [scope, setScope] = useState<"current" | "other">("current");
   const [statFilter, setStatFilter] = useState<"all" | "low" | "high">(
     (initFilter === "low" || initFilter === "high") ? initFilter : "all"
@@ -138,6 +139,7 @@ function InventoryContent() {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (catFilter) params.set("category", catFilter);
+    if (vehicleModelFilter) params.set("vehicleModel", vehicleModelFilter);
     if (statFilter !== "all") params.set("statFilter", statFilter);
     params.set("page", String(page));
     params.set("limit", String(LIMIT));
@@ -187,7 +189,7 @@ function InventoryContent() {
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-  }, [catFilter, page, scope, search, statFilter, userRole]);
+  }, [catFilter, page, scope, search, statFilter, userRole, vehicleModelFilter]);
 
   useEffect(() => {
     fetchData();
@@ -409,8 +411,6 @@ function InventoryContent() {
     exportToCsv("Danh_muc_phu_tung.csv", headers, rows);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-
   const rawProducts = data?.products || [];
   const categories = data?.categories || [];
   const vehicleModels: string[] = data?.vehicleModels || [];
@@ -551,9 +551,26 @@ function InventoryContent() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Tìm theo tên phụ tùng, tên xe, mã SKU hoặc ID..." className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" /></div>
-          <div className="w-[180px] shrink-0">
+          <div className="w-full sm:w-[220px] shrink-0">
+            <CustomSelect
+              value={vehicleModelFilter}
+              onChange={(value) => {
+                setVehicleModelFilter(value);
+                setPage(1);
+              }}
+              placeholder="Tất cả tên xe"
+              options={[
+                { value: "", label: "Tất cả tên xe" },
+                ...vehicleModels.map((vehicleModel) => ({
+                  value: vehicleModel,
+                  label: vehicleModel,
+                })),
+              ]}
+            />
+          </div>
+          <div className="w-full sm:w-[180px] shrink-0">
             <CustomSelect
               value={catFilter}
               onChange={(val) => { setCatFilter(val); setPage(1); }}
@@ -573,8 +590,23 @@ function InventoryContent() {
           </div>
         )}
 
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="overflow-x-auto"><table className="data-table">
+        <div
+          className="glass-card relative rounded-xl overflow-hidden"
+          aria-busy={loading}
+        >
+          {loading && (
+            <div
+              className="absolute inset-0 z-10 flex min-h-[220px] items-center justify-center bg-card/80 backdrop-blur-[1px]"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium shadow-sm">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span>Đang tải danh sách phụ tùng...</span>
+              </div>
+            </div>
+          )}
+          <div className={`overflow-x-auto transition-opacity ${loading ? "min-h-[220px] opacity-50" : ""}`}><table className="data-table">
             <thead>
               <tr>
                 <th>Mã SKU</th>

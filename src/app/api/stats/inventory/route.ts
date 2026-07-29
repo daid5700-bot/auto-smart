@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       exports,
       exportCount,
       giftRequisitions,
-      exportStatsRaw
+      movementStatsRaw
     ] = await Promise.all([
       prisma.product.count({
         where: {
@@ -139,30 +139,70 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { id: "desc" }
       }),
-      prisma.$queryRaw<any[]>`
+      prisma.$queryRaw<Array<{
+        totalImportAmount: number;
+        totalExportAmount: number;
+        totalSoldQty: number;
+        totalSoldAmount: number;
+        totalGiftQty: number;
+        totalGiftAmount: number;
+      }>>`
         WITH RetailPrices AS (
           SELECT "productId", amount FROM "Price" WHERE type = 'RETAIL'
         )
         SELECT
-          m.type,
-          SUM(m.quantity)::float as quantity,
-          SUM(
+          COALESCE(SUM(
+            CASE WHEN m.type LIKE 'IMPORT%' THEN
+              CASE
+                WHEN m."totalCost" <> 0 THEN ABS(m."totalCost")
+                ELSE ABS(m.quantity * m."unitCost")
+              END
+            ELSE 0 END
+          ), 0)::float AS "totalImportAmount",
+          COALESCE(SUM(
+            CASE WHEN m.type LIKE 'EXPORT%' THEN
+              CASE
+                WHEN m."totalCost" <> 0 THEN ABS(m."totalCost")
+                ELSE ABS(m.quantity * m."unitCost")
+              END
+            ELSE 0 END
+          ), 0)::float AS "totalExportAmount",
+          COALESCE(SUM(
             CASE
-              WHEN m.type = 'EXPORT_GIFT' THEN m.quantity * COALESCE(p.amount, m."unitCost", 0)
-              ELSE 
-                CASE 
+              WHEN m.type = 'EXPORT' AND m."vehicleId" IS NOT NULL
+                THEN m.quantity
+              ELSE 0
+            END
+          ), 0)::float AS "totalSoldQty",
+          COALESCE(SUM(
+            CASE
+              WHEN m.type = 'EXPORT' AND m."vehicleId" IS NOT NULL THEN
+                CASE
                   WHEN m."totalCost" > 0 THEN m."totalCost"
                   ELSE m.quantity * COALESCE(NULLIF(m."unitCost", 0), p.amount, 0)
                 END
+              ELSE 0
             END
-          )::float as amount
+          ), 0)::float AS "totalSoldAmount",
+          COALESCE(SUM(
+            CASE
+              WHEN m.type = 'EXPORT_GIFT' AND m."vehicleId" IS NOT NULL
+                THEN m.quantity
+              ELSE 0
+            END
+          ), 0)::float AS "totalGiftQty",
+          COALESCE(SUM(
+            CASE
+              WHEN m.type = 'EXPORT_GIFT' AND m."vehicleId" IS NOT NULL
+                THEN m.quantity * COALESCE(p.amount, m."unitCost", 0)
+              ELSE 0
+            END
+          ), 0)::float AS "totalGiftAmount"
         FROM "StockMovement" m
         LEFT JOIN RetailPrices p ON m."productId" = p."productId"
-        WHERE m.type IN ('EXPORT', 'EXPORT_GIFT')
-          AND m."vehicleId" IS NOT NULL
+        WHERE (m.type LIKE 'IMPORT%' OR m.type LIKE 'EXPORT%')
           ${branchMovementCond}
           ${dateMovementCond}
-        GROUP BY m.type
       `
     ]);
 
@@ -196,20 +236,13 @@ export async function GET(req: NextRequest) {
       price: Number(row.price || 0),
     }));
 
-    let totalSoldQty = 0;
-    let totalSoldAmount = 0;
-    let totalGiftQty = 0;
-    let totalGiftAmount = 0;
-
-    exportStatsRaw.forEach(stat => {
-      if (stat.type === "EXPORT_GIFT") {
-        totalGiftQty += Number(stat.quantity || 0);
-        totalGiftAmount += Number(stat.amount || 0);
-      } else {
-        totalSoldQty += Number(stat.quantity || 0);
-        totalSoldAmount += Number(stat.amount || 0);
-      }
-    });
+    const movementStats = movementStatsRaw[0];
+    const totalImportAmount = Number(movementStats?.totalImportAmount || 0);
+    const totalExportAmount = Number(movementStats?.totalExportAmount || 0);
+    const totalSoldQty = Number(movementStats?.totalSoldQty || 0);
+    const totalSoldAmount = Number(movementStats?.totalSoldAmount || 0);
+    const totalGiftQty = Number(movementStats?.totalGiftQty || 0);
+    const totalGiftAmount = Number(movementStats?.totalGiftAmount || 0);
 
     const serializedExports = exports.map((m) => {
       const retailPrice = m.product.prices.find((p) => p.type === "RETAIL")?.amount || 0;
@@ -278,6 +311,8 @@ export async function GET(req: NextRequest) {
       totalStock,
       totalValuation,
       lowStockCount,
+      totalImportAmount,
+      totalExportAmount,
       categories,
       lowStockItems,
       recentMovements: serializedRecentMovements,

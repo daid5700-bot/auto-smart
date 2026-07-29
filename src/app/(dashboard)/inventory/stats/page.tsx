@@ -6,8 +6,8 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import {
   Package, DollarSign, AlertTriangle, TrendingUp,
-  ArrowUpRight, ArrowDownLeft, Boxes, PieChart,
-  Loader2, RefreshCw, X, Sparkles
+  ArrowUpRight, ArrowDownLeft, PieChart,
+  Loader2, RefreshCw, X
 } from "lucide-react";
 
 export default function InventoryStatsPage() {
@@ -176,7 +176,7 @@ export default function InventoryStatsPage() {
       </div>
 
       {/* Stats Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* Tổng mặt hàng */}
         <div className="glass-card rounded-xl p-4 border-l-4 border-l-blue-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
           <div className="flex items-center justify-between">
@@ -190,22 +190,6 @@ export default function InventoryStatsPage() {
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">
             Loại phụ tùng khác nhau
-          </p>
-        </div>
-
-        {/* Tổng tồn kho */}
-        <div className="glass-card rounded-xl p-4 border-l-4 border-l-purple-500 hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              Tổng số lượng tồn
-            </p>
-            <Boxes size={14} className="text-purple-500" />
-          </div>
-          <p className="text-2xl font-black mt-2 tracking-tight">
-            {data.totalStock}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            Đơn vị sản phẩm hiện có
           </p>
         </div>
 
@@ -241,79 +225,41 @@ export default function InventoryStatsPage() {
           </p>
         </Link>
 
-        {/* Tổng đã bán */}
+        {/* Tổng nhập kho */}
         <Link 
-          href="/inventory/history?tab=EXPORT"
-          className="glass-card rounded-xl p-4 border-l-4 border-l-indigo-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/5 transition-all flex flex-col justify-between cursor-pointer group"
+          href="/inventory/history?tab=IMPORT"
+          className="glass-card rounded-xl p-4 border-l-4 border-l-violet-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-500/5 transition-all flex flex-col justify-between cursor-pointer group"
         >
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider group-hover:text-indigo-500 transition-colors">
-              Tổng đã bán
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider group-hover:text-violet-500 transition-colors">
+              Tổng nhập kho
             </p>
-            <ArrowUpRight size={14} className="text-indigo-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            <ArrowDownLeft size={14} className="text-violet-500 group-hover:-translate-x-0.5 group-hover:translate-y-0.5 transition-transform" />
           </div>
-          <p className="text-2xl font-black mt-2 tracking-tight text-indigo-600 dark:text-indigo-400">
-            {data.totalSoldQty || 0}
+          <p className="text-lg font-black mt-2.5 tracking-tight text-violet-600 dark:text-violet-400 truncate">
+            {formatCurrency(data.totalImportAmount || 0)}
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">
-            Tổng sản phẩm đã xuất (Click xem chi tiết)
+            Tổng tiền nhập kho trong kỳ
           </p>
         </Link>
 
-        {/* Tổng giá trị bán */}
+        {/* Tổng xuất kho */}
         <Link 
           href="/inventory/history?tab=EXPORT"
           className="glass-card rounded-xl p-4 border-l-4 border-l-amber-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/5 transition-all flex flex-col justify-between cursor-pointer group"
         >
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider group-hover:text-amber-500 transition-colors">
-              Tổng giá trị bán
+              Tổng xuất kho
             </p>
-            <TrendingUp size={14} className="text-amber-500 group-hover:scale-105 transition-transform" />
+            <ArrowUpRight size={14} className="text-amber-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
           <p className="text-lg font-black mt-2.5 tracking-tight text-amber-600 dark:text-amber-400 truncate">
-            {formatCurrency(data.totalSoldAmount || 0)}
+            {formatCurrency(data.totalExportAmount || 0)}
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">
-            Theo giá bán lẻ (Click xem chi tiết)
-          </p>
-        </Link>
-
-        {/* Tổng quà tặng đã xuất */}
-        <Link 
-          href="/inventory/history?tab=EXPORT"
-          className="glass-card rounded-xl p-4 border-l-4 border-l-emerald-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/5 transition-all flex flex-col justify-between cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider group-hover:text-emerald-500 transition-colors">
-              Tổng quà tặng
-            </p>
-            <Sparkles size={14} className="text-emerald-500 group-hover:scale-110 transition-transform" />
-          </div>
-          <p className="text-2xl font-black mt-2 tracking-tight text-emerald-600 dark:text-emerald-400">
-            {data.totalGiftQty || 0}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            Tổng sản phẩm tặng (Click xem chi tiết)
-          </p>
-        </Link>
-
-        {/* Tổng giá trị quà tặng */}
-        <Link 
-          href="/inventory/history?tab=EXPORT"
-          className="glass-card rounded-xl p-4 border-l-4 border-l-teal-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-teal-500/5 transition-all flex flex-col justify-between cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider group-hover:text-teal-500 transition-colors">
-              Trị giá quà tặng
-            </p>
-            <TrendingUp size={14} className="text-teal-500 group-hover:scale-105 transition-transform" />
-          </div>
-          <p className="text-lg font-black mt-2.5 tracking-tight text-teal-600 dark:text-teal-400 truncate">
-            {formatCurrency(data.totalGiftAmount || 0)}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            Tổng trị giá quà tặng đã phát (Click xem chi tiết)
+            Tổng tiền xuất kho trong kỳ
           </p>
         </Link>
       </div>
