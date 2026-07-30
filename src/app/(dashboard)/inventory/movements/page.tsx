@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { formatCurrency, formatDate, handleNumericInputChange, fetchWithDedup } from "@/lib/utils";
+import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useAuth } from "@/lib/store";
+import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
 import {
   Loader2, ArrowDownToLine, ArrowUpFromLine,
   SlidersHorizontal, Search, X, Plus, Trash2, Save, DollarSign
@@ -31,9 +32,6 @@ export default function MovementsPage() {
 
   const [activeTab, setActiveTab] = useState<TabType>("IMPORT");
   const [exportType, setExportType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
-  const [products, setProducts] = useState<any[]>([]);
-
-  const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
 
   // Customer states
@@ -54,28 +52,19 @@ export default function MovementsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const fetchProducts = async () => {
-    try {
-      const pData = await fetchWithDedup("/api/inventory?limit=1000&branchFilter=all&view=selector");
-      setProducts(pData.products || []);
-    } catch (e) {
-      console.error("Lỗi tải data:", e);
-    }
-  };
-
-  const fetchData = async () => {
-    setLoading(true);
-    await fetchProducts();
-    setLoading(false);
-  };
+  const {
+    results: filteredProducts,
+    products,
+    productMap,
+    loading: productsLoading,
+    error: productsError,
+    refresh: refreshProducts,
+  } = useInventoryProductSearch({
+    query: searchQuery,
+    limit: 50,
+  });
 
   useEffect(() => {
-    const init = async () => {
-      setLoading(true);
-      await fetchProducts();
-      setLoading(false);
-    };
-    init();
     resetItems();
     return () => {
       if (searchTimeoutRef.current) {
@@ -111,29 +100,14 @@ export default function MovementsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredProducts = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return products.slice(0, 50);
-    const isNumeric = /^\d+$/.test(query);
-    return products.filter(p =>
-      (p.name || "").toLowerCase().includes(query) ||
-      (p.sku || "").toLowerCase().includes(query) ||
-      (isNumeric && p.id === parseInt(query, 10))
-    ).slice(0, 50);
-  }, [products, searchQuery]);
-
-  const productMap = useMemo(() => {
-    const map = new Map<string, any>();
-    products.forEach(p => map.set(p.id.toString(), p));
-    return map;
-  }, [products]);
-
-
-
   const handleProductSelect = (idx: number, productId: string) => {
+    const selectedProduct = productMap.get(productId);
+    if (activeTab === "EXPORT" && Number(selectedProduct?.stockCount || 0) <= 0) {
+      return;
+    }
     setItems(prev => prev.map((item, i) => {
       if (i === idx) {
-        const selectedProd = productMap.get(productId);
+        const selectedProd = selectedProduct;
         const priceType = exportType === "WHOLESALE" ? "WHOLESALE" : "RETAIL";
         const defaultPrice = selectedProd?.prices?.find((p: any) => p.type === priceType)?.amount || 0;
         return {
@@ -264,7 +238,7 @@ export default function MovementsPage() {
         setCustomerId("");
         setAddress("");
       }
-      await fetchData();
+      refreshProducts();
       await modal.alert({
         title: "Thành công",
         message: "Thao tác xuất nhập kho thành công!",
@@ -286,7 +260,7 @@ export default function MovementsPage() {
     return items.reduce((acc, item) => acc + ((Number(item.quantity) || 0) * (Number(item.unitCost) || 0)), 0);
   }, [items]);
 
-  if (loading) {
+  if (productsLoading && products.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -480,22 +454,42 @@ export default function MovementsPage() {
                             </div>
 
                             <div className="overflow-y-auto max-h-40 py-1">
-                              {filteredProducts.map((p: any) => (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={() => handleProductSelect(idx, p.id.toString())}
-                                  className={`w-full text-left px-3 py-2.5 hover:bg-secondary/50 transition-colors flex justify-between items-center ${item.productId === p.id.toString() ? "bg-primary/5 text-primary" : ""
-                                    }`}
-                                >
-                                  <div>
-                                    <span className="font-bold text-sm block">{p.sku}</span>
-                                    <span className="text-xs text-muted-foreground">{p.name}</span>
-                                  </div>
-                                  <span className="text-xs font-semibold bg-secondary px-2 py-1 rounded">Tồn: {p.stockCount}</span>
-                                </button>
-                              ))}
-                              {filteredProducts.length === 0 && (
+                              {filteredProducts.map((p: any) => {
+                                const isOutOfStock = activeTab === "EXPORT" && Number(p.stockCount || 0) <= 0;
+                                return (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    disabled={isOutOfStock}
+                                    onClick={() => handleProductSelect(idx, p.id.toString())}
+                                    className={`w-full text-left px-3 py-2.5 transition-colors flex justify-between items-center ${
+                                      isOutOfStock
+                                        ? "opacity-55 cursor-not-allowed"
+                                        : "hover:bg-secondary/50"
+                                    } ${item.productId === p.id.toString() ? "bg-primary/5 text-primary" : ""
+                                      }`}
+                                  >
+                                    <div>
+                                      <span className="font-bold text-sm block">{p.sku}</span>
+                                      <span className="text-xs text-muted-foreground">{p.name}</span>
+                                    </div>
+                                    <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                                      isOutOfStock ? "bg-rose-500/10 text-rose-600" : "bg-secondary"
+                                    }`}>
+                                      {isOutOfStock ? "Hết hàng" : `Tồn: ${p.stockCount}`}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                              {productsLoading && (
+                                <div className="p-4 flex items-center justify-center text-xs text-muted-foreground gap-2">
+                                  <Loader2 size={14} className="animate-spin" /> Đang tìm phụ tùng...
+                                </div>
+                              )}
+                              {!productsLoading && productsError && (
+                                <div className="p-4 text-center text-xs text-destructive">{productsError}</div>
+                              )}
+                              {!productsLoading && !productsError && filteredProducts.length === 0 && (
                                 <div className="p-4 text-center text-xs text-muted-foreground">Không tìm thấy</div>
                               )}
                             </div>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { CustomSelect } from "@/components/CustomSelect";
+import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
 
 interface RequisitionItemInput {
   productId: string;
@@ -18,7 +19,6 @@ export default function NewInventoryOrderPage() {
 
   // Data sources
   const [customers, setCustomers] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form states
@@ -45,14 +45,21 @@ export default function NewInventoryOrderPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const {
+    results: productOptions,
+    productMap,
+    loading: productsLoading,
+    error: productsError,
+  } = useInventoryProductSearch({
+    query: searchQuery,
+    limit: 50,
+  });
+
   useEffect(() => {
-    Promise.all([
-      fetch("/api/crm?tab=customers").then((r) => r.json()),
-      fetch("/api/inventory?limit=100").then((r) => r.json()),
-    ])
-      .then(([customerData, invData]) => {
+    fetch("/api/crm?tab=customers")
+      .then((r) => r.json())
+      .then((customerData) => {
         setCustomers(customerData.customers || []);
-        setProducts(invData.products || []);
       })
       .catch((e) => console.error("Error loading form dependencies:", e))
       .finally(() => setLoading(false));
@@ -92,16 +99,12 @@ export default function NewInventoryOrderPage() {
 
   // Requisition items actions
   const handleAddItem = () => {
-    if (products.length === 0) return;
-    const firstProduct = products[0];
-    const priceType = type === "EXPORT_WHOLESALE" ? "WHOLESALE" : "RETAIL";
-    const defaultPrice = Number(firstProduct.prices?.find((p: any) => p.type === priceType)?.amount || 0);
     setItems([
       ...items,
       {
-        productId: firstProduct.id.toString(),
+        productId: "",
         quantity: 1,
-        unitPrice: defaultPrice,
+        unitPrice: "",
       },
     ]);
   };
@@ -114,7 +117,7 @@ export default function NewInventoryOrderPage() {
   };
 
   const handleItemProductChange = (index: number, pId: string) => {
-    const selectedProd = products.find((p) => p.id.toString() === pId);
+    const selectedProd = productMap.get(pId);
     if (!selectedProd) return;
     const priceType = type === "EXPORT_WHOLESALE" ? "WHOLESALE" : "RETAIL";
     const defaultPrice = Number(selectedProd.prices?.find((p: any) => p.type === priceType)?.amount || 0);
@@ -184,11 +187,6 @@ export default function NewInventoryOrderPage() {
       setSubmitting(false);
     }
   };
-
-  const filteredProducts = products.filter((p) => {
-    const term = searchQuery.toLowerCase();
-    return p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term);
-  });
 
   if (loading) {
     return (
@@ -347,7 +345,7 @@ export default function NewInventoryOrderPage() {
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {items.map((item, index) => {
-                      const selectedProduct = products.find((p) => p.id.toString() === item.productId);
+                      const selectedProduct = productMap.get(item.productId);
 
                       return (
                         <tr key={index} className="hover:bg-secondary/5 transition-colors">
@@ -382,22 +380,41 @@ export default function NewInventoryOrderPage() {
                                     onClick={(e) => e.stopPropagation()}
                                   />
                                   <div className="overflow-y-auto flex-1 max-h-48 space-y-0.5">
-                                    {filteredProducts.map((p) => (
-                                      <button
-                                        key={p.id}
-                                        type="button"
-                                        onClick={() => {
-                                          handleItemProductChange(index, p.id.toString());
-                                          setOpenDropdownIdx(null);
-                                          setSearchQuery("");
-                                        }}
-                                        className={`w-full text-left px-2.5 py-2 hover:bg-secondary/80 rounded-lg text-xs transition-colors truncate block ${
-                                          p.id.toString() === item.productId ? "bg-primary/10 text-primary font-semibold" : ""
-                                        }`}
-                                      >
-                                        [{p.sku}] {p.name} (Tồn: {p.stockCount})
-                                      </button>
-                                    ))}
+                                    {productOptions.map((p) => {
+                                      const isOutOfStock = Number(p.stockCount || 0) <= 0;
+                                      return (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          disabled={isOutOfStock}
+                                          onClick={() => {
+                                            handleItemProductChange(index, p.id.toString());
+                                            setOpenDropdownIdx(null);
+                                            setSearchQuery("");
+                                          }}
+                                          className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors truncate block ${
+                                            isOutOfStock ? "opacity-55 cursor-not-allowed" : "hover:bg-secondary/80"
+                                          } ${
+                                            p.id.toString() === item.productId ? "bg-primary/10 text-primary font-semibold" : ""
+                                          }`}
+                                        >
+                                          [{p.sku}] {p.name} ({isOutOfStock ? "Hết hàng" : `Tồn: ${p.stockCount}`})
+                                        </button>
+                                      );
+                                    })}
+                                    {productsLoading && (
+                                      <p className="text-center text-[11px] text-muted-foreground py-4 flex items-center justify-center gap-2">
+                                        <Loader2 size={13} className="animate-spin" /> Đang tìm phụ tùng...
+                                      </p>
+                                    )}
+                                    {!productsLoading && productsError && (
+                                      <p className="text-center text-[11px] text-destructive py-4">{productsError}</p>
+                                    )}
+                                    {!productsLoading && !productsError && productOptions.length === 0 && (
+                                      <p className="text-center text-[11px] text-muted-foreground py-4">
+                                        Không tìm thấy phụ tùng phù hợp
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
                               </>
