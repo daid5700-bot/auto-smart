@@ -13,6 +13,7 @@ import {
   DiscountPicker,
   type DiscountOption,
 } from "@/components/discounts/DiscountPicker";
+import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
 
 
 const RO_COLS = [
@@ -37,8 +38,6 @@ export default function WorkshopPage() {
   const [requisitions, setRequisitions] = useState<any[]>([]);
   const [reqLoading, setReqLoading] = useState(false);
   const [reqModalOpen, setReqModalOpen] = useState(false);
-  const [branchProducts, setBranchProducts] = useState<any[]>([]);
-  const [productsLoading, setProductsLoading] = useState(false);
   const [detailReqOpen, setDetailReqOpen] = useState(false);
   const [detailReq, setDetailReq] = useState<any>(null);
   
@@ -57,6 +56,18 @@ export default function WorkshopPage() {
     repairOrderId: "",
     reason: "",
     items: [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }],
+  });
+  const activeProductSearch =
+    reqFormData.items.find((item) => item.showDropdown && !item.productId)?.searchQuery || "";
+  const {
+    results: productSearchResults,
+    products: branchProducts,
+    loading: productsLoading,
+    error: productsError,
+  } = useInventoryProductSearch({
+    query: activeProductSearch,
+    enabled: reqModalOpen,
+    limit: 20,
   });
 
   // Modal State
@@ -105,20 +116,6 @@ export default function WorkshopPage() {
       .finally(() => setReqLoading(false));
   };
 
-  const fetchBranchProducts = () => {
-    setProductsLoading(true);
-    fetch("/api/inventory?scope=current")
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const text = await r.text();
-        if (!text) throw new Error("Empty response");
-        return JSON.parse(text);
-      })
-      .then((d) => setBranchProducts(d.products || []))
-      .catch((err) => console.error("Products fetch error:", err))
-      .finally(() => setProductsLoading(false));
-  };
-
   const updateItem = (idx: number, fields: Partial<typeof reqFormData.items[0]>) => {
     const newItems = [...reqFormData.items];
     newItems[idx] = { ...newItems[idx], ...fields };
@@ -152,6 +149,17 @@ export default function WorkshopPage() {
       ...reqFormData,
       items: newItems.length > 0 ? newItems : [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }]
     });
+  };
+
+  const updateProductSearch = (idx: number, searchQuery: string) => {
+    setReqFormData((current) => ({
+      ...current,
+      items: current.items.map((item, itemIdx) => ({
+        ...item,
+        searchQuery: itemIdx === idx ? searchQuery : item.searchQuery,
+        showDropdown: itemIdx === idx,
+      })),
+    }));
   };
 
   const calculateTotalRequisition = () => {
@@ -442,14 +450,8 @@ export default function WorkshopPage() {
   };
 
   const getFilteredProducts = (query: string) => {
-    const q = query.toLowerCase().trim();
-    if (!q) return branchProducts.slice(0, 10);
-    return branchProducts.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        (p.category && p.category.toLowerCase().includes(q))
-    );
+    void query;
+    return productSearchResults;
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -463,7 +465,7 @@ export default function WorkshopPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h2 className="text-2xl font-bold">Xưởng dịch vụ</h2></div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => { fetchBranchProducts(); setReqFormData({ repairOrderId: "", reason: "", items: [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }] }); setReqModalOpen(true); }} className="bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
+          <button onClick={() => { setReqFormData({ repairOrderId: "", reason: "", items: [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }] }); setReqModalOpen(true); }} className="bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
             <ClipboardList size={16} /> Xin phụ tùng
           </button>
           <button onClick={() => router.push("/workshop/new")} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit"><Plus size={16} />Tạo lệnh sửa chữa (RO)</button>
@@ -1105,8 +1107,8 @@ export default function WorkshopPage() {
                             <input
                               type="text"
                               value={item.searchQuery}
-                              onChange={(e) => updateItem(idx, { searchQuery: e.target.value, showDropdown: true })}
-                              onFocus={() => updateItem(idx, { showDropdown: true })}
+                              onChange={(e) => updateProductSearch(idx, e.target.value)}
+                              onFocus={() => updateProductSearch(idx, item.searchQuery)}
                               placeholder="Nhập tên hoặc mã phụ tùng để tìm..."
                               className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
                             />
@@ -1138,7 +1140,15 @@ export default function WorkshopPage() {
                                     </div>
                                   );
                                 })}
-                                {getFilteredProducts(item.searchQuery).length === 0 && (
+                                {productsLoading && (
+                                  <p className="p-3 text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
+                                    <Loader2 size={13} className="animate-spin" /> Đang tìm phụ tùng...
+                                  </p>
+                                )}
+                                {!productsLoading && productsError && (
+                                  <p className="p-3 text-xs text-destructive text-center">{productsError}</p>
+                                )}
+                                {!productsLoading && !productsError && getFilteredProducts(item.searchQuery).length === 0 && (
                                   <p className="p-3 text-xs text-muted-foreground text-center">Không tìm thấy phụ tùng phù hợp</p>
                                 )}
                               </div>

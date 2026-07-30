@@ -15,6 +15,7 @@ import {
   DiscountPicker,
   type DiscountOption,
 } from "@/components/discounts/DiscountPicker";
+import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
 
 
 interface Accessory {
@@ -91,9 +92,9 @@ export default function NewDocumentPage() {
   const [rawNotes, setRawNotes] = useState("");
 
   // Accessory search & list
-  const [products, setProducts] = useState<any[]>([]);
   const [accessorySearch, setAccessorySearch] = useState("");
   const [giftSearch, setGiftSearch] = useState("");
+  const [productBranchId, setProductBranchId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const searchTimeoutRef = useRef<any>(null);
 
@@ -103,17 +104,24 @@ export default function NewDocumentPage() {
   const [wholesaleSearch, setWholesaleSearch] = useState("");
   const [selectedDiscount, setSelectedDiscount] = useState<DiscountOption | null>(null);
 
-  const fetchProducts = async (branchFilterId?: number) => {
-    try {
-      const url = branchFilterId 
-        ? `/api/inventory?limit=100&branchFilter=${branchFilterId}`
-        : "/api/inventory?limit=100";
-      const data = await fetchWithDedup(url);
-      setProducts(data.products || []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const {
+    results: accessoryProductResults,
+    loading: accessoriesLoading,
+    error: accessoriesError,
+  } = useInventoryProductSearch({
+    query: accessorySearch,
+    branchFilter: productBranchId,
+    limit: 20,
+  });
+  const {
+    results: giftProductResults,
+    loading: giftsLoading,
+    error: giftsError,
+  } = useInventoryProductSearch({
+    query: giftSearch,
+    branchFilter: productBranchId,
+    limit: 20,
+  });
 
   const fetchCustomers = async () => {
     try {
@@ -137,7 +145,6 @@ export default function NewDocumentPage() {
   };
 
   useEffect(() => {
-    fetchProducts();
     fetchCustomers();
     fetchWarehouseVehicles();
     return () => {
@@ -366,17 +373,13 @@ export default function NewDocumentPage() {
   };
 
   const filteredAccessories = useMemo(() => {
-    const term = accessorySearch.toLowerCase().trim();
-    const list = !term ? [...products] : products.filter(p =>
-      p.name.toLowerCase().includes(term) ||
-      p.sku.toLowerCase().includes(term)
-    );
+    const list = [...accessoryProductResults];
     return list.sort((a, b) => {
       const hasStockA = (a.stockCount || 0) > 0 ? 1 : 0;
       const hasStockB = (b.stockCount || 0) > 0 ? 1 : 0;
       return hasStockB - hasStockA;
     });
-  }, [products, accessorySearch]);
+  }, [accessoryProductResults]);
 
   const filteredCustomers = useMemo(() => {
     if (customerSearchQuery.trim().length > 1) {
@@ -411,17 +414,13 @@ export default function NewDocumentPage() {
   }, [warehouseVehicles, wholesaleSearch]);
 
   const filteredGifts = useMemo(() => {
-    const term = giftSearch.toLowerCase().trim();
-    const list = !term ? [...products] : products.filter(p =>
-      p.name.toLowerCase().includes(term) ||
-      p.sku.toLowerCase().includes(term)
-    );
+    const list = [...giftProductResults];
     return list.sort((a, b) => {
       const hasStockA = (a.stockCount || 0) > 0 ? 1 : 0;
       const hasStockB = (b.stockCount || 0) > 0 ? 1 : 0;
       return hasStockB - hasStockA;
     });
-  }, [products, giftSearch]);
+  }, [giftProductResults]);
 
   return (
     <div className="w-full space-y-6 stagger pb-12">
@@ -602,7 +601,7 @@ export default function NewDocumentPage() {
                               setListPrice(v.listPrice ? Number(v.listPrice).toString() : "");
                               setIsVehDropdownOpen(false);
                               if (v.branchId) {
-                                fetchProducts(v.branchId);
+                                setProductBranchId(Number(v.branchId));
                               }
                             }} 
                             className={`w-full px-3 py-2 text-left text-xs font-bold rounded-lg flex flex-col hover:bg-secondary/40 ${selectedVehicleId === v.id.toString() ? "bg-primary/10 text-primary" : "text-foreground"}`}
@@ -1000,7 +999,9 @@ export default function NewDocumentPage() {
                         </div>
                       );
                     })}
-                    {filteredAccessories.length===0&&<p className="text-xs text-muted-foreground italic text-center py-3">Không tìm thấy.</p>}
+                    {accessoriesLoading && <p className="text-xs text-muted-foreground text-center py-3">Đang tìm phụ tùng...</p>}
+                    {!accessoriesLoading && accessoriesError && <p className="text-xs text-destructive text-center py-3">{accessoriesError}</p>}
+                    {!accessoriesLoading && !accessoriesError && filteredAccessories.length===0&&<p className="text-xs text-muted-foreground italic text-center py-3">Không tìm thấy.</p>}
                   </div>
                 </div>
                 <div className="border border-border rounded-xl p-3 space-y-2 bg-secondary/5">
@@ -1072,6 +1073,9 @@ export default function NewDocumentPage() {
                         </div>
                       );
                     })}
+                    {giftsLoading && <p className="text-xs text-muted-foreground text-center py-3">Đang tìm phụ tùng...</p>}
+                    {!giftsLoading && giftsError && <p className="text-xs text-destructive text-center py-3">{giftsError}</p>}
+                    {!giftsLoading && !giftsError && filteredGifts.length === 0 && <p className="text-xs text-muted-foreground italic text-center py-3">Không tìm thấy.</p>}
                   </div>
                 </div>
                 <div className="border border-emerald-500/20 rounded-xl p-3 space-y-2 bg-emerald-500/5">

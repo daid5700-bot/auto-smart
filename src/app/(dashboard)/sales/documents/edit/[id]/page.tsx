@@ -10,6 +10,7 @@ import { fetchWithDedup, formatCurrency, handleNumericInputChange } from "@/lib/
 import { NumericInput } from "@/components/NumericInput";
 import { useModal } from "@/components/ModalProvider";
 import { CustomSelect } from "@/components/CustomSelect";
+import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
 
 
 interface Accessory {
@@ -74,12 +75,31 @@ export default function EditDocumentPage() {
   const [rawNotes, setRawNotes] = useState("");
 
   // Accessory search & list
-  const [products, setProducts] = useState<any[]>([]);
   const [accessorySearch, setAccessorySearch] = useState("");
   const [giftSearch, setGiftSearch] = useState("");
+  const [productBranchId, setProductBranchId] = useState<number | null>(null);
   
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    results: accessoryProductResults,
+    loading: accessoriesLoading,
+    error: accessoriesError,
+  } = useInventoryProductSearch({
+    query: accessorySearch,
+    branchFilter: productBranchId,
+    limit: 20,
+  });
+  const {
+    results: giftProductResults,
+    loading: giftsLoading,
+    error: giftsError,
+  } = useInventoryProductSearch({
+    query: giftSearch,
+    branchFilter: productBranchId,
+    limit: 20,
+  });
 
   const parseAccessories = (val: any): Accessory[] => {
     try {
@@ -100,13 +120,8 @@ export default function EditDocumentPage() {
         const vehicle = await fetchWithDedup(`/api/sales/${vehicleId}`);
 
         if (vehicle) {
-          // Fetch products filtering by vehicle's branch, and customers
-          const [productsData, customersData] = await Promise.all([
-            fetchWithDedup(`/api/inventory?limit=100&branchFilter=${vehicle.branchId || ""}`),
-            fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true")
-          ]);
-
-          setProducts(productsData.products || []);
+          setProductBranchId(vehicle.branchId ? Number(vehicle.branchId) : null);
+          const customersData = await fetchWithDedup("/api/crm?tab=customers&limit=200&allBranches=true");
 
           const loadedCustomers = customersData.customers || [];
           setSystemCustomers(loadedCustomers);
@@ -337,17 +352,13 @@ export default function EditDocumentPage() {
   };
 
   const filteredAccessories = useMemo(() => {
-    const term = accessorySearch.toLowerCase().trim();
-    const list = !term ? [...products] : products.filter(p =>
-      p.name.toLowerCase().includes(term) ||
-      p.sku.toLowerCase().includes(term)
-    );
+    const list = [...accessoryProductResults];
     return list.sort((a, b) => {
       const hasStockA = (a.stockCount || 0) > 0 ? 1 : 0;
       const hasStockB = (b.stockCount || 0) > 0 ? 1 : 0;
       return hasStockB - hasStockA;
     });
-  }, [products, accessorySearch]);
+  }, [accessoryProductResults]);
 
   const filteredCustomers = useMemo(() => {
     if (customerSearchQuery.trim().length > 1) {
@@ -364,17 +375,13 @@ export default function EditDocumentPage() {
   }, [systemCustomers, customerSearchQuery, searchResults]);
 
   const filteredGifts = useMemo(() => {
-    const term = giftSearch.toLowerCase().trim();
-    const list = !term ? [...products] : products.filter(p =>
-      p.name.toLowerCase().includes(term) ||
-      p.sku.toLowerCase().includes(term)
-    );
+    const list = [...giftProductResults];
     return list.sort((a, b) => {
       const hasStockA = (a.stockCount || 0) > 0 ? 1 : 0;
       const hasStockB = (b.stockCount || 0) > 0 ? 1 : 0;
       return hasStockB - hasStockA;
     });
-  }, [products, giftSearch]);
+  }, [giftProductResults]);
 
   if (loading) {
     return (
@@ -744,7 +751,13 @@ export default function EditDocumentPage() {
                         </div>
                       );
                     })}
-                    {filteredAccessories.length === 0 && (
+                    {accessoriesLoading && (
+                      <p className="text-xs text-muted-foreground text-center py-4">Đang tìm phụ tùng...</p>
+                    )}
+                    {!accessoriesLoading && accessoriesError && (
+                      <p className="text-xs text-destructive text-center py-4">{accessoriesError}</p>
+                    )}
+                    {!accessoriesLoading && !accessoriesError && filteredAccessories.length === 0 && (
                       <p className="text-xs text-muted-foreground italic text-center py-4">Không tìm thấy phụ tùng phù hợp.</p>
                     )}
                   </div>
@@ -869,7 +882,13 @@ export default function EditDocumentPage() {
                         </div>
                       );
                     })}
-                    {filteredGifts.length === 0 && (
+                    {giftsLoading && (
+                      <p className="text-xs text-muted-foreground text-center py-4">Đang tìm phụ tùng...</p>
+                    )}
+                    {!giftsLoading && giftsError && (
+                      <p className="text-xs text-destructive text-center py-4">{giftsError}</p>
+                    )}
+                    {!giftsLoading && !giftsError && filteredGifts.length === 0 && (
                       <p className="text-xs text-muted-foreground italic text-center py-4">Không tìm thấy phụ tùng phù hợp.</p>
                     )}
                   </div>

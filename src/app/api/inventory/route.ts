@@ -91,6 +91,8 @@ export async function GET(req: NextRequest) {
           id: true,
           sku: true,
           name: true,
+          category: true,
+          unit: true,
           vehicleModel: true,
           vehicleModels: true,
           prices: {
@@ -119,6 +121,8 @@ export async function GET(req: NextRequest) {
           id: p.id,
           sku: p.sku,
           name: p.name,
+          category: p.category,
+          unit: p.unit,
           vehicleModel: p.vehicleModel,
           vehicleModels: p.vehicleModels,
           prices: p.prices?.map((pr: any) => ({

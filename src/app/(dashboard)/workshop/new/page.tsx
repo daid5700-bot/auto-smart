@@ -14,6 +14,7 @@ import {
   DiscountPicker,
   type DiscountOption,
 } from "@/components/discounts/DiscountPicker";
+import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
 
 interface RequisitionItemInput {
   productId: string;
@@ -33,7 +34,6 @@ export default function NewRepairOrderPage() {
   // Data sources
   const [customers, setCustomers] = useState<any[]>([]);
   const [technicians, setTechnicians] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form states
@@ -73,16 +73,24 @@ export default function NewRepairOrderPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [alertConfig, setAlertConfig] = useState<{ title: string; message: string } | null>(null);
 
+  const {
+    results: filteredProducts,
+    productMap,
+    loading: productsLoading,
+    error: productsError,
+  } = useInventoryProductSearch({
+    query: searchQuery,
+    limit: 50,
+  });
+
   useEffect(() => {
     Promise.all([
       fetch("/api/crm?tab=customers&allBranches=true").then((r) => r.json()),
       fetch("/api/technicians").then((r) => r.json()),
-      fetch("/api/inventory?limit=100").then((r) => r.json()),
     ])
-      .then(([customerData, techData, invData]) => {
+      .then(([customerData, techData]) => {
         setCustomers(customerData.customers || []);
         setTechnicians(techData.technicians || []);
-        setProducts(invData.products || []);
       })
       .catch((e) => console.error("Error loading form dependencies:", e))
       .finally(() => setLoading(false));
@@ -193,21 +201,12 @@ export default function NewRepairOrderPage() {
 
   // Requisition items actions
   const handleAddItem = () => {
-    if (products.length === 0) {
-      setAlertConfig({
-        title: "Không tìm thấy phụ tùng",
-        message: "Hiện chưa có bất kỳ sản phẩm phụ tùng nào được cấu hình trong hệ thống kho hoặc danh sách kho đang trống. Vui lòng thêm phụ tùng ở mục Quản lý kho trước."
-      });
-      return;
-    }
-    const firstProduct = products[0];
-    const retailPrice = Number(firstProduct.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
     setItems([
       ...items,
       {
-        productId: firstProduct.id.toString(),
+        productId: "",
         quantity: 1,
-        unitPrice: retailPrice,
+        unitPrice: "",
       },
     ]);
   };
@@ -220,7 +219,7 @@ export default function NewRepairOrderPage() {
   };
 
   const handleItemProductChange = (index: number, pId: string) => {
-    const selectedProd = products.find((p) => p.id.toString() === pId);
+    const selectedProd = productMap.get(pId);
     if (!selectedProd) return;
     const retailPrice = Number(selectedProd.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
 
@@ -372,15 +371,6 @@ export default function NewRepairOrderPage() {
       setSubmitting(false);
     }
   };
-
-  // Filter products based on query
-  const filteredProducts = useMemo(() => {
-    const term = searchQuery.toLowerCase().trim();
-    if (!term) return products;
-    return products.filter((p) => {
-      return p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term);
-    });
-  }, [products, searchQuery]);
 
   if (loading) {
     return (
@@ -714,7 +704,7 @@ export default function NewRepairOrderPage() {
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {items.map((item, index) => {
-                      const selectedProduct = products.find((p) => p.id.toString() === item.productId);
+                      const selectedProduct = productMap.get(item.productId);
 
                       return (
                         <tr key={index} className="hover:bg-secondary/5 transition-colors">
@@ -774,7 +764,15 @@ export default function NewRepairOrderPage() {
                                         [{p.sku}] {p.name} (Tồn: {p.stockCount})
                                       </button>
                                     ))}
-                                    {filteredProducts.length === 0 && (
+                                    {productsLoading && (
+                                      <p className="text-center text-[11px] text-muted-foreground py-4 flex items-center justify-center gap-2">
+                                        <Loader2 size={13} className="animate-spin" /> Đang tìm phụ tùng...
+                                      </p>
+                                    )}
+                                    {!productsLoading && productsError && (
+                                      <p className="text-center text-[11px] text-destructive py-4">{productsError}</p>
+                                    )}
+                                    {!productsLoading && !productsError && filteredProducts.length === 0 && (
                                       <p className="text-center text-[11px] text-muted-foreground py-4">
                                         Không tìm thấy phụ tùng phù hợp
                                       </p>
