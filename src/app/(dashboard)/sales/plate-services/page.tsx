@@ -21,6 +21,7 @@ import { ModalPortal } from "@/components/modal-portal";
 import { useModal } from "@/components/ModalProvider";
 import { Pagination } from "@/components/Pagination";
 import { formatCurrency } from "@/lib/utils";
+import { calculatePlateServiceProfit } from "@/lib/sales/plate-service-profit";
 
 type VehicleOption = {
   id: number;
@@ -71,7 +72,6 @@ type FormState = {
   registrationTax: number | "";
   plateFee: number | "";
   policeFee: number | "";
-  profit: number | "";
   plateFrameProductId: string;
   plateFrameQuantity: number | "";
   status: string;
@@ -88,11 +88,24 @@ const EMPTY_FORM: FormState = {
   registrationTax: "",
   plateFee: "",
   policeFee: "",
-  profit: "",
   plateFrameProductId: "",
   plateFrameQuantity: 0,
   status: "TAX_SUBMITTED",
   notes: "",
+};
+
+type PlateFrameSnapshot = {
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+};
+
+const EMPTY_PLATE_FRAME_SNAPSHOT: PlateFrameSnapshot = {
+  productId: "",
+  quantity: 0,
+  unitCost: 0,
+  totalCost: 0,
 };
 
 const STATUS_OPTIONS = [
@@ -122,17 +135,19 @@ function MoneyInput({
   value,
   onChange,
   placeholder = "0",
+  required = false,
 }: {
   id: string;
   value: number | "";
   onChange: (value: number | "") => void;
   placeholder?: string;
+  required?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <input
       id={id}
-      required
+      required={required}
       inputMode="numeric"
       value={
         focused
@@ -184,6 +199,47 @@ export default function PlateServicesPage() {
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [productsLoading, setProductsLoading] = useState(false);
+  const [originalPlateFrame, setOriginalPlateFrame] = useState<PlateFrameSnapshot>(
+    EMPTY_PLATE_FRAME_SNAPSHOT,
+  );
+
+  const plateFrameQuantity = form.plateFrameProductId
+    ? Number(form.plateFrameQuantity || 0)
+    : 0;
+  const selectedPlateFrameProduct = products.find(
+    (product) => String(product.id) === form.plateFrameProductId,
+  );
+  const plateFrameSelectionUnchanged = Boolean(
+    editingId
+    && form.plateFrameProductId === originalPlateFrame.productId
+    && plateFrameQuantity === originalPlateFrame.quantity,
+  );
+  const previewPlateFrameUnitCost = Number(
+    selectedPlateFrameProduct?.movingAvgCost
+    ?? (form.plateFrameProductId === originalPlateFrame.productId
+      ? originalPlateFrame.unitCost
+      : 0),
+  );
+  const previewPlateFrameTotalCost = form.plateFrameProductId
+    ? plateFrameSelectionUnchanged
+      ? originalPlateFrame.totalCost
+      : previewPlateFrameUnitCost * plateFrameQuantity
+    : 0;
+  const hasAllFinancialInputs = [
+    form.totalRevenue,
+    form.registrationTax,
+    form.plateFee,
+    form.policeFee,
+  ].every((value) => value !== "");
+  const calculatedProfit = hasAllFinancialInputs
+    ? calculatePlateServiceProfit({
+        totalRevenue: Number(form.totalRevenue),
+        registrationTax: Number(form.registrationTax),
+        plateFee: Number(form.plateFee),
+        policeFee: Number(form.policeFee),
+        plateFrameTotalCost: previewPlateFrameTotalCost,
+      })
+    : null;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -298,6 +354,7 @@ export default function PlateServicesPage() {
   const openCreateForm = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setOriginalPlateFrame(EMPTY_PLATE_FRAME_SNAPSHOT);
     setFormError("");
     setVehicleSearch("");
     setProductSearch("");
@@ -324,13 +381,18 @@ export default function PlateServicesPage() {
         registrationTax: Number(data.registrationTax || 0),
         plateFee: Number(data.plateFee || 0),
         policeFee: Number(data.policeFee || 0),
-        profit: Number(data.profit || 0),
         plateFrameProductId: data.plateFrameProductId
           ? String(data.plateFrameProductId)
           : "",
         plateFrameQuantity: Number(data.plateFrameQuantity || 0),
         status: data.status || "TAX_SUBMITTED",
         notes: data.notes || "",
+      });
+      setOriginalPlateFrame({
+        productId: data.plateFrameProductId ? String(data.plateFrameProductId) : "",
+        quantity: Number(data.plateFrameQuantity || 0),
+        unitCost: Number(data.plateFrameUnitCost || 0),
+        totalCost: Number(data.plateFrameTotalCost || 0),
       });
       if (data.vehicle) setEligibleVehicles([data.vehicle]);
       setProductSearch(data.plateFrameProduct?.sku || "");
@@ -347,6 +409,19 @@ export default function PlateServicesPage() {
       if (!editingId && !form.vehicleId) {
         throw new Error("Vui lòng chọn hồ sơ bán xe.");
       }
+      const missingFinancialFields = [
+        ["Tổng thu", form.totalRevenue],
+        ["Lệ phí trước bạ", form.registrationTax],
+        ["Phí biển", form.plateFee],
+        ["Phí công an", form.policeFee],
+      ]
+        .filter(([, value]) => value === "")
+        .map(([label]) => label);
+      if (missingFinancialFields.length > 0) {
+        throw new Error(
+          `Vui lòng nhập đủ các khoản phí trước khi lưu: ${missingFinancialFields.join(", ")}.`,
+        );
+      }
       const payload = {
         ...form,
         vehicleId: Number(form.vehicleId),
@@ -360,7 +435,6 @@ export default function PlateServicesPage() {
         registrationTax: Number(form.registrationTax || 0),
         plateFee: Number(form.plateFee || 0),
         policeFee: Number(form.policeFee || 0),
-        profit: Number(form.profit || 0),
         plateNumber: form.plateNumber || null,
         notes: form.notes || null,
       };
@@ -591,9 +665,6 @@ export default function PlateServicesPage() {
                     <h2 className="text-lg font-bold">
                       {editingId ? "Cập nhật dịch vụ biển" : "Tạo hồ sơ dịch vụ biển"}
                     </h2>
-                    <p className="text-xs text-muted-foreground">
-                      Lợi nhuận được nhập trực tiếp; tồn kho ốp biển được hệ thống cập nhật tự động.
-                    </p>
                   </div>
                 </div>
                 <button
@@ -692,6 +763,9 @@ export default function PlateServicesPage() {
 
                   {/* Section 3: Tài chính & Chi phí (3 cột) */}
                   <section className="grid gap-4 grid-cols-1 md:grid-cols-3">
+                    <p className="md:col-span-3 text-[11px] text-muted-foreground">
+                      Có thể nhập từng khoản phí riêng lẻ. Lợi nhuận chỉ được tính khi đã nhập đủ các khoản tài chính.
+                    </p>
                     <div>
                       <label htmlFor="plate-number" className="mb-1.5 block text-xs font-bold text-muted-foreground">
                         Biển số
@@ -719,29 +793,29 @@ export default function PlateServicesPage() {
                           id={field}
                           value={form[field as keyof FormState] as number | ""}
                           onChange={(value) => setForm((current) => ({ ...current, [field]: value }))}
+                          required
                         />
                       </div>
                     ))}
-                    <div>
-                      <label htmlFor="profit" className="mb-1.5 block text-xs font-bold text-muted-foreground">
-                        Lợi nhuận nhập trực tiếp (VNĐ)
-                      </label>
-                      <input
-                        id="profit"
-                        type="number"
-                        inputMode="decimal"
-                        min={-10_000_000_000}
-                        max={10_000_000_000}
-                        value={form.profit}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            profit: event.target.value === "" ? "" : Number(event.target.value),
-                          }))
-                        }
-                        placeholder="Nhập lợi nhuận"
-                        className="w-full rounded-xl border border-border bg-secondary/20 px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      />
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+                      <p className="mb-1.5 text-xs font-bold text-muted-foreground">
+                        Lợi nhuận thực tế
+                      </p>
+                      <output
+                        aria-live="polite"
+                        className={`block text-lg font-black ${calculatedProfit !== null && calculatedProfit < 0 ? "text-rose-600" : "text-blue-600"}`}
+                      >
+                        {calculatedProfit === null ? "Chưa đủ dữ liệu" : formatCurrency(calculatedProfit)}
+                      </output>
+                      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                        {calculatedProfit === null
+                          ? "Nhập đủ Tổng thu, trước bạ, phí biển và phí công an để tính."
+                          : `Tổng thu − trước bạ − phí biển − phí công an − giá vốn ốp biển${
+                              previewPlateFrameTotalCost > 0
+                                ? ` (${formatCurrency(previewPlateFrameTotalCost)})`
+                                : ""
+                            }`}
+                      </p>
                     </div>
                   </section>
 

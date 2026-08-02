@@ -6,12 +6,6 @@ const money = z.coerce
   .min(0, "Số tiền không được âm.")
   .max(10_000_000_000, "Số tiền vượt quá giới hạn cho phép.");
 
-const profitMoney = z.coerce
-  .number()
-  .finite()
-  .min(-10_000_000_000, "Lợi nhuận âm vượt quá giới hạn cho phép.")
-  .max(10_000_000_000, "Lợi nhuận vượt quá giới hạn cho phép.");
-
 const nullableProductId = z.union([
   z.coerce.number().int().positive(),
   z.null(),
@@ -26,7 +20,6 @@ const plateServiceShape = {
   registrationTax: money,
   plateFee: money,
   policeFee: money,
-  profit: profitMoney,
   plateFrameProductId: nullableProductId.optional(),
   plateFrameQuantity: z.coerce.number().int().min(0).max(100).default(0),
   status: z
