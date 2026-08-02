@@ -764,7 +764,7 @@ export default function PlateServicesPage() {
                   {/* Section 3: Tài chính & Chi phí (3 cột) */}
                   <section className="grid gap-4 grid-cols-1 md:grid-cols-3">
                     <p className="md:col-span-3 text-[11px] text-muted-foreground">
-                      Có thể nhập từng khoản phí riêng lẻ. Lợi nhuận chỉ được tính khi đã nhập đủ các khoản tài chính.
+                      Nhập đủ các khoản phí để tính lợi nhuận.
                     </p>
                     <div>
                       <label htmlFor="plate-number" className="mb-1.5 block text-xs font-bold text-muted-foreground">
@@ -797,25 +797,14 @@ export default function PlateServicesPage() {
                         />
                       </div>
                     ))}
-                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-                      <p className="mb-1.5 text-xs font-bold text-muted-foreground">
-                        Lợi nhuận thực tế
-                      </p>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
+                      <p className="mb-1 text-xs font-bold text-muted-foreground">Lợi nhuận</p>
                       <output
                         aria-live="polite"
-                        className={`block text-lg font-black ${calculatedProfit !== null && calculatedProfit < 0 ? "text-rose-600" : "text-blue-600"}`}
+                        className={`block text-xl font-black ${calculatedProfit !== null && calculatedProfit < 0 ? "text-rose-600" : "text-blue-600"}`}
                       >
                         {calculatedProfit === null ? "Chưa đủ dữ liệu" : formatCurrency(calculatedProfit)}
                       </output>
-                      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-                        {calculatedProfit === null
-                          ? "Nhập đủ Tổng thu, trước bạ, phí biển và phí công an để tính."
-                          : `Tổng thu − trước bạ − phí biển − phí công an − giá vốn ốp biển${
-                              previewPlateFrameTotalCost > 0
-                                ? ` (${formatCurrency(previewPlateFrameTotalCost)})`
-                                : ""
-                            }`}
-                      </p>
                     </div>
                   </section>
 
