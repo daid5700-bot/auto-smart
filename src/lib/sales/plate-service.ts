@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { ApiError } from "@/lib/api-response";
+export { calculatePlateServiceProfit } from "@/lib/sales/plate-service-profit";
 
 type Tx = Prisma.TransactionClient;
 

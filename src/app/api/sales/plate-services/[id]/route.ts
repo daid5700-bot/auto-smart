@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/guard";
 import { getActiveBranchId } from "@/lib/branch";
 import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
 import {
+  calculatePlateServiceProfit,
   exportPlateFrame,
   restorePlateFrame,
   serializePlateService,
@@ -219,7 +220,13 @@ export async function PATCH(
       const registrationTax = body.registrationTax ?? Number(current.registrationTax);
       const plateFee = body.plateFee ?? Number(current.plateFee);
       const policeFee = body.policeFee ?? Number(current.policeFee);
-      const profit = body.profit ?? Number(current.profit);
+      const profit = calculatePlateServiceProfit({
+        totalRevenue,
+        registrationTax,
+        plateFee,
+        policeFee,
+        plateFrameTotalCost,
+      });
       const status = body.status ?? current.status;
 
       return tx.plateService.update({

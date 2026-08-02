@@ -6,6 +6,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
 import { parseAppDateRange } from "@/lib/date-range";
 import {
+  calculatePlateServiceProfit,
   exportPlateFrame,
   serializePlateService,
 } from "@/lib/sales/plate-service";
@@ -320,6 +321,14 @@ export async function POST(req: NextRequest) {
         plateFrameTotalCost = snapshot.totalCost;
       }
 
+      const profit = calculatePlateServiceProfit({
+        totalRevenue: body.totalRevenue,
+        registrationTax: body.registrationTax ?? 0,
+        plateFee: body.plateFee ?? 0,
+        policeFee: body.policeFee ?? 0,
+        plateFrameTotalCost,
+      });
+
       const created = await tx.plateService.create({
         data: {
           vehicleId: vehicle.id,
@@ -329,14 +338,14 @@ export async function POST(req: NextRequest) {
           portalPasswordEncrypted: encryptPlateServicePassword(portalPass),
           plateNumber: body.plateNumber || null,
           totalRevenue: body.totalRevenue,
-          registrationTax: body.registrationTax,
-          plateFee: body.plateFee,
-          policeFee: body.policeFee,
+          registrationTax: body.registrationTax ?? 0,
+          plateFee: body.plateFee ?? 0,
+          policeFee: body.policeFee ?? 0,
           plateFrameProductId: body.plateFrameProductId || null,
           plateFrameQuantity: body.plateFrameProductId ? plateFrameQuantity : 0,
           plateFrameUnitCost,
           plateFrameTotalCost,
-          profit: body.profit,
+          profit,
           status: body.status,
           completedAt: body.status === "DELIVERED_TO_CUSTOMER" ? new Date() : null,
           notes: body.notes || null,
