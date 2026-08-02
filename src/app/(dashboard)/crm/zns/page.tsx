@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatDate } from "@/lib/utils";
+import { exportToCsv, formatDate, formatExportDate } from "@/lib/utils";
 import { 
   Loader2, 
   CheckCircle2, 
   AlertCircle, 
   Clock, 
-  Search
+  Search,
+  Download,
 } from "lucide-react";
 import { CustomSelect } from "@/components/CustomSelect";
 
@@ -19,15 +20,17 @@ export default function ZnsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const activeRequest = useRef<AbortController | null>(null);
 
-  const fetchData = useCallback(async (pageVal = 1, searchVal = "", statusVal = statusFilter) => {
+  const fetchData = useCallback(async (pageVal = 1, searchVal = "", statusVal = statusFilter, from = dateFrom, to = dateTo) => {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
     try {
       const res = await fetch(
-        `/api/crm?tab=zns&page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}&status=${statusVal}`,
+        `/api/crm?tab=zns&page=${pageVal}&limit=20&search=${encodeURIComponent(searchVal)}&status=${statusVal}&dateFrom=${from}&dateTo=${to}`,
         { signal: controller.signal },
       );
       const data = await res.json();
@@ -43,22 +46,22 @@ export default function ZnsPage() {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [statusFilter]);
+  }, [dateFrom, dateTo, statusFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [logsSearch, statusFilter]);
+  }, [dateFrom, dateTo, logsSearch, statusFilter]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      fetchData(page, logsSearch, statusFilter);
+      fetchData(page, logsSearch, statusFilter, dateFrom, dateTo);
     }, 300);
 
     return () => {
       clearTimeout(delayDebounceFn);
       activeRequest.current?.abort();
     };
-  }, [fetchData, page, logsSearch, statusFilter]);
+  }, [dateFrom, dateTo, fetchData, page, logsSearch, statusFilter]);
 
   const znsLabel = (type: string) => {
     switch (type) {
@@ -105,6 +108,22 @@ export default function ZnsPage() {
 
   const filteredLogs = logs;
 
+  const handleExportExcel = () => {
+    exportToCsv(
+      `Lich_su_Zalo_ZNS_${dateFrom || "tat-ca"}_${dateTo || "den-hien-tai"}.csv`,
+      ["Thời gian", "Khách hàng", "Số điện thoại", "Loại tin nhắn", "Nội dung", "Trạng thái", "Lỗi"],
+      filteredLogs.map((log: any) => [
+        formatExportDate(log.sentAt),
+        log.customer?.name || "",
+        log.phone || "",
+        znsLabel(log.messageType),
+        log.content || "",
+        log.status || "",
+        log.error || "",
+      ]),
+    );
+  };
+
   if (loading && logs.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -117,6 +136,42 @@ export default function ZnsPage() {
     <div className="space-y-6 stagger">
 
       <div className="space-y-4 animate-fade-in">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+            <span className="text-xs font-semibold text-muted-foreground">Từ ngày</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              className="bg-transparent text-sm font-semibold outline-none"
+            />
+            <span className="text-xs text-muted-foreground">—</span>
+            <span className="text-xs font-semibold text-muted-foreground">Đến</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              className="bg-transparent text-sm font-semibold outline-none"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="text-xs font-bold text-rose-600 hover:underline"
+              >
+                Xóa
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={filteredLogs.length === 0}
+            className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} /> Xuất Excel
+          </button>
+        </div>
         {/* Search + delivery status filter */}
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">

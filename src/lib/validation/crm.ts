@@ -14,6 +14,8 @@ export const crmQuerySchema = z.object({
   search: z.string().trim().max(100).default(""),
   category: z.enum(["", "all", "service", "purchase", "vip", "inactive"]).default(""),
   status: z.enum(["ALL", "SUCCESS", "FAILED", "PENDING"]).default("ALL"),
+  dateFrom: optionalDate,
+  dateTo: optionalDate,
 });
 
 const customerFields = {

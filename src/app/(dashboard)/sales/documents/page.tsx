@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { 
   Loader2, FileText, Plus, Edit, Trash2, Search, User, 
-  Sparkles, Wrench, Check, Car, DollarSign, X, Eye, TicketPercent, Calendar
+  Sparkles, Wrench, Check, Car, DollarSign, X, Eye, TicketPercent, Calendar, Download
 } from "lucide-react";
-import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { exportToCsv, formatCurrency, formatDate, formatExportDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
@@ -419,10 +419,35 @@ export default function DocumentsPage() {
     return Object.values(groups).sort((a: any, b: any) => b.date.localeCompare(a.date));
   }, [filteredVehicles, saleTypeFilter]);
 
+  const handleExportExcel = () => {
+    exportToCsv(
+      `Lich_su_ho_so_ban_xe_${new Date().toISOString().slice(0, 10)}.csv`,
+      ["VIN", "Dòng xe", "Phiên bản", "Màu sắc", "Khách hàng", "Số điện thoại", "Loại bán", "Trạng thái", "Dịch vụ biển", "Đã trả", "Còn nợ", "Giảm giá", "Ngày tạo"],
+      filteredVehicles.map((vehicle: any) => [
+        vehicle.vin || "",
+        vehicle.model || "",
+        vehicle.variant || "",
+        vehicle.color || "",
+        vehicle.customer?.name || "",
+        vehicle.customer?.phone || "",
+        vehicle.saleType === "WHOLESALE" ? "Bán buôn" : "Bán lẻ",
+        vehicle.status === "SOLD" ? "Đã bán" : vehicle.status === "RESERVED" ? "Đã đặt cọc" : vehicle.status || "",
+        vehicle.hasPlateService ? "Có" : "Không",
+        String(Number(vehicle.paidAmount || 0)),
+        String(Number(vehicle.debtAmount || 0)),
+        vehicle.appliedDiscountCode
+          ? `${vehicle.appliedDiscountCode} (-${Number(vehicle.discountAmount || 0)})`
+          : "",
+        formatExportDate(vehicle.createdAt),
+      ]),
+    );
+  };
+
   return (
     <div className="space-y-6 stagger">
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-border mb-4">
+      <div className="flex items-center justify-between gap-3 border-b border-border mb-4">
+        <div className="flex gap-2">
         <button
           onClick={() => setSaleTypeFilter("RETAIL")}
           className={`px-6 py-3 text-sm font-semibold transition-all border-b-2 -mb-[2px] flex items-center gap-2 ${
@@ -460,6 +485,15 @@ export default function DocumentsPage() {
               {wholesaleCount > 99 ? "99+" : wholesaleCount}
             </span>
           )}
+        </button>
+        </div>
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={filteredVehicles.length === 0}
+          className="mb-2 flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download size={16} /> Xuất Excel
         </button>
       </div>
 
