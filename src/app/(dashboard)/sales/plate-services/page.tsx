@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Frame,
+  Download,
   Loader2,
   Plus,
   RotateCcw,
@@ -20,7 +21,7 @@ import { CustomSelect } from "@/components/CustomSelect";
 import { ModalPortal } from "@/components/modal-portal";
 import { useModal } from "@/components/ModalProvider";
 import { Pagination } from "@/components/Pagination";
-import { formatCurrency } from "@/lib/utils";
+import { exportToCsv, formatCurrency, formatDate, formatExportDate } from "@/lib/utils";
 import { calculatePlateServiceProfit } from "@/lib/sales/plate-service-profit";
 
 type VehicleOption = {
@@ -240,6 +241,29 @@ export default function PlateServicesPage() {
         plateFrameTotalCost: previewPlateFrameTotalCost,
       })
     : null;
+
+  const handleExportExcel = () => {
+    exportToCsv(
+      `Dich_vu_bien_${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Mã hồ sơ", "Số đăng ký", "Biển số", "Khách hàng", "Số điện thoại", "Tổng thu", "Lệ phí trước bạ", "Phí biển", "Phí công an", "Giá vốn ốp biển", "Lợi nhuận", "Trạng thái", "Ngày tạo", "Ghi chú"],
+      services.map((service) => [
+        service.dossierCode || `DS-${service.id}`,
+        service.registrationNumber || "",
+        service.plateNumber || "",
+        service.vehicle?.customer?.name || "",
+        service.vehicle?.customer?.phone || "",
+        String(service.totalRevenue || 0),
+        String(service.registrationTax || 0),
+        String(service.plateFee || 0),
+        String(service.policeFee || 0),
+        String(service.plateFrameTotalCost || 0),
+        String(service.profit || 0),
+        statusLabel(service.status),
+        formatExportDate(service.createdAt),
+        service.notes || "",
+      ]),
+    );
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -479,13 +503,23 @@ export default function PlateServicesPage() {
           <div>
             <h1 className="text-2xl font-bold">Dịch vụ biển</h1>
           </div>
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="gradient-primary flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90"
-          >
-            <Plus size={17} /> Tạo hồ sơ dịch vụ
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={services.length === 0}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download size={17} /> Xuất Excel
+            </button>
+            <button
+              type="button"
+              onClick={openCreateForm}
+              className="gradient-primary flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90"
+            >
+              <Plus size={17} /> Tạo hồ sơ dịch vụ
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
         vehicleId: true,
         createdBy: true,
         createdAt: true,
+        branch: { select: { name: true } },
         product: {
           select: {
             id: true,

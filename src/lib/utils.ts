@@ -20,6 +20,29 @@ export function formatDate(date: Date | string): string {
   return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parsed);
 }
 
+/**
+ * Date text for CSV files. The leading apostrophe prevents Excel from
+ * silently changing dd/mm/yyyy into its locale-specific short date format.
+ */
+export function formatExportDate(date: Date | string): string {
+  if (!date) return "";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  const value = new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(parsed);
+
+  return `'${value}`;
+}
+
 export function normalizePhone(phone: string): string {
   let c = phone.replace(/\D/g, "");
   if (c.startsWith("0")) c = "84" + c.substring(1);
@@ -106,9 +129,12 @@ export function calculateNextOilChange(lastOilChangeDate: Date, intervalMonths: 
 }
 
 export function exportToCsv(filename: string, headers: string[], rows: string[][]) {
+  // Excel trên locale Việt Nam thường dùng dấu chấm phẩy để phân tách cột.
+  // Giữ BOM để Excel nhận đúng UTF-8 và không lỗi tiếng Việt.
+  const delimiter = ";";
   const csvContent = "\uFEFF" + [
-    headers.join(","),
-    ...rows.map(row => row.map(val => `"${(val || "").replace(/"/g, '""')}"`).join(","))
+    headers.map((header) => `"${header.replace(/"/g, '""')}"`).join(delimiter),
+    ...rows.map(row => row.map(val => `"${(val || "").replace(/"/g, '""')}"`).join(delimiter))
   ].join("\n");
   
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -216,4 +242,3 @@ export async function fetchWithDedup(url: string) {
     delete activeRequests[url];
   }
 }
-

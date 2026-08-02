@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatCurrency, formatDate, statusText, statusBadge, parseSymptoms } from "@/lib/utils";
-import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle, CalendarDays, TicketPercent } from "lucide-react";
+import { exportToCsv, formatCurrency, formatDate, formatExportDate, statusText, statusBadge, parseSymptoms } from "@/lib/utils";
+import { Loader2, Search, Eye, X, Wrench, User, Phone, Calendar, DollarSign, Package, AlertCircle, CheckCircle, CalendarDays, TicketPercent, Download } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useModal } from "@/components/ModalProvider";
 import { CustomSelect } from "@/components/CustomSelect";
@@ -158,6 +158,26 @@ export default function HistoryPage() {
 
   const filteredOrders = orders;
 
+  const handleExportExcel = () => {
+    exportToCsv(
+      `Lich_su_ho_so_sua_chua_${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Mã lệnh", "Biển số xe", "Dòng xe", "Khách hàng", "Số điện thoại", "KTV", "Tiền công", "Phụ tùng", "Tổng chi phí", "Trạng thái", "Thời gian"],
+      filteredOrders.map((order: any) => [
+        formatRoCode(order.id, order.createdAt),
+        order.plateNumber || "",
+        order.vehicleModel || "",
+        order.customer?.name || order.customerName || "",
+        order.customer?.phone || order.phone || "",
+        order.technician?.name || "Chưa giao việc",
+        String(Number(order.laborCost || order.laborAmount || 0)),
+        String(Number(order.partsCost || order.partsAmount || 0)),
+        String(Number(order.totalCost || order.totalAmount || 0)),
+        statusText(order.status),
+        formatExportDate(order.createdAt),
+      ]),
+    );
+  };
+
   const formatRoCode = (id: number, dateStr: string) => {
     const d = new Date(dateStr);
     const yyyymmdd = formatAppDateInput(d).replace(/-/g, "");
@@ -257,6 +277,15 @@ export default function HistoryPage() {
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={filteredOrders.length === 0}
+          className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download size={16} /> Xuất Excel
+        </button>
       </div>
 
       <div className="relative glass-card rounded-2xl overflow-hidden border border-border/40">

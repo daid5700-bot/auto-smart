@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 import { calculateSnapshotDiscount } from "@/lib/discounts";
+import { requireAuth } from "@/lib/guard";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   const requisitionId = parseInt((await params).id);
 
   if (isNaN(requisitionId)) {
@@ -11,6 +15,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   try {
+    const actor = await prisma.user.findUnique({
+      where: { id: guard.userId },
+      select: { name: true },
+    });
+    const createdBy = actor?.name || `Người dùng #${guard.userId}`;
+
     const result = await prisma.$transaction(async (tx) => {
       // 1. Fetch requisition with items and repair order
       const requisition = await tx.partsRequisition.findUnique({
@@ -135,7 +145,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               totalCost: totalPrice,
               reason: `Xuất kho duyệt phụ tùng cho RO #${requisition.repairOrderId}`,
               relatedRoId: requisition.repairOrderId,
-              createdBy: "Thủ kho",
+              createdBy,
               branchId: requisition.branchId,
             }
           });
@@ -150,7 +160,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               totalCost: totalPrice,
               reason: `Xuất kho tặng phụ tùng cho xe bán lẻ VIN #${requisition.vehicle?.vin || requisition.vehicleId}`,
               vehicleId: requisition.vehicleId,
-              createdBy: "Thủ kho",
+              createdBy,
               branchId: requisition.branchId,
             }
           });

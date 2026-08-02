@@ -5,6 +5,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { requireAuth } from "@/lib/guard";
 import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
 import { ensureCustomerBranch } from "@/lib/customer-branch";
+import { parseAppDateRange } from "@/lib/date-range";
 import { crmQuerySchema, createCrmEntrySchema } from "@/lib/validation/crm";
 import {
   buildCustomerWhere,
@@ -215,6 +216,7 @@ async function getCrmData(req: NextRequest) {
 
 
   if (tab === "zns") {
+    const { startDate, endDate } = parseAppDateRange(query.dateFrom, query.dateTo);
     const znsStatus = query.status;
     const statusWhere =
       znsStatus === "SUCCESS"
@@ -226,6 +228,9 @@ async function getCrmData(req: NextRequest) {
             : {};
     const baseWhere = {
       ...(branchId ? { branchId } : {}),
+      ...(startDate || endDate
+        ? { sentAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } }
+        : {}),
       ...statusWhere,
       ...(search ? {
         OR: [

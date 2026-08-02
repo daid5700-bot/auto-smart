@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
+import { exportToCsv, formatCurrency, formatDate, formatExportDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
-import { Loader2, DollarSign, X, Edit3, Eye, Search, Calendar, CalendarDays } from "lucide-react";
+import { Loader2, DollarSign, X, Edit3, Eye, Search, Calendar, CalendarDays, Download } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
 import { getAppDatePresetRange } from "@/lib/date-range";
@@ -66,6 +66,7 @@ function InventoryHistoryContent() {
       type: string;
       createdBy: string;
       createdAt: string;
+      branchName: string;
       reason: string;
       items: any[];
       totalAmount: number;
@@ -90,6 +91,7 @@ function InventoryHistoryContent() {
           type: m.type,
           createdBy: m.createdBy,
           createdAt: m.createdAt,
+          branchName: m.branch?.name || "",
           reason: m.reason || "",
           items: [],
           totalAmount: 0,
@@ -170,6 +172,29 @@ function InventoryHistoryContent() {
   const groupedReceipts = useMemo(() => groupMovementsIntoReceipts(history), [history]);
 
   const filteredReceipts = groupedReceipts;
+
+  const handleExportExcel = () => {
+    exportToCsv(
+      `Phieu_nhap_xuat_kho_${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Mã phiếu", "Thời gian", "Loại phiếu", "Khách hàng", "Số điện thoại", "Người lập", "Tổng tiền", "Đã trả", "Còn nợ", "Số dòng", "Ghi chú"],
+      filteredReceipts.map((receipt: any) => {
+        const order = receipt.inventoryOrder;
+        return [
+          getReceiptCode(receipt.type, receipt.createdAt),
+          formatExportDate(receipt.createdAt),
+          receipt.type === "IMPORT" ? "Nhập kho" : receipt.type === "EXPORT" ? "Xuất kho" : receipt.type === "EXPORT_GIFT" ? "Xuất quà tặng" : "Kiểm kê",
+          order?.customer?.name || "",
+          order?.customer?.phone || "",
+          receipt.createdBy || "",
+          String(order ? Number(order.totalAmount || 0) : Number(receipt.totalAmount || 0)),
+          String(order ? Number(order.paidAmount || 0) : 0),
+          String(order ? Number(order.debtAmount || 0) : 0),
+          String(receipt.items?.length || 0),
+          receipt.reason || "",
+        ];
+      }),
+    );
+  };
 
   const importCount = tabCounts.import;
   const exportCount = tabCounts.export;
@@ -256,6 +281,15 @@ function InventoryHistoryContent() {
             className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"
           />
         </div>
+
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={filteredReceipts.length === 0}
+          className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download size={16} /> Xuất Excel
+        </button>
 
         {/* Right group: date range + presets + clear */}
         <div className="ml-auto flex items-center gap-2">
@@ -504,8 +538,8 @@ function InventoryHistoryContent() {
                 <div className="flex justify-between items-start border-b border-zinc-200 pb-6">
                   <div>
                     <h1 className="text-2xl font-black tracking-tight text-primary">Xe Máy Toàn Thắng</h1>
-                    <p className="text-xs text-zinc-500 mt-1">Hệ thống quản trị doanh nghiệp ô tô thông minh</p>
-                    <p className="text-xs text-zinc-400">Chi nhánh: Mặc định</p>
+                    <p className="text-xs text-zinc-500 mt-1">Người lập: {selectedReceipt.createdBy || "—"}</p>
+                    <p className="text-xs text-zinc-400">Chi nhánh: {selectedReceipt.branchName || "Chưa xác định"}</p>
                   </div>
                   <div className="text-right">
                     <h2 className="text-lg font-bold uppercase tracking-wider text-zinc-700">
