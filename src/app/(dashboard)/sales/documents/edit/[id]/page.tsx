@@ -51,6 +51,7 @@ export default function EditDocumentPage() {
   const [color, setColor] = useState("");
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [listPrice, setListPrice] = useState("");
+  const [plateCost, setPlateCost] = useState(0);
   const [status, setStatus] = useState("RESERVED"); // RESERVED, SOLD
   const [bankStatus, setBankStatus] = useState("NONE");
   const [hasPlateService, setHasPlateService] = useState(false);
@@ -62,6 +63,10 @@ export default function EditDocumentPage() {
   const [customerAddress, setCustomerAddress] = useState("");
   const [systemCustomers, setSystemCustomers] = useState<any[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [originalCustomerId, setOriginalCustomerId] = useState<string>("");
+  const [originalDebtAmount, setOriginalDebtAmount] = useState(0);
+  const [customerSalesDebt, setCustomerSalesDebt] = useState(0);
+  const [customerDebtLoading, setCustomerDebtLoading] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -73,6 +78,7 @@ export default function EditDocumentPage() {
   const [isGiftLocked, setIsGiftLocked] = useState(false);
   const [isAccLocked, setIsAccLocked] = useState(false);
   const [rawNotes, setRawNotes] = useState("");
+  const [showServices, setShowServices] = useState(false);
 
   // Accessory search & list
   const [accessorySearch, setAccessorySearch] = useState("");
@@ -132,6 +138,8 @@ export default function EditDocumentPage() {
           setColor(vehicle.color || "");
           setYear((vehicle.year || new Date().getFullYear()).toString());
           setListPrice(vehicle.listPrice ? Number(vehicle.listPrice).toString() : "");
+          setPlateCost(Number(vehicle.plateCost || 0));
+          setOriginalDebtAmount(Number(vehicle.debtAmount || 0));
           setStatus(vehicle.status || "RESERVED");
           setBankStatus(vehicle.bankStatus || "NONE");
           setHasPlateService(Boolean(vehicle.hasPlateService));
@@ -146,9 +154,12 @@ export default function EditDocumentPage() {
           setCustomerAddress(vehicle.customer?.address || "");
 
           if (vehicle.customerId) {
-            setSelectedCustomerId(vehicle.customerId.toString());
+            const customerId = vehicle.customerId.toString();
+            setOriginalCustomerId(customerId);
+            setSelectedCustomerId(customerId);
             setIsNewCustomer(false);
           } else {
+            setOriginalCustomerId("");
             setSelectedCustomerId("");
             setIsNewCustomer(false);
           }
@@ -202,6 +213,37 @@ export default function EditDocumentPage() {
 
     fetchVehicleAndData();
   }, [vehicleId, modal, router]);
+
+  useEffect(() => {
+    if (!selectedCustomerId) {
+      setCustomerSalesDebt(0);
+      setCustomerDebtLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setCustomerDebtLoading(true);
+    fetch(`/api/crm/${selectedCustomerId}/debt-summary`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Không thể tải công nợ khách hàng.");
+
+        // Khi sửa hồ sơ hiện tại, loại khoản nợ cũ của chính hồ sơ này để không cộng trùng.
+        const currentDocumentDebt = selectedCustomerId === originalCustomerId ? originalDebtAmount : 0;
+        setCustomerSalesDebt(Math.max(0, Number(data.salesDebt || 0) - currentDocumentDebt));
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError") {
+          console.error(error);
+          setCustomerSalesDebt(0);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCustomerDebtLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [selectedCustomerId, originalCustomerId, originalDebtAmount]);
 
   useEffect(() => {
     if (customerSearchQuery.trim().length > 1) {
@@ -383,6 +425,17 @@ export default function EditDocumentPage() {
     });
   }, [giftProductResults]);
 
+  const currentSaleAmount = useMemo(
+    () =>
+      Math.max(0, Number(listPrice) || 0) +
+      Math.max(0, Number(plateCost) || 0) +
+      selectedAccessories.reduce(
+        (total, item) => total + Number(item.price || 0) * (Number(item.quantity) || 1),
+        0,
+      ),
+    [listPrice, plateCost, selectedAccessories],
+  );
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
@@ -431,7 +484,7 @@ export default function EditDocumentPage() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground">Tiến độ tổng quan *</label>
               <CustomSelect
@@ -470,16 +523,6 @@ export default function EditDocumentPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-primary">Giá bán thực tế (VNĐ) *</label>
-              <NumericInput
-                required
-                placeholder="Nhập giá bán..."
-                value={listPrice}
-                onChange={setListPrice}
-                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-primary"
-              />
-            </div>
           </div>
         </div>
 
@@ -665,11 +708,32 @@ export default function EditDocumentPage() {
 
         {/* SECTION 3: SERVICES & METADATA */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-border pb-1.5">
-            <Receipt size={16} className="text-primary" />
-            <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Dịch vụ đi kèm & Ghi chú</h4>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
+            <div className="flex items-center gap-2">
+              <Receipt size={16} className="text-primary" />
+              <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Dịch vụ phụ tùng đi kèm & Ghi chú</h4>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowServices((visible) => !visible)}
+              aria-expanded={showServices}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary/10"
+            >
+              {showServices ? <ChevronDown size={14} /> : <Plus size={14} />}
+              {showServices ? "Ẩn dịch vụ đi kèm" : "Thêm dịch vụ đi kèm"}
+            </button>
           </div>
-          
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-secondary/20 px-3 py-2 text-[11px] text-muted-foreground">
+            <span><strong className="text-foreground">Phụ tùng:</strong> {selectedAccessories.length} loại</span>
+            <span><strong className="text-foreground">Quà tặng:</strong> {giftItems.length} loại</span>
+            {!showServices && (selectedAccessories.length > 0 || giftItems.length > 0) && (
+              <span className="text-primary">Bấm “Thêm dịch vụ đi kèm” để xem chi tiết</span>
+            )}
+          </div>
+
+          {showServices && (
+          <div className="space-y-4">
           <div>
             {/* Notes */}
             <div className="space-y-1.5">
@@ -941,6 +1005,42 @@ export default function EditDocumentPage() {
                       <p className="text-xs text-emerald-600/70 italic text-center py-4">Chưa chọn quà tặng nào.</p>
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+          </div>
+          </div>
+          )}
+
+          <div className="space-y-4 border-t border-border pt-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-primary">Giá bán thực tế (VNĐ) *</label>
+              <NumericInput
+                required
+                placeholder="Nhập giá bán..."
+                value={listPrice}
+                onChange={setListPrice}
+                className="w-full px-3 py-2 bg-secondary/20 border border-border rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary focus:border-primary font-bold text-primary"
+              />
+            </div>
+
+            {selectedCustomerId && (
+              <div className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-secondary/10 p-4 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground">Tiền hồ sơ này</p>
+                  <p className="mt-1 text-lg font-extrabold text-primary">{formatCurrency(currentSaleAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground">Nợ cũ</p>
+                  <p className="mt-1 text-lg font-extrabold text-amber-600">
+                    {customerDebtLoading ? "Đang tải..." : formatCurrency(customerSalesDebt)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground">Tổng công nợ sau hồ sơ</p>
+                  <p className="mt-1 text-lg font-extrabold text-rose-600">
+                    {customerDebtLoading ? "Đang tải..." : formatCurrency(customerSalesDebt + currentSaleAmount)}
+                  </p>
                 </div>
               </div>
             )}

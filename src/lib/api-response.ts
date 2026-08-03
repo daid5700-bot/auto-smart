@@ -23,11 +23,13 @@ export async function parseJson<T>(req: NextRequest, schema: ZodType<T>): Promis
 }
 
 export function validationResponse(error: ZodError) {
+  const flattened = error.flatten();
   return NextResponse.json(
     {
       error: "Dữ liệu không hợp lệ",
       code: "VALIDATION_ERROR",
-      fields: error.flatten().fieldErrors,
+      fields: flattened.fieldErrors,
+      formErrors: flattened.formErrors,
     },
     { status: 400 },
   );

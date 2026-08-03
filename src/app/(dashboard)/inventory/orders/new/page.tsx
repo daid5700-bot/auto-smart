@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
@@ -12,10 +12,13 @@ interface RequisitionItemInput {
   productId: string;
   quantity: number | "";
   unitPrice: number | "";
+  product?: { id: number; sku: string; name: string; stockCount?: number };
 }
 
-export default function NewInventoryOrderPage() {
+function NewInventoryOrderContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = Number(searchParams.get("editId") || 0);
 
   // Data sources
   const [customers, setCustomers] = useState<any[]>([]);
@@ -25,6 +28,11 @@ export default function NewInventoryOrderPage() {
   const [phone, setPhone] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
+  const [customerDebt, setCustomerDebt] = useState(0);
+  const [customerDebtLoading, setCustomerDebtLoading] = useState(false);
+  const [originalOrderDebt, setOriginalOrderDebt] = useState(0);
+  const [originalCustomerId, setOriginalCustomerId] = useState("");
+  const [editingLoading, setEditingLoading] = useState(editId > 0);
   
   const [type, setType] = useState("EXPORT_RETAIL");
   const [reason, setReason] = useState("");
@@ -65,6 +73,38 @@ export default function NewInventoryOrderPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!editId) return;
+    const controller = new AbortController();
+    setEditingLoading(true);
+    fetch(`/api/inventory/orders/${editId}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Không thể tải phiếu xuất kho.");
+        setPhone(data.customer?.phone || "");
+        setCustomerName(data.customer?.name || "");
+        setCustomerId(data.customer?.id ? String(data.customer.id) : "");
+        setOriginalCustomerId(data.customer?.id ? String(data.customer.id) : "");
+        setType(data.type || "EXPORT_RETAIL");
+        setReason(data.reason || "");
+        setPaidAmount(Number(data.paidAmount || 0));
+        setOriginalOrderDebt(Number(data.debtAmount || 0));
+        setItems((data.movements || []).map((movement: any) => ({
+          productId: String(movement.productId),
+          quantity: Number(movement.quantity || 0),
+          unitPrice: Number(movement.unitCost || 0),
+          product: movement.product,
+        })));
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError") setErrorMsg(error.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setEditingLoading(false);
+      });
+    return () => controller.abort();
+  }, [editId]);
+
   const handlePhoneChange = async (val: string) => {
     setPhone(val);
     setCustomerId(""); // reset linked id if typing new phone
@@ -97,6 +137,35 @@ export default function NewInventoryOrderPage() {
     setShowSuggestions(false);
   };
 
+  useEffect(() => {
+    if (!customerId) {
+      setCustomerDebt(0);
+      setCustomerDebtLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setCustomerDebtLoading(true);
+    fetch(`/api/crm/${customerId}/debt-summary`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Không thể tải công nợ khách hàng.");
+        const editedOrderDebt = customerId === originalCustomerId ? originalOrderDebt : 0;
+        setCustomerDebt(Math.max(0, Number(data.inventoryDebt || 0) - editedOrderDebt));
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError") {
+          console.error(error);
+          setCustomerDebt(0);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCustomerDebtLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [customerId, originalCustomerId, originalOrderDebt]);
+
   // Requisition items actions
   const handleAddItem = () => {
     setItems([
@@ -125,6 +194,7 @@ export default function NewInventoryOrderPage() {
     const updated = [...items];
     updated[index].productId = pId;
     updated[index].unitPrice = defaultPrice;
+    updated[index].product = selectedProd;
     setItems(updated);
   };
 
@@ -143,6 +213,8 @@ export default function NewInventoryOrderPage() {
   // Calculations
   const totalAmount = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
   const totalPartsQuantity = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const currentOrderDebt = Math.max(0, totalAmount - (Number(paidAmount) || 0));
+  const totalCustomerDebt = customerDebt + currentOrderDebt;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,8 +241,8 @@ export default function NewInventoryOrderPage() {
         })),
       };
 
-      const res = await fetch("/api/inventory/orders", {
-        method: "POST",
+      const res = await fetch(editId ? `/api/inventory/orders/${editId}` : "/api/inventory/orders", {
+        method: editId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -180,7 +252,7 @@ export default function NewInventoryOrderPage() {
         throw new Error(result.error || "Gặp lỗi khi tạo đơn hàng.");
       }
 
-      router.push("/inventory/orders");
+      router.push(editId ? "/inventory/history?tab=EXPORT" : "/inventory/orders");
     } catch (e: any) {
       setErrorMsg(e.message);
     } finally {
@@ -188,7 +260,7 @@ export default function NewInventoryOrderPage() {
     }
   };
 
-  if (loading) {
+  if (loading || editingLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -204,7 +276,9 @@ export default function NewInventoryOrderPage() {
         </Link>
         <div>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">KHO PHỤ TÙNG</p>
-          <h2 className="text-2xl font-bold tracking-tight">Tạo lệnh bán/xuất kho mới</h2>
+          <h2 className="text-2xl font-bold tracking-tight">
+            {editId ? "Sửa phiếu xuất kho" : "Tạo lệnh bán/xuất kho mới"}
+          </h2>
         </div>
       </div>
 
@@ -293,9 +367,15 @@ export default function NewInventoryOrderPage() {
                 <NumericInput
                   value={paidAmount}
                   onChange={(c) => setPaidAmount(c === "" ? "" : parseInt(c, 10))}
-                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 font-bold text-emerald-600 outline-none"
+                  disabled={Boolean(editId)}
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 font-bold text-emerald-600 outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   placeholder="VD: 500,000 (Để trống nếu chưa trả)"
                 />
+                {editId > 0 && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Số tiền đã thu được cập nhật tại chức năng thanh toán công nợ.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -345,7 +425,7 @@ export default function NewInventoryOrderPage() {
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {items.map((item, index) => {
-                      const selectedProduct = productMap.get(item.productId);
+                      const selectedProduct = productMap.get(item.productId) || item.product;
 
                       return (
                         <tr key={index} className="hover:bg-secondary/5 transition-colors">
@@ -360,7 +440,7 @@ export default function NewInventoryOrderPage() {
                             >
                               <span className="truncate font-medium">
                                 {selectedProduct
-                                  ? `[${selectedProduct.sku}] ${selectedProduct.name} (Tồn: ${selectedProduct.stockCount})`
+                                  ? `[${selectedProduct.sku}] ${selectedProduct.name}${selectedProduct.stockCount === undefined ? "" : ` (Tồn: ${selectedProduct.stockCount})`}`
                                   : "Chọn phụ tùng..."}
                               </span>
                               <ChevronDown size={14} className="text-muted-foreground shrink-0 ml-1.5" />
@@ -474,11 +554,27 @@ export default function NewInventoryOrderPage() {
                   <span className="text-emerald-500 font-bold">{formatCurrency(Number(paidAmount) || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/40">
-                  <span className="text-xs text-rose-500 font-bold">Còn nợ:</span>
+                  <span className="text-xs text-rose-500 font-bold">Nợ phát sinh phiếu:</span>
                   <span className="text-sm font-bold text-rose-500">
-                    {formatCurrency(Math.max(0, totalAmount - (Number(paidAmount) || 0)))}
+                    {formatCurrency(currentOrderDebt)}
                   </span>
                 </div>
+                {customerId && (
+                  <>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground/80">
+                      <span>Nợ cũ của khách:</span>
+                      <span className="font-bold text-amber-600">
+                        {customerDebtLoading ? "Đang tải..." : formatCurrency(customerDebt)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-rose-500/20 bg-rose-500/5 px-3 py-2.5">
+                      <span className="text-xs font-black text-rose-600">Tổng công nợ sau phiếu:</span>
+                      <span className="text-base font-black text-rose-600">
+                        {customerDebtLoading ? "—" : formatCurrency(totalCustomerDebt)}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -496,7 +592,7 @@ export default function NewInventoryOrderPage() {
             <div className="flex items-center gap-3 pt-6 border-t border-border/40">
               <button
                 type="button"
-                onClick={() => router.push("/inventory/orders")}
+                onClick={() => router.push(editId ? "/inventory/history?tab=EXPORT" : "/inventory/orders")}
                 className="flex-1 px-4 py-2.5 border border-border hover:bg-secondary/40 rounded-xl text-xs font-semibold transition-colors text-center"
               >
                 Hủy
@@ -510,7 +606,7 @@ export default function NewInventoryOrderPage() {
                   <Loader2 size={13} className="animate-spin" />
                 ) : (
                   <>
-                    <Sparkles size={13} /> Lưu & Xuất kho
+                    <Sparkles size={13} /> {editId ? "Lưu thay đổi" : "Lưu & Xuất kho"}
                   </>
                 )}
               </button>
@@ -519,5 +615,13 @@ export default function NewInventoryOrderPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NewInventoryOrderPage() {
+  return (
+    <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <NewInventoryOrderContent />
+    </Suspense>
   );
 }

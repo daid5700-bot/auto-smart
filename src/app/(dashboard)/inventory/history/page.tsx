@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { exportToCsv, formatCurrency, formatDate, formatExportDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { Loader2, DollarSign, X, Edit3, Eye, Search, Calendar, CalendarDays, Download } from "lucide-react";
@@ -360,6 +361,13 @@ function InventoryHistoryContent() {
               ) : (
                 filteredReceipts.map((r: any) => {
                   const receiptCode = getReceiptCode(r.type, r.createdAt);
+                  const canEditReceipt = Boolean(
+                    r.type === "EXPORT"
+                    && r.inventoryOrder
+                    && !r.inventoryOrder.vehicleId
+                    && r.inventoryOrder.status !== "CANCELLED"
+                    && !String(r.inventoryOrder.createdBy || "").startsWith("Hệ thống"),
+                  );
                   return (
                     <tr 
                       key={r.id} 
@@ -437,6 +445,15 @@ function InventoryHistoryContent() {
                           >
                             <Eye size={14} />
                           </button>
+                          {canEditReceipt && (
+                            <Link
+                              href={`/inventory/movements?editId=${r.inventoryOrder.id}`}
+                              className="p-1.5 hover:bg-secondary rounded-lg text-amber-600 transition-colors"
+                              title="Sửa phiếu xuất"
+                            >
+                              <Edit3 size={14} />
+                            </Link>
+                          )}
                         </div>
                       </td>
                     </tr>

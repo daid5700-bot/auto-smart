@@ -347,7 +347,8 @@ export async function POST(req: NextRequest) {
         }
       });
       if (existingActive) {
-        return NextResponse.json({ error: `Số khung (VIN) '${vin.trim()}' đã tồn tại trên một xe khác đang hoạt động trong hệ thống.` }, { status: 400 });
+        const message = `Số khung (VIN) '${vin.trim()}' đã tồn tại trên một xe khác đang hoạt động trong hệ thống.`;
+        return NextResponse.json({ error: message, code: "VIN_DUPLICATE", fields: { vin: [message] } }, { status: 400 });
       }
     }
 

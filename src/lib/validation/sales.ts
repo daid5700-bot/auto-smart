@@ -52,7 +52,9 @@ export const updateVehicleSchema = z.object({
   discountCodeId: z.union([z.coerce.number().int().positive(), z.null()]).optional(),
 }).strict();
 
-export const createVehicleSchema = updateVehicleSchema;
+export const createVehicleSchema = updateVehicleSchema.extend({
+  model: z.string().trim().min(1, "Vui lòng nhập tên xe (dòng xe)").max(120),
+});
 
 const wholesaleVehicleSchema = z.object({
   id: z.coerce.number().int().positive(),
