@@ -77,6 +77,10 @@ export async function GET(req: NextRequest) {
             totalAmount: true,
             paidAmount: true,
             debtAmount: true,
+            type: true,
+            status: true,
+            vehicleId: true,
+            createdBy: true,
             customer: {
               select: {
                 id: true,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { Suspense, useEffect, useState, useRef, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
 import { useAuth } from "@/lib/store";
@@ -22,13 +23,17 @@ interface MovementItem {
   conversionFactor: number | "";
   unitCost: number | ""; // For IMPORT
   note: string;
+  product?: any;
 }
 
 
 
-export default function MovementsPage() {
+function MovementsPageContent() {
   const modal = useModal();
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = Number(searchParams.get("editId") || 0);
 
   const [activeTab, setActiveTab] = useState<TabType>("IMPORT");
   const [exportType, setExportType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
@@ -39,6 +44,12 @@ export default function MovementsPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
   const [address, setAddress] = useState("");
+  const [customerDebt, setCustomerDebt] = useState(0);
+  const [customerDebtLoading, setCustomerDebtLoading] = useState(false);
+  const [originalOrderDebt, setOriginalOrderDebt] = useState(0);
+  const [originalPaidAmount, setOriginalPaidAmount] = useState(0);
+  const [originalCustomerId, setOriginalCustomerId] = useState("");
+  const [editLoading, setEditLoading] = useState(editId > 0);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const searchTimeoutRef = useRef<any>(null);
@@ -65,13 +76,13 @@ export default function MovementsPage() {
   });
 
   useEffect(() => {
-    resetItems();
+    if (!editId) resetItems();
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, []);
+  }, [editId]);
 
   function resetItems() {
     setItems([{
@@ -86,8 +97,54 @@ export default function MovementsPage() {
 
   // When changing tabs, reset items
   useEffect(() => {
-    resetItems();
-  }, [activeTab]);
+    if (!editId) resetItems();
+  }, [activeTab, editId]);
+
+  useEffect(() => {
+    if (!editId) return;
+
+    const controller = new AbortController();
+    setEditLoading(true);
+    fetch(`/api/inventory/orders/${editId}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Không thể tải phiếu xuất kho.");
+
+        setActiveTab("EXPORT");
+        setExportType(data.type === "EXPORT_WHOLESALE" ? "WHOLESALE" : "RETAIL");
+        setPhone(data.customer?.phone || "");
+        setCustomerName(data.customer?.name || "");
+        setCustomerId(data.customer?.id ? String(data.customer.id) : "");
+        setOriginalCustomerId(data.customer?.id ? String(data.customer.id) : "");
+        setAddress(data.customer?.address || "");
+        setOriginalOrderDebt(Number(data.debtAmount || 0));
+        setOriginalPaidAmount(Number(data.paidAmount || 0));
+        setItems((data.movements || []).map((movement: any) => ({
+          id: crypto.randomUUID(),
+          productId: String(movement.productId),
+          quantity: Number(movement.quantity || 0),
+          conversionFactor: 1,
+          unitCost: Number(movement.unitCost || 0),
+          note: movement.reason || data.reason || "",
+          product: movement.product,
+        })));
+      })
+      .catch(async (error) => {
+        if (error?.name !== "AbortError") {
+          await modal.alert({
+            title: "Không thể sửa phiếu",
+            message: error.message,
+            type: "error",
+          });
+          router.replace("/inventory/history?tab=EXPORT");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setEditLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [editId, modal, router]);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -113,7 +170,8 @@ export default function MovementsPage() {
         return {
           ...item,
           productId,
-          unitCost: activeTab === "EXPORT" ? defaultPrice : item.unitCost
+          unitCost: activeTab === "EXPORT" ? defaultPrice : item.unitCost,
+          product: selectedProd,
         };
       }
       return item;
@@ -151,6 +209,35 @@ export default function MovementsPage() {
     if (c.address) setAddress(c.address);
     setShowSuggestions(false);
   };
+
+  useEffect(() => {
+    if (!customerId || activeTab !== "EXPORT") {
+      setCustomerDebt(0);
+      setCustomerDebtLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setCustomerDebtLoading(true);
+    fetch(`/api/crm/${customerId}/debt-summary`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Không thể tải công nợ khách hàng.");
+        const editedOrderDebt = customerId === originalCustomerId ? originalOrderDebt : 0;
+        setCustomerDebt(Math.max(0, Number(data.inventoryDebt || 0) - editedOrderDebt));
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError") {
+          console.error(error);
+          setCustomerDebt(0);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCustomerDebtLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTab, customerId, originalCustomerId, originalOrderDebt]);
 
 
 
@@ -214,14 +301,15 @@ export default function MovementsPage() {
           type: exportType === "WHOLESALE" ? "EXPORT_WHOLESALE" : "EXPORT_RETAIL",
           reason: items[0]?.note || "Bán xuất kho",
           address: address.trim(),
+          paidAmount: editId ? originalPaidAmount : 0,
           items: items.map((i) => ({
             productId: parseInt(i.productId),
             quantity: Number(i.quantity),
             unitPrice: Number(i.unitCost) || 0,
           })),
         };
-        const r = await fetch("/api/inventory/orders", {
-          method: "POST",
+        const r = await fetch(editId ? `/api/inventory/orders/${editId}` : "/api/inventory/orders", {
+          method: editId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
@@ -239,6 +327,11 @@ export default function MovementsPage() {
         setAddress("");
       }
       refreshProducts();
+      if (editId) {
+        router.push("/inventory/history?tab=EXPORT");
+        router.refresh();
+        return;
+      }
       await modal.alert({
         title: "Thành công",
         message: "Thao tác xuất nhập kho thành công!",
@@ -259,8 +352,10 @@ export default function MovementsPage() {
   const grandTotal = useMemo(() => {
     return items.reduce((acc, item) => acc + ((Number(item.quantity) || 0) * (Number(item.unitCost) || 0)), 0);
   }, [items]);
+  const currentOrderDebt = Math.max(0, grandTotal - originalPaidAmount);
+  const totalCustomerDebt = customerDebt + currentOrderDebt;
 
-  if (productsLoading && products.length === 0) {
+  if (editLoading || (productsLoading && products.length === 0)) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -277,8 +372,9 @@ export default function MovementsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("IMPORT")}
+            disabled={Boolean(editId)}
             className={`flex-1 py-2.5 text-sm font-bold flex justify-center items-center gap-2 transition-all ${activeTab === "IMPORT" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary/40"
-              }`}
+              } disabled:cursor-not-allowed disabled:opacity-40`}
           >
             <ArrowDownToLine size={16} /> Nhập kho
           </button>
@@ -382,7 +478,11 @@ export default function MovementsPage() {
             <div className="p-6 space-y-5">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
-                  {activeTab === "IMPORT" ? "YÊU CẦU PHỤ TÙNG CẦN NHẬP" : "YÊU CẦU PHỤ TÙNG CẦN XUẤT"}
+                  {activeTab === "IMPORT"
+                    ? "YÊU CẦU PHỤ TÙNG CẦN NHẬP"
+                    : editId
+                      ? "CHỈNH SỬA PHIẾU XUẤT PHỤ TÙNG"
+                      : "YÊU CẦU PHỤ TÙNG CẦN XUẤT"}
                 </h3>
                 <button
                   type="button"
@@ -405,7 +505,7 @@ export default function MovementsPage() {
 
               <div className="space-y-3 lg:space-y-1">
                 {items.map((item, idx) => {
-                  const selectedProd = productMap.get(item.productId);
+                  const selectedProd = productMap.get(item.productId) || item.product;
 
                   return (
                     <div key={item.id} className={`flex flex-col lg:grid lg:grid-cols-12 gap-4 items-center bg-secondary/10 lg:bg-transparent p-3 lg:py-3.5 lg:px-2 rounded-xl border border-border lg:border-none relative ${activeDropdownIdx === idx ? "z-50" : "z-10"}`}>
@@ -550,12 +650,34 @@ export default function MovementsPage() {
 
           </div>
 
-          <div className="p-6 bg-secondary/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-b-xl">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-muted-foreground uppercase">Tổng tiền:</span>
-              <span className="text-2xl font-black text-primary">
-                {formatCurrency(grandTotal)}
-              </span>
+          <div className="p-6 bg-secondary/20 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5 rounded-b-xl">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-muted-foreground uppercase">Tổng tiền:</span>
+                <span className="text-2xl font-black text-primary">
+                  {formatCurrency(grandTotal)}
+                </span>
+              </div>
+              {activeTab === "EXPORT" && customerId && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="min-w-40 rounded-xl border border-border bg-card px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Tiền phiếu xuất</p>
+                    <p className="mt-0.5 text-sm font-black text-primary">{formatCurrency(grandTotal)}</p>
+                  </div>
+                  <div className="min-w-40 rounded-xl border border-border bg-card px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Nợ cũ</p>
+                    <p className="mt-0.5 text-sm font-black text-amber-600">
+                      {customerDebtLoading ? "Đang tải..." : formatCurrency(customerDebt)}
+                    </p>
+                  </div>
+                  <div className="min-w-48 rounded-xl border border-rose-500/20 bg-rose-500/5 px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase text-rose-600">Tổng công nợ sau phiếu</p>
+                    <p className="mt-0.5 text-sm font-black text-rose-600">
+                      {customerDebtLoading ? "—" : formatCurrency(totalCustomerDebt)}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">
@@ -567,7 +689,7 @@ export default function MovementsPage() {
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {submitLoading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                {activeTab === "IMPORT" ? "Lưu phiếu nhập" : "Lưu phiếu xuất"}
+                {activeTab === "IMPORT" ? "Lưu phiếu nhập" : editId ? "Lưu thay đổi" : "Lưu phiếu xuất"}
               </button>
             </div>
           </div>
@@ -580,5 +702,13 @@ export default function MovementsPage() {
 
 
     </div>
+  );
+}
+
+export default function MovementsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <MovementsPageContent />
+    </Suspense>
   );
 }

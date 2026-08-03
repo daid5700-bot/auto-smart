@@ -73,6 +73,8 @@ export default function NewDocumentPage() {
   const [customerAddress, setCustomerAddress] = useState("");
   const [systemCustomers, setSystemCustomers] = useState<any[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [customerSalesDebt, setCustomerSalesDebt] = useState(0);
+  const [customerDebtLoading, setCustomerDebtLoading] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -90,6 +92,7 @@ export default function NewDocumentPage() {
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
   const [giftItems, setGiftItems] = useState<Accessory[]>([]);
   const [rawNotes, setRawNotes] = useState("");
+  const [showServices, setShowServices] = useState(false);
 
   // Accessory search & list
   const [accessorySearch, setAccessorySearch] = useState("");
@@ -173,6 +176,34 @@ export default function NewDocumentPage() {
       setSearchResults([]);
     }
   }, [customerSearchQuery]);
+
+  useEffect(() => {
+    if (!selectedCustomerId) {
+      setCustomerSalesDebt(0);
+      setCustomerDebtLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setCustomerDebtLoading(true);
+    fetch(`/api/crm/${selectedCustomerId}/debt-summary`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Không thể tải công nợ khách hàng.");
+        setCustomerSalesDebt(Number(data.salesDebt || 0));
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError") {
+          console.error(error);
+          setCustomerSalesDebt(0);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCustomerDebtLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [selectedCustomerId]);
 
   const handleAddAccessory = (p: any) => {
     const stock = p.stockCount ?? 9999;
@@ -421,6 +452,46 @@ export default function NewDocumentPage() {
       return hasStockB - hasStockA;
     });
   }, [giftProductResults]);
+
+  const currentSaleAmount = saleMode === "RETAIL"
+    ? Math.max(
+        0,
+        Number(listPrice || 0)
+          - calculateDiscountPreview(selectedDiscount, {
+              subtotal: Number(listPrice || 0),
+            }),
+      )
+      + selectedAccessories.reduce(
+        (total, item) => total + Number(item.price || 0) * (Number(item.quantity) || 1),
+        0,
+      )
+    : wholesaleVehicles.reduce((total, vehicle) => {
+        const subtotal = Number(vehicle.listPrice || 0);
+        return total + Math.max(
+          0,
+          subtotal - calculateDiscountPreview(selectedDiscount, { subtotal }),
+        );
+      }, 0);
+  const customerDebtSummary = selectedCustomerId ? (
+    <div className="grid grid-cols-1 gap-2 rounded-xl border border-border bg-secondary/10 p-3 sm:grid-cols-3">
+      <div>
+        <p className="text-[10px] font-bold uppercase text-muted-foreground">Tiền hồ sơ này</p>
+        <p className="mt-1 text-sm font-black text-primary">{formatCurrency(currentSaleAmount)}</p>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase text-muted-foreground">Nợ cũ</p>
+        <p className="mt-1 text-sm font-black text-amber-600">
+          {customerDebtLoading ? "Đang tải..." : formatCurrency(customerSalesDebt)}
+        </p>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase text-muted-foreground">Tổng công nợ sau hồ sơ</p>
+        <p className="mt-1 text-sm font-black text-rose-600">
+          {customerDebtLoading ? "—" : formatCurrency(customerSalesDebt + currentSaleAmount)}
+        </p>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="w-full space-y-6 stagger pb-12">
@@ -955,11 +1026,32 @@ export default function NewDocumentPage() {
 
           {/* ── CARD 3: Dịch vụ & Phụ tùng ── */}
           <div className="bg-card border border-border shadow-sm rounded-2xl p-4 sm:p-6 space-y-4">
-            <div className="flex items-center gap-2 pb-2">
-              <Receipt size={16} className="text-primary" />
-              <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Dịch vụ đi kèm &amp; Ghi chú</h4>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
+              <div className="flex items-center gap-2">
+                <Receipt size={16} className="text-primary" />
+                <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Dịch vụ đi kèm &amp; Ghi chú</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowServices((visible) => !visible)}
+                aria-expanded={showServices}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary/10"
+              >
+                {showServices ? <ChevronDown size={14} /> : <Plus size={14} />}
+                {showServices ? "Ẩn dịch vụ đi kèm" : "Thêm dịch vụ đi kèm"}
+              </button>
             </div>
 
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-secondary/20 px-3 py-2 text-[11px] text-muted-foreground">
+              <span><strong className="text-foreground">Phụ tùng:</strong> {selectedAccessories.length} loại</span>
+              <span><strong className="text-foreground">Quà tặng:</strong> {giftItems.length} loại</span>
+              {!showServices && (selectedAccessories.length > 0 || giftItems.length > 0) && (
+                <span className="text-primary">Bấm “Thêm dịch vụ đi kèm” để xem chi tiết</span>
+              )}
+            </div>
+
+            {showServices && (
+            <div className="space-y-4">
             <div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-muted-foreground">Ghi chú thủ tục</label>
@@ -1114,7 +1206,11 @@ export default function NewDocumentPage() {
                 </div>
               </div>
             </div>
+            </div>
+            )}
           </div>
+
+          {customerDebtSummary}
         </div>
         )}
 

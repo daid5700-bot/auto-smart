@@ -29,6 +29,8 @@ export default function SalesPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState("");
 
   const [formData, setFormData] = useState<{
     vin: string;
@@ -150,6 +152,8 @@ export default function SalesPage() {
   const handleOpenAdd = () => {
     setEditingId(null);
     setIsCreatingColor(false);
+    setFieldErrors({});
+    setFormError("");
     setFormData({
       vin: "",
       sku: "",
@@ -173,6 +177,8 @@ export default function SalesPage() {
   const handleOpenEdit = (v: any) => {
     setEditingId(v.id);
     setIsCreatingColor(false);
+    setFieldErrors({});
+    setFormError("");
     const brName = v.warehouse || "";
     setFormData({
       vin: v.vin,
@@ -209,7 +215,7 @@ export default function SalesPage() {
       });
       const resData = await res.json();
       if (resData.url) {
-        setFormData((prev) => ({ ...prev, image: resData.url }));
+        updateFormField("image", resData.url);
       } else {
         await modal.alert({
           title: "Lỗi tải ảnh",
@@ -230,18 +236,46 @@ export default function SalesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
+    setFormError("");
+
+    const clientErrors: Record<string, string> = {};
+    if (!formData.model.trim()) clientErrors.model = "Vui lòng nhập tên xe (dòng xe).";
+    if (formData.model.trim().length > 120) clientErrors.model = "Tên xe không được vượt quá 120 ký tự.";
+    if (formData.vin.trim().length > 100) clientErrors.vin = "Số khung không được vượt quá 100 ký tự.";
+    if (formData.sku.trim().length > 500) clientErrors.sku = "Mã sản phẩm không được vượt quá 500 ký tự.";
+    if (formData.engineNumber.trim().length > 500) clientErrors.engineNumber = "Số động cơ không được vượt quá 500 ký tự.";
+    if (formData.variant.trim().length > 500) clientErrors.variant = "Phiên bản không được vượt quá 500 ký tự.";
+    if (formData.color.trim().length > 500) clientErrors.color = "Tên màu không được vượt quá 500 ký tự.";
+    if (formData.branchInput.trim().length > 500) clientErrors.branchInput = "Tên kho không được vượt quá 500 ký tự.";
+    if (formData.importDate && Number.isNaN(new Date(formData.importDate).getTime())) {
+      clientErrors.importDate = "Ngày nhập không hợp lệ.";
+    }
+    if (Number(formData.importPrice || 0) > 10_000_000_000) clientErrors.importPrice = "Giá nhập vượt quá giới hạn cho phép.";
+    if (Number(formData.listPrice || 0) > 10_000_000_000) clientErrors.listPrice = "Giá bán vượt quá giới hạn cho phép.";
+
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      setFormError("Vui lòng kiểm tra lại các ô được đánh dấu đỏ.");
+      requestAnimationFrame(() => {
+        document.querySelector('[aria-invalid="true"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      return;
+    }
+
     try {
       const method = editingId ? "PATCH" : "POST";
       const url = editingId ? `/api/sales/${editingId}` : "/api/sales";
 
+      const { branchInput, ...vehicleData } = formData;
       const payload = {
-        ...formData,
+        ...vehicleData,
         year: Number(formData.year) || 2026,
         listPrice: Number(formData.listPrice) || 0,
         floorPrice: Number(formData.floorPrice) || 0,
         importPrice: Number(formData.importPrice) || 0,
         stockCount: formData.stockCount.trim(),
-        warehouse: formData.branchInput.trim(),
+        warehouse: branchInput.trim(),
       };
 
       const res = await fetch(url, {
@@ -260,10 +294,29 @@ export default function SalesPage() {
         fetchData();
       } else {
         const errorData = await res.json().catch(() => ({}));
-        await modal.alert({
-          title: "Lỗi lưu thông tin",
-          message: errorData.error || "Lỗi không xác định từ hệ thống",
-          type: "error",
+        const apiFields = errorData.fields && typeof errorData.fields === "object"
+          ? errorData.fields as Record<string, string[] | string>
+          : {};
+        const fieldNameMap: Record<string, string> = { warehouse: "branchInput" };
+        const mappedErrors: Record<string, string> = {};
+        Object.entries(apiFields).forEach(([field, messages]) => {
+          const message = Array.isArray(messages) ? messages[0] : messages;
+          if (message) mappedErrors[fieldNameMap[field] || field] = String(message);
+        });
+
+        if (Object.keys(mappedErrors).length === 0 && /VIN|số khung/i.test(errorData.error || "")) {
+          mappedErrors.vin = errorData.error;
+        }
+
+        setFieldErrors(mappedErrors);
+        setFormError(
+          errorData.formErrors?.[0]
+          || (Object.keys(mappedErrors).length > 0
+            ? "Vui lòng kiểm tra lại các ô được đánh dấu đỏ."
+            : errorData.error || "Lỗi không xác định từ hệ thống"),
+        );
+        requestAnimationFrame(() => {
+          document.querySelector('[aria-invalid="true"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
         });
       }
     } catch (err: any) {
@@ -274,6 +327,24 @@ export default function SalesPage() {
       });
     }
   };
+
+  const updateFormField = (field: keyof typeof formData, value: string | number) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setFormError("");
+  };
+
+  const inputClass = (field: keyof typeof formData, baseClass: string) =>
+    `${baseClass} ${fieldErrors[field] ? "border-destructive ring-1 ring-destructive/30 focus:ring-destructive/30" : ""}`;
+
+  const renderFieldError = (field: keyof typeof formData) => fieldErrors[field] ? (
+    <p className="mt-1 text-xs font-medium text-destructive" role="alert">{fieldErrors[field]}</p>
+  ) : null;
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -669,26 +740,35 @@ export default function SalesPage() {
               <button onClick={() => setModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {formError && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
+                  {formError}
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Mã Sản phẩm</label>
                   <input 
                     list="sku-list" 
                     value={formData.sku} 
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })} 
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                    onChange={(e) => updateFormField("sku", e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.sku)}
+                    className={inputClass("sku", "w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none")}
                     placeholder="VD: MP-001..." 
                   />
+                  {renderFieldError("sku")}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary mb-1.5 uppercase">Tên xe (Dòng xe)</label>
                   <input 
                     list="model-list" 
                     value={formData.model} 
-                    onChange={(e) => setFormData({ ...formData, model: e.target.value })} 
-                    className="w-full px-3 py-2 bg-primary/5 border border-primary/30 rounded-xl text-sm font-bold text-primary focus:ring-2 focus:ring-primary/40 outline-none" 
+                    onChange={(e) => updateFormField("model", e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.model)}
+                    className={inputClass("model", "w-full px-3 py-2 bg-primary/5 border border-primary/30 rounded-xl text-sm font-bold text-primary focus:ring-2 focus:ring-primary/40 outline-none")}
                     placeholder="VD: Toyota Camry" 
                   />
+                  {renderFieldError("model")}
                 </div>
 
                 <div>
@@ -696,10 +776,12 @@ export default function SalesPage() {
                   <input 
                     list="variant-list" 
                     value={formData.variant} 
-                    onChange={(e) => setFormData({ ...formData, variant: e.target.value })} 
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                    onChange={(e) => updateFormField("variant", e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.variant)}
+                    className={inputClass("variant", "w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none")}
                     placeholder="VD: 2.5Q" 
                   />
+                  {renderFieldError("variant")}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Màu sắc</label>
@@ -708,8 +790,9 @@ export default function SalesPage() {
                       <input 
                         type="text"
                         value={formData.color} 
-                        onChange={(e) => setFormData({ ...formData, color: e.target.value })} 
-                        className="flex-1 px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                        onChange={(e) => updateFormField("color", e.target.value)}
+                        aria-invalid={Boolean(fieldErrors.color)}
+                        className={inputClass("color", "flex-1 px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none")}
                         placeholder="Nhập màu mới..." 
                         autoFocus
                       />
@@ -723,10 +806,10 @@ export default function SalesPage() {
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <div className="flex-1">
+                      <div className={`flex-1 rounded-xl ${fieldErrors.color ? "ring-1 ring-destructive" : ""}`} aria-invalid={Boolean(fieldErrors.color)}>
                         <CustomSelect
                           value={formData.color}
-                          onChange={(val) => setFormData({ ...formData, color: val })}
+                          onChange={(val) => updateFormField("color", val)}
                           placeholder="-- Chọn màu sắc --"
                           options={[
                             { value: "", label: "-- Chọn màu sắc --" },
@@ -742,7 +825,7 @@ export default function SalesPage() {
                         type="button"
                         onClick={() => {
                           setIsCreatingColor(true);
-                          setFormData({ ...formData, color: "" });
+                          updateFormField("color", "");
                         }}
                         className="px-3 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-semibold hover:bg-primary/20 transition-colors"
                       >
@@ -750,6 +833,7 @@ export default function SalesPage() {
                       </button>
                     </div>
                   )}
+                  {renderFieldError("color")}
                 </div>
 
                 <div>
@@ -758,42 +842,51 @@ export default function SalesPage() {
                     type="text" 
                     list="stockCount-list" 
                     value={formData.stockCount} 
-                    onChange={(e) => setFormData({ ...formData, stockCount: e.target.value })} 
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                    onChange={(e) => updateFormField("stockCount", e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.stockCount)}
+                    className={inputClass("stockCount", "w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none")}
                     placeholder="VD: N633-SN-25-00000148..." 
                   />
+                  {renderFieldError("stockCount")}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Trạng thái xe</label>
-                  <CustomSelect
-                    value={formData.status}
-                    onChange={(val) => setFormData({ ...formData, status: val })}
-                    options={[
-                      { value: "AVAILABLE", label: "Sẵn có (Available)", badge: "Sẵn có", badgeVariant: "success" },
-                      { value: "RESERVED", label: "Đặt cọc (Reserved)", badge: "Đặt cọc", badgeVariant: "warning" },
-                      { value: "INCOMING", label: "Đang về (Incoming)", badge: "Đang về", badgeVariant: "info" },
-                      { value: "SOLD", label: "Đã bán (Sold)", badge: "Đã bán", badgeVariant: "default" },
-                    ]}
-                  />
+                  <div className={`rounded-xl ${fieldErrors.status ? "ring-1 ring-destructive" : ""}`} aria-invalid={Boolean(fieldErrors.status)}>
+                    <CustomSelect
+                      value={formData.status}
+                      onChange={(val) => updateFormField("status", val)}
+                      options={[
+                        { value: "AVAILABLE", label: "Sẵn có (Available)", badge: "Sẵn có", badgeVariant: "success" },
+                        { value: "RESERVED", label: "Đặt cọc (Reserved)", badge: "Đặt cọc", badgeVariant: "warning" },
+                        { value: "INCOMING", label: "Đang về (Incoming)", badge: "Đang về", badgeVariant: "info" },
+                        { value: "SOLD", label: "Đã bán (Sold)", badge: "Đã bán", badgeVariant: "default" },
+                      ]}
+                    />
+                  </div>
+                  {renderFieldError("status")}
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số khung (VIN)</label>
                   <input 
                     value={formData.vin} 
-                    onChange={(e) => setFormData({ ...formData, vin: e.target.value })} 
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                    onChange={(e) => updateFormField("vin", e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.vin)}
+                    className={inputClass("vin", "w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none")}
                     placeholder="VD: JTDKN3DU5..." 
                   />
+                  {renderFieldError("vin")}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Số Động cơ</label>
                   <input 
                     value={formData.engineNumber} 
-                    onChange={(e) => setFormData({ ...formData, engineNumber: e.target.value })} 
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                    onChange={(e) => updateFormField("engineNumber", e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.engineNumber)}
+                    className={inputClass("engineNumber", "w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none")}
                     placeholder="VD: 2AR-FE..." 
                   />
+                  {renderFieldError("engineNumber")}
                 </div>
 
                 <div>
@@ -801,20 +894,24 @@ export default function SalesPage() {
                   <NumericInput
                     value={formData.importPrice}
                     onChange={(cleanVal) => {
-                      setFormData({ ...formData, importPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                      updateFormField("importPrice", cleanVal === "" ? "" : parseInt(cleanVal, 10));
                     }}
-                    className="w-full px-3 py-2 bg-amber-500/5 border border-amber-500/30 rounded-xl text-sm font-extrabold text-amber-600 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    aria-invalid={Boolean(fieldErrors.importPrice)}
+                    className={inputClass("importPrice", "w-full px-3 py-2 bg-amber-500/5 border border-amber-500/30 rounded-xl text-sm font-extrabold text-amber-600 focus:ring-2 focus:ring-amber-500/20 outline-none")}
                   />
+                  {renderFieldError("importPrice")}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-emerald-600 mb-1.5 uppercase">Giá bán lẻ</label>
                   <NumericInput
                     value={formData.listPrice}
                     onChange={(cleanVal) => {
-                      setFormData({ ...formData, listPrice: cleanVal === "" ? "" : parseInt(cleanVal, 10) });
+                      updateFormField("listPrice", cleanVal === "" ? "" : parseInt(cleanVal, 10));
                     }}
-                    className="w-full px-3 py-2 bg-emerald-500/5 border border-emerald-500/30 rounded-xl text-sm font-extrabold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                    aria-invalid={Boolean(fieldErrors.listPrice)}
+                    className={inputClass("listPrice", "w-full px-3 py-2 bg-emerald-500/5 border border-emerald-500/30 rounded-xl text-sm font-extrabold text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none")}
                   />
+                  {renderFieldError("listPrice")}
                 </div>
 
                 <div>
@@ -822,19 +919,23 @@ export default function SalesPage() {
                   <input 
                     list="branch-list" 
                     value={formData.branchInput} 
-                    onChange={(e) => setFormData({ ...formData, branchInput: e.target.value })} 
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                    onChange={(e) => updateFormField("branchInput", e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.branchInput)}
+                    className={inputClass("branchInput", "w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none")}
                     placeholder="Chọn hoặc nhập kho..." 
                   />
+                  {renderFieldError("branchInput")}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Ngày nhập</label>
                   <input
                     type="date"
                     value={formData.importDate}
-                    onChange={(e) => setFormData({ ...formData, importDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    onChange={(e) => updateFormField("importDate", e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.importDate)}
+                    className={inputClass("importDate", "w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none")}
                   />
+                  {renderFieldError("importDate")}
                 </div>
 
                 <div className="md:col-span-2">
@@ -845,7 +946,7 @@ export default function SalesPage() {
                         <Image src={formData.image} alt="Vehicle preview" width={96} height={96} className="w-full h-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, image: "" })}
+                          onClick={() => updateFormField("image", "")}
                           className="absolute top-1 right-1 bg-destructive text-white rounded-full p-1 shadow hover:bg-destructive/80 transition-colors"
                         >
                           <X size={12} />
@@ -869,6 +970,7 @@ export default function SalesPage() {
                       <p>Hỗ trợ định dạng JPG, PNG, WEBP.</p>
                     </div>
                   </div>
+                  {renderFieldError("image")}
                 </div>
               </div>
 
