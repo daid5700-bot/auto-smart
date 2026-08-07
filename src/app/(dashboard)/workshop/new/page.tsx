@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, AlertCircle, ChevronDown, X, User } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, handleNumericInputChange } from "@/lib/utils";
@@ -20,6 +20,7 @@ interface RequisitionItemInput {
   productId: string;
   quantity: number | "";
   unitPrice: number | "";
+  product?: any;
 }
 
 interface ServiceInput {
@@ -29,7 +30,9 @@ interface ServiceInput {
 
 export default function NewRepairOrderPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const modal = useModal();
+  const editId = Number(searchParams.get("edit")) || null;
 
   // Data sources
   const [customers, setCustomers] = useState<any[]>([]);
@@ -45,6 +48,7 @@ export default function NewRepairOrderPage() {
   const [technicianId, setTechnicianId] = useState("");
   const [services, setServices] = useState<ServiceInput[]>([{ name: "", cost: "" }]);
   const [carCondition, setCarCondition] = useState("");
+  const [status, setStatus] = useState("DOING");
 
   // Search/Suggestions states
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -84,22 +88,61 @@ export default function NewRepairOrderPage() {
   });
 
   useEffect(() => {
-    Promise.all([
+    const dependencies = [
       fetch("/api/crm?tab=customers&allBranches=true").then((r) => r.json()),
       fetch("/api/technicians").then((r) => r.json()),
-    ])
-      .then(([customerData, techData]) => {
+    ];
+    if (editId) dependencies.push(fetch(`/api/workshop/${editId}`).then((r) => r.json()));
+
+    Promise.all(dependencies)
+      .then(async ([customerData, techData, existingRo]) => {
         setCustomers(customerData.customers || []);
         setTechnicians(techData.technicians || []);
+
+        if (!editId) return;
+        if (!existingRo || existingRo.error) throw new Error(existingRo?.error || "Không thể tải lệnh sửa chữa");
+
+        const parsedSymptoms = (() => {
+          try { return JSON.parse(existingRo.symptoms || "{}"); } catch { return {}; }
+        })();
+        setPhone(existingRo.customer?.phone || "");
+        setCustomerName(existingRo.customer?.name || "");
+        setSelectedCustomerId(existingRo.customerId || null);
+        setCustomerLoyaltyPoints(existingRo.customer?.loyaltyPoints || 0);
+        setBirthday(existingRo.customer?.birthday?.slice(0, 10) || "");
+        setPlateNumber(existingRo.plateNumber || "");
+        setVehicleModel(existingRo.vehicleModel || "");
+        setKmIn(Number(existingRo.kmIn || 0));
+        setTechnicianId(existingRo.technicianId ? String(existingRo.technicianId) : "");
+        setStatus(existingRo.status || "DOING");
+        setCarCondition(existingRo.photos?.[0] || "");
+        setServices(
+          (existingRo.servicesJson || parsedSymptoms.services || []).map((service: any) => ({
+            name: service.name || "",
+            cost: Number(service.cost || 0),
+          })).filter((service: ServiceInput) => service.name) || [{ name: parsedSymptoms.summary || "", cost: Number(existingRo.laborCost || 0) }],
+        );
+
+        let existingItems = (existingRo.items || []).map((item: any) => ({
+          productId: String(item.productId), quantity: Number(item.quantity), unitPrice: Number(item.unitPrice), product: item.product,
+        }));
+        if (existingItems.length === 0 && existingRo.status === "WAITING_PARTS") {
+          const reqResponse = await fetch("/api/workshop/requisitions").then((r) => r.json());
+          const pendingReq = (reqResponse.requisitions || []).find((req: any) => req.repairOrderId === existingRo.id && req.status === "PENDING");
+          existingItems = (pendingReq?.items || []).map((item: any) => ({
+            productId: String(item.productId), quantity: Number(item.quantity), unitPrice: Number(item.unitPrice ?? 0), product: item.product,
+          }));
+        }
+        setItems(existingItems);
       })
-      .catch((e) => console.error("Error loading form dependencies:", e))
+      .catch((e) => setErrorMsg(e.message || "Không thể tải lệnh sửa chữa"))
       .finally(() => setLoading(false));
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, []);
+  }, [editId]);
 
   const handlePhoneChange = (val: string) => {
     setPhone(val);
@@ -226,6 +269,7 @@ export default function NewRepairOrderPage() {
     const updated = [...items];
     updated[index].productId = pId;
     updated[index].unitPrice = retailPrice;
+    updated[index].product = selectedProd;
     setItems(updated);
   };
 
@@ -326,7 +370,7 @@ export default function NewRepairOrderPage() {
         kmIn,
         symptoms: symptomsJson,
         carCondition,
-        technicianId: technicianId || undefined,
+        technicianId: technicianId ? Number(technicianId) : null,
         laborCost: totalServiceCost,
         services: activeServices.map((service) => ({
           name: service.name.trim(),
@@ -341,10 +385,13 @@ export default function NewRepairOrderPage() {
         discountPercent: 0,
         discountCodeId: selectedDiscount?.id || null,
         birthday: birthday || undefined,
+        status,
+        servicesJson: activeServices.map((service) => ({ name: service.name.trim(), cost: Number(service.cost) || 0 })),
+        photos: carCondition ? [carCondition] : [],
       };
 
-      const res = await fetch("/api/workshop/create-with-requisition", {
-        method: "POST",
+      const res = await fetch(editId ? `/api/workshop/${editId}` : "/api/workshop/create-with-requisition", {
+        method: editId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -356,7 +403,7 @@ export default function NewRepairOrderPage() {
 
       await modal.alert({
         title: "Thành công",
-        message: "Đã tạo lệnh sửa chữa mới thành công!",
+        message: editId ? "Đã cập nhật lệnh sửa chữa thành công!" : "Đã tạo lệnh sửa chữa mới thành công!",
         type: "success",
       });
       router.push("/workshop");
@@ -389,7 +436,7 @@ export default function NewRepairOrderPage() {
         </Link>
         <div>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">LỆNH SỬA CHỮA</p>
-          <h2 className="text-2xl font-bold tracking-tight">Tạo lệnh sửa chữa mới</h2>
+          <h2 className="text-2xl font-bold tracking-tight">{editId ? `Cập nhật lệnh sửa chữa #${editId}` : "Tạo lệnh sửa chữa mới"}</h2>
         </div>
       </div>
 
@@ -554,6 +601,22 @@ export default function NewRepairOrderPage() {
                 />
               </div>
             </div>
+            {editId && (
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Trạng thái sửa chữa</label>
+                <CustomSelect
+                  value={status}
+                  onChange={setStatus}
+                  options={[
+                    { value: "DIAGNOSING", label: "Đang chẩn đoán" },
+                    { value: "WAITING_PARTS", label: "Chờ phụ tùng" },
+                    { value: "DOING", label: "Đang sửa" },
+                    { value: "DONE", label: "Hoàn thành" },
+                    { value: "DELIVERED", label: "Đã giao xe" },
+                  ]}
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* SỐ KM */}
@@ -704,7 +767,7 @@ export default function NewRepairOrderPage() {
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {items.map((item, index) => {
-                      const selectedProduct = productMap.get(item.productId);
+                      const selectedProduct = productMap.get(item.productId) || item.product;
 
                       return (
                         <tr key={index} className="hover:bg-secondary/5 transition-colors">

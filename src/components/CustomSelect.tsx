@@ -30,6 +30,7 @@ export interface CustomSelectProps {
   id?: string;
   onSearchChange?: (search: string) => void;
   searchLoading?: boolean;
+  badgeOnly?: boolean;
 }
 
 export function CustomSelect({
@@ -46,6 +47,7 @@ export function CustomSelect({
   id,
   onSearchChange,
   searchLoading = false,
+  badgeOnly = false,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -76,10 +78,10 @@ export function CustomSelect({
     setCoords({
       top: placeAbove ? rect.top - 8 : rect.bottom + 8,
       left: rect.left,
-      width: Math.max(rect.width, 180),
+      width: badgeOnly ? rect.width : Math.max(rect.width, 180),
       placeAbove,
     });
-  }, [isSearchable, options.length]);
+  }, [badgeOnly, isSearchable, options.length]);
 
   const resetSearch = useCallback(() => {
     setSearch("");
@@ -193,14 +195,14 @@ export function CustomSelect({
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedOption.colorDot}`} />
               )}
               {selectedOption.icon && <span className="shrink-0">{selectedOption.icon}</span>}
-              <span className="font-semibold text-foreground truncate">{selectedOption.label}</span>
-              {selectedOption.badge && (
+              {!badgeOnly && <span className="font-semibold text-foreground truncate">{selectedOption.label}</span>}
+              {(selectedOption.badge || badgeOnly) && (
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded font-bold border shrink-0 ${
                     badgeVariantClasses[selectedOption.badgeVariant || "default"]
                   }`}
                 >
-                  {selectedOption.badge}
+                  {selectedOption.badge || selectedOption.label}
                 </span>
               )}
             </div>
@@ -289,7 +291,7 @@ export function CustomSelect({
                     type="button"
                     disabled={opt.disabled}
                     onClick={() => handleSelect(opt.value)}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-left transition-colors ${
+                    className={`w-full flex items-center ${badgeOnly ? "justify-start" : "justify-between"} px-3 py-2 text-xs rounded-lg text-left transition-colors ${
                       opt.disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
                     } ${
                       isSelected
@@ -302,22 +304,24 @@ export function CustomSelect({
                         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${opt.colorDot}`} />
                       )}
                       {opt.icon && <span className="shrink-0">{opt.icon}</span>}
-                      <div className="min-w-0 truncate">
-                        <div className="truncate">{opt.label}</div>
-                        {opt.sublabel && (
-                          <div className="text-[10px] text-muted-foreground truncate">{opt.sublabel}</div>
-                        )}
-                      </div>
+                      {!badgeOnly && (
+                        <div className="min-w-0 truncate">
+                          <div className="truncate">{opt.label}</div>
+                          {opt.sublabel && (
+                            <div className="text-[10px] text-muted-foreground truncate">{opt.sublabel}</div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                      {opt.badge && (
+                    <div className={`flex items-center gap-1.5 shrink-0 ${badgeOnly ? "ml-0" : "ml-2"}`}>
+                      {(opt.badge || badgeOnly) && (
                         <span
                           className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${
                             badgeVariantClasses[opt.badgeVariant || "default"]
                           }`}
                         >
-                          {opt.badge}
+                          {opt.badge || opt.label}
                         </span>
                       )}
                       {isSelected && <Check size={14} className="text-primary" />}

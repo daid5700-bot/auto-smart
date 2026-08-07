@@ -308,23 +308,7 @@ export default function WorkshopPage() {
   };
 
   const handleOpenEdit = (ro: any) => {
-    setEditingId(ro.id);
-    setSelectedDiscount(null);
-    setFormData({
-      plateNumber: ro.plateNumber,
-      vehicleModel: ro.vehicleModel,
-      kmIn: ro.kmIn,
-      symptoms: parseSymptoms(ro.symptoms).summary,
-      status: ro.status,
-      technicianId: ro.technicianId?.toString() || "",
-      laborCost: Number(ro.laborCost),
-      partsCost: Number(ro.partsCost),
-      customerId: ro.customerId?.toString() || "",
-      customerName: ro.customer?.name || "",
-      customerPhone: ro.customer?.phone || "",
-      carCondition: ro.photos?.[0] || "",
-    });
-    setModalOpen(true);
+    router.push(`/workshop/new?edit=${ro.id}`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -565,6 +549,8 @@ export default function WorkshopPage() {
                   <CustomSelect
                     value={ro.status}
                     onChange={(val) => handleUpdateStatus(ro.id, val)}
+                    badgeOnly
+                    className="w-auto border-0 bg-transparent px-0 shadow-none hover:border-transparent hover:bg-transparent"
                     options={[
                       { value: "WAITING_PARTS", label: "Chờ phụ tùng", badge: "Chờ phụ tùng", badgeVariant: "danger" },
                       { value: "DOING", label: "Đang sửa", badge: "Đang sửa", badgeVariant: "warning" },
