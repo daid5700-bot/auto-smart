@@ -199,6 +199,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       technicianId: body.technicianId,
       laborCost: labor,
       partsCost: parts,
+      ...(body.servicesJson !== undefined ? { servicesJson: body.servicesJson } : {}),
       discountPercent: discountPercentVal,
       discountAmount: totalDiscountAmount,
       totalAmount: newTotalAmount,
@@ -226,6 +227,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
       return updatedRo;
     });
+
+    if (currentRo.customerId && (body.customerName || body.phone || body.birthday !== undefined)) {
+      await prisma.customer.update({
+        where: { id: currentRo.customerId },
+        data: {
+          ...(body.customerName ? { name: String(body.customerName).trim() } : {}),
+          ...(body.phone ? { phone: String(body.phone).trim() } : {}),
+          ...(body.birthday !== undefined ? { birthday: body.birthday ? new Date(body.birthday) : null } : {}),
+        },
+      });
+    }
 
     // Handle completion logic (points, technician status, ZNS)
     if (body.status === "DONE" && currentRo.status !== "DONE") {
