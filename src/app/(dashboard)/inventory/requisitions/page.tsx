@@ -226,7 +226,7 @@ export default function UnifiedRequisitionsApprovalPage() {
       const customer = vehicle.customer || {};
       const totalBill = r.items.reduce((s: number, item: any) => {
         const prod = item.product || {};
-        const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
+        const priceVal = (item.unitPrice ?? prod.prices?.find((p: any) => p.type === "RETAIL")?.amount) || 0;
         return s + Number(item.quantity) * Number(priceVal);
       }, 0);
 
@@ -249,7 +249,7 @@ export default function UnifiedRequisitionsApprovalPage() {
         branch: r.branch,
         items: r.items.map((it: any) => {
           const prod = it.product || {};
-          const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
+          const priceVal = (it.unitPrice ?? prod.prices?.find((p: any) => p.type === "RETAIL")?.amount) || 0;
           return {
             name: prod.name || "Sản phẩm không rõ",
             sku: prod.sku || "MÃ-PT",
@@ -456,7 +456,7 @@ export default function UnifiedRequisitionsApprovalPage() {
               const cust = ro?.customer || vehicle?.customer || {};
               const totalBill = req.items.reduce((s: number, item: any) => {
                 const prod = item.product || {};
-                const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
+                const priceVal = (item.unitPrice ?? prod.prices?.find((p: any) => p.type === "RETAIL")?.amount) || 0;
                 return s + Number(item.quantity) * Number(priceVal);
               }, 0);
 
@@ -508,7 +508,7 @@ export default function UnifiedRequisitionsApprovalPage() {
                         {req.items.map((item: any) => {
                           const prod = item.product || {};
                           const isOut = prod.stockCount < item.quantity;
-                          const priceVal = prod.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0;
+                          const priceVal = (item.unitPrice ?? prod.prices?.find((p: any) => p.type === "RETAIL")?.amount) || 0;
                           const subTotal = item.quantity * priceVal;
 
                           return (

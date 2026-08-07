@@ -97,9 +97,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
         });
 
-        // Giá bán lẻ dùng để lập hóa đơn (tính tiền khách) và ghi nhận vào kho
+        // Use the price quoted on the repair order. Fall back to retail only
+        // for old requisitions that do not have a pricing snapshot.
         const retailPrice = Number(product.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
-        const unitPrice = retailPrice;
+        const itemMeta = itemsMeta.find((meta) => Number(meta.productId) === product.id);
+        const quotedPrice = itemMeta?.unitPrice ?? itemMeta?.customUnitPrice;
+        const unitPrice = Number.isFinite(Number(quotedPrice)) && Number(quotedPrice) >= 0
+          ? Math.round(Number(quotedPrice))
+          : retailPrice;
         const totalPrice = unitPrice * itemQty;
 
         // Nếu là đơn sửa chữa thì ghi nhận vào hóa đơn

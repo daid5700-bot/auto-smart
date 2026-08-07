@@ -6,8 +6,9 @@ const money = z.coerce.number().finite().min(0).max(10_000_000_000);
 export const requisitionItemSchema = z.object({
   productId: z.coerce.number().int().positive(),
   quantity: z.coerce.number().finite().positive().max(100_000),
-  // Kept for backward-compatible clients. The server ignores this value and
-  // resolves the current RETAIL price from the product catalogue.
+  // This is the price quoted to the customer on the repair order. It is
+  // snapshotted when the requisition is created so a later catalogue change
+  // cannot alter the invoice.
   unitPrice: money.optional(),
 }).strict();
 

@@ -11,6 +11,13 @@ assert.match(workshopNew, /<DiscountPicker/);
 assert.match(workshopNew, /discountCodeId:\s*selectedDiscount\?\.id/);
 assert.match(workshopNew, /services:\s*activeServices\.map/);
 
+const workshopRequisitionsApi = source("src/app/api/workshop/requisitions/route.ts");
+assert.match(workshopRequisitionsApi, /priceByProductId/);
+assert.match(workshopRequisitionsApi, /unitPrice:\s*priceByProductId\.get/);
+
+const requisitionsApproval = source("src/app/(dashboard)/inventory/requisitions/page.tsx");
+assert.match(requisitionsApproval, /item\.unitPrice \?\?/);
+
 const workshopHistory = source("src/app/(dashboard)/workshop/history/page.tsx");
 assert.match(workshopHistory, /view=history/);
 assert.match(workshopHistory, /AbortController/);

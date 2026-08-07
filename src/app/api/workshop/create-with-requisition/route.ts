@@ -210,7 +210,12 @@ export async function POST(req: NextRequest) {
           data: {
             repairOrderId: ro.id,
             branchId,
-            reason: "Yêu cầu phụ tùng khi tạo lệnh sửa chữa mới",
+            // Keep the agreed repair-order prices until warehouse approval.
+            // PartsRequisitionItem has no price field, so this metadata is the
+            // immutable pricing snapshot consumed by the approval endpoint.
+            reason: `Yêu cầu phụ tùng khi tạo lệnh sửa chữa mới | METADATA:${JSON.stringify(
+              pricedItems.map((item) => ({ productId: item.productId, unitPrice: item.unitPrice })),
+            )}`,
             createdBy: "Hệ thống",
             status: "PENDING", // PENDING status, needs manual approval by warehouse
           },
