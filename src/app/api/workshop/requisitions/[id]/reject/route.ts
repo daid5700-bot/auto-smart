@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
+import { calculateSnapshotDiscount } from "@/lib/discounts";
+import { requireAuth } from "@/lib/guard";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   const requisitionId = parseInt((await params).id);
 
   if (isNaN(requisitionId)) {
@@ -15,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const requisition = await tx.partsRequisition.findUnique({
         where: { id: requisitionId },
         include: {
-          repairOrder: true
+          repairOrder: true,
         }
       });
 
@@ -45,12 +50,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
 
       if (requisition.repairOrderId) {
+        // Only approved export rows are invoiceable. A rejected request must
+        // remove its previously quoted parts from the repair-order total.
+        const roItems = await tx.orderItem.findMany({
+          where: { repairOrderId: requisition.repairOrderId },
+        });
+        const partsCost = roItems.reduce((sum, item) => sum + Number(item.totalPrice), 0);
+        const laborCost = Number(requisition.repairOrder?.laborCost || 0);
+        const redeemTx = await tx.loyaltyTransaction.findFirst({
+          where: {
+            relatedRoId: requisition.repairOrderId,
+            type: "REDEEM",
+            points: { lt: 0 },
+          },
+        });
+        const pointsDiscount = redeemTx ? Math.abs(Number(redeemTx.points)) * 1000 : 0;
+        const snapshotDiscount = requisition.repairOrder
+          ? calculateSnapshotDiscount(requisition.repairOrder, {
+              subtotal: laborCost + partsCost,
+              serviceSubtotal: laborCost,
+              partsSubtotal: partsCost,
+            })
+          : null;
+        const discountAmount = snapshotDiscount ?? Number(requisition.repairOrder?.discountAmount || 0);
+        const totalAmount = Math.max(0, laborCost + partsCost - pointsDiscount - discountAmount);
+        const oldDebtAmount = Number(requisition.repairOrder?.debtAmount || 0);
+        const newDebtAmount = totalAmount - Number(requisition.repairOrder?.paidAmount || 0);
+
         await tx.repairOrder.update({
           where: { id: requisition.repairOrderId },
           data: {
-            status: "DOING" // Reset status back to doing
+            status: "DOING", // Reset status back to doing
+            partsCost,
+            discountAmount,
+            totalAmount,
+            debtAmount: newDebtAmount,
           }
         });
+
+        if (requisition.repairOrder?.customerId && newDebtAmount !== oldDebtAmount) {
+          await tx.customer.update({
+            where: { id: requisition.repairOrder.customerId },
+            data: { totalDebt: { increment: newDebtAmount - oldDebtAmount } },
+          });
+        }
       }
 
       return { success: true, branchId: requisition.branchId };

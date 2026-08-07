@@ -11,6 +11,7 @@ export interface WorkshopServiceLine {
 export interface WorkshopRequestedItem {
   productId: number;
   quantity: number;
+  unitPrice?: number;
 }
 
 export interface WorkshopPricedItem extends WorkshopRequestedItem {
@@ -99,10 +100,15 @@ export async function resolveWorkshopItemPrices(
       );
     }
 
+    const requestedUnitPrice = Number(item.unitPrice);
     return {
       productId: product.id,
       quantity: Number(item.quantity),
-      unitPrice: Math.round(Number(product.prices[0].amount)),
+      // A price edited on the repair order is the agreed customer price.
+      // Use the retail catalogue price only when the client did not submit one.
+      unitPrice: Number.isFinite(requestedUnitPrice)
+        ? Math.round(Math.max(0, requestedUnitPrice))
+        : Math.round(Number(product.prices[0].amount)),
     };
   });
 }

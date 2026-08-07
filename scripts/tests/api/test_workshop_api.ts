@@ -68,6 +68,22 @@ async function main() {
   );
   assert.deepEqual(pricedItems, [{ productId: 7, quantity: 2, unitPrice: 125_000 }]);
 
+  // The customer-facing price is allowed to be explicitly overridden,
+  // including 0 for a warranty/goodwill repair.
+  const zeroPriceItems = await resolveWorkshopItemPrices(
+    fakeTx as any,
+    1,
+    [{ productId: 7, quantity: 2, unitPrice: 0 }],
+  );
+  assert.deepEqual(zeroPriceItems, [{ productId: 7, quantity: 2, unitPrice: 0 }]);
+
+  const quotedPriceItems = await resolveWorkshopItemPrices(
+    fakeTx as any,
+    1,
+    [{ productId: 7, quantity: 2, unitPrice: 89_500 }],
+  );
+  assert.deepEqual(quotedPriceItems, [{ productId: 7, quantity: 2, unitPrice: 89_500 }]);
+
   await assert.rejects(
     () => resolveWorkshopItemPrices(
       fakeTx as any,
