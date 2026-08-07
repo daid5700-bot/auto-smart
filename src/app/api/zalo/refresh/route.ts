@@ -11,7 +11,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền làm mới token Zalo" }, { status: 403 });
     }
 
-    const accessToken = await refreshZaloToken();
+    const body = await req.json().catch(() => ({}));
+    const branchId = Number(body.branchId) || undefined;
+    const accessToken = await refreshZaloToken(branchId);
     return NextResponse.json({ success: true, accessToken });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

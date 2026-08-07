@@ -15,6 +15,13 @@ export default function SettingsPage() {
   
   const [zaloAccessToken, setZaloAccessToken] = useState("");
   const [zaloRefreshToken, setZaloRefreshToken] = useState("");
+  const [zaloThankYouTemplate, setZaloThankYouTemplate] = useState("");
+  const [zaloOilReminderTemplate, setZaloOilReminderTemplate] = useState("");
+  const [zaloBirthdayTemplate, setZaloBirthdayTemplate] = useState("");
+  const [zaloInspectTemplate, setZaloInspectTemplate] = useState("");
+  const [branches, setBranches] = useState<Array<{ id: number; name: string; code?: string | null }>>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [usesLegacyZaloConfig, setUsesLegacyZaloConfig] = useState(false);
   
   // Track initial values to check if they are dirty before saving
   const [initialZaloAccessToken, setInitialZaloAccessToken] = useState("");
@@ -27,17 +34,35 @@ export default function SettingsPage() {
         if (data.config) {
           setLeaseRate(data.config.lease_rate || "7.9");
           setPointsRate(data.config.points_rate || "1");
-          setZaloAppId(data.config.ZALO_APP_ID || "");
-          setZaloAppSecret(data.config.ZALO_APP_SECRET || "");
-          setZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
-          setZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
-          setInitialZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
-          setInitialZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
+          setBranches(data.branches || []);
+          const branchId = data.legacyBranchId || data.branches?.find((branch: any) => /yamaha/i.test(`${branch.code || ""} ${branch.name}`))?.id || data.branches?.[0]?.id;
+          if (branchId) setSelectedBranchId(String(branchId));
         }
       })
       .catch(() => setError("Không thể tải cấu hình"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!selectedBranchId) return;
+    fetch(`/api/config?branchId=${selectedBranchId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.config) throw new Error(data.error || "Không thể tải cấu hình Zalo");
+        setUsesLegacyZaloConfig(Boolean(data.usesLegacyConfig));
+        setZaloAppId(data.config.ZALO_APP_ID || "");
+        setZaloAppSecret(data.config.ZALO_APP_SECRET || "");
+        setZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
+        setZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
+        setInitialZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
+        setInitialZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
+        setZaloThankYouTemplate(data.config.ZALO_TEMPLATE_THANK_YOU || "");
+        setZaloOilReminderTemplate(data.config.ZALO_TEMPLATE_OIL_REMIND || "");
+        setZaloBirthdayTemplate(data.config.ZALO_TEMPLATE_BIRTHDAY || "");
+        setZaloInspectTemplate(data.config.ZALO_TEMPLATE_INSPECT || "");
+      })
+      .catch((err) => setError(err.message));
+  }, [selectedBranchId]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,25 +72,35 @@ export default function SettingsPage() {
       const payload: Record<string, string> = {
         lease_rate: leaseRate,
         points_rate: pointsRate,
-        ZALO_APP_ID: zaloAppId,
-        ZALO_APP_SECRET: zaloAppSecret,
       };
-
-      // Only save tokens if they were manually edited/dirty to avoid overwriting background-refreshed tokens
-      if (zaloAccessToken !== initialZaloAccessToken) {
-        payload.ZALO_OA_ACCESS_TOKEN = zaloAccessToken;
-      }
-      if (zaloRefreshToken !== initialZaloRefreshToken) {
-        payload.ZALO_REFRESH_TOKEN = zaloRefreshToken;
-      }
-
-      const res = await fetch("/api/config", {
+      const generalRes = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Lỗi lưu cấu hình");
+      const generalData = await generalRes.json();
+      if (!generalRes.ok) throw new Error(generalData.error || "Lỗi lưu cấu hình");
+
+      const zaloRes = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: Number(selectedBranchId),
+          useLegacyConfig: usesLegacyZaloConfig,
+          credentials: {
+            ZALO_APP_ID: zaloAppId,
+            ZALO_APP_SECRET: zaloAppSecret,
+            ZALO_OA_ACCESS_TOKEN: zaloAccessToken,
+            ZALO_REFRESH_TOKEN: zaloRefreshToken,
+            ZALO_TEMPLATE_THANK_YOU: zaloThankYouTemplate,
+            ZALO_TEMPLATE_OIL_REMIND: zaloOilReminderTemplate,
+            ZALO_TEMPLATE_BIRTHDAY: zaloBirthdayTemplate,
+            ZALO_TEMPLATE_INSPECT: zaloInspectTemplate,
+          },
+        }),
+      });
+      const zaloData = await zaloRes.json();
+      if (!zaloRes.ok) throw new Error(zaloData.error || "Lỗi lưu cấu hình Zalo");
       
       // Update initial values so they are clean again
       setInitialZaloAccessToken(zaloAccessToken);
@@ -146,7 +181,31 @@ export default function SettingsPage() {
 
         {/* Section 3: Zalo API Config */}
         <div className="space-y-4">
-          <h3 className="font-bold border-b border-border/40 pb-2">3. Cấu hình Zalo API</h3>
+          <div className="flex flex-col gap-1 border-b border-border/40 pb-2 md:flex-row md:items-center md:justify-between">
+            <h3 className="font-bold">3. Zalo OA theo chi nhánh</h3>
+            <select
+              aria-label="Chọn chi nhánh cấu hình Zalo OA"
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              className="min-h-11 rounded-xl border border-border bg-secondary/30 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            </select>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {usesLegacyZaloConfig
+              ? "Chi nhánh Yamaha đang dùng OA hiện tại. Lưu lại tại đây sẽ giữ OA này gắn riêng cho Yamaha."
+              : "Nhập OA và các mã template riêng cho chi nhánh đang chọn (ví dụ: VinFast)."}
+          </p>
+          <label className="flex min-h-11 items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={usesLegacyZaloConfig}
+              onChange={(e) => setUsesLegacyZaloConfig(e.target.checked)}
+              className="h-4 w-4 rounded border-border accent-primary"
+            />
+            Dùng OA hiện tại cho chi nhánh Yamaha này
+          </label>
           <div className="grid grid-cols-1 gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -187,6 +246,26 @@ export default function SettingsPage() {
                 placeholder="Nhập Zalo Access Token..."
                 className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono resize-y"
               />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {[
+                ["Template cảm ơn", zaloThankYouTemplate, setZaloThankYouTemplate],
+                ["Template nhắc thay dầu", zaloOilReminderTemplate, setZaloOilReminderTemplate],
+                ["Template sinh nhật", zaloBirthdayTemplate, setZaloBirthdayTemplate],
+                ["Template kiểm tra", zaloInspectTemplate, setZaloInspectTemplate],
+              ].map(([label, value, setter]) => (
+                <div key={label as string}>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">{label as string}</label>
+                  <input
+                    type="text"
+                    value={value as string}
+                    onChange={(e) => (setter as (value: string) => void)(e.target.value)}
+                    placeholder="Mã template ZNS..."
+                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                  />
+                </div>
+              ))}
             </div>
 
             <div>

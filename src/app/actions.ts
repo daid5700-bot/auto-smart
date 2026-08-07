@@ -484,7 +484,7 @@ export async function updateROStatus(data: {
         point: String(points),
         total_point: String(totalPoint),
       };
-      const result = await sendZaloZns(updatedRo.customer.phone, "CRM_THANK_YOU_001", templateData);
+      const result = await sendZaloZns(updatedRo.customer.phone, "CRM_THANK_YOU_001", templateData, updatedRo.branchId);
       if (!result.success) {
         znsStatus = "FAILED";
         znsError = result.error || "Lỗi không xác định";
@@ -719,7 +719,7 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
     store_name: storeName200,
   };
 
-  const result = await sendZaloZns(data.phone, "CRM_OIL_REMIND_002", templateData);
+  const result = await sendZaloZns(data.phone, "CRM_OIL_REMIND_002", templateData, branchId || customer.branchId);
 
   let status = "SUCCESS";
   let errorMsg: string | null = null;
@@ -1150,7 +1150,7 @@ export async function sendCustomZnsAction(data: {
       };
     }
 
-    const result = await sendZaloZns(data.phone, data.templateId, templateData);
+    const result = await sendZaloZns(data.phone, data.templateId, templateData, activeBranchId || customer.branchId);
 
     if (!result.success) {
       status = "FAILED";

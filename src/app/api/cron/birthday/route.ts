@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
         const content = `Chúc Mừng Sinh Nhật Quý Khách ${customer.name}. Nhân dịp sinh nhật, Yamaha Town Toàn Thắng kính chúc quý khách ${customer.name} (SĐT: ${customer.phone}) một tuổi mới thật nhiều sức khỏe, hạnh phúc và vạn sự hanh thông! Hạn nhận quà đến ngày ${formatDateForZalo(expiryDate)}`;
 
         // Trigger real ZNS API call
-        const znsResult = await sendZaloZns(customer.phone, "CRM_BIRTHDAY_003", templateData);
+        const znsResult = await sendZaloZns(customer.phone, "CRM_BIRTHDAY_003", templateData, customer.branchId);
         
         let status = "SENT";
         let errorMsg = null;
