@@ -17,6 +17,7 @@ type Props = {
   totalPartsQuantity: number;
   submitting: boolean;
   onCancel: () => void;
+  isEditMode?: boolean;
 };
 
 export function RepairOrderSummary(props: Props) {
@@ -43,7 +44,7 @@ export function RepairOrderSummary(props: Props) {
             />
           )}
 
-          {props.selectedCustomerId && props.customerLoyaltyPoints > 0 ? (
+          {props.selectedCustomerId && props.customerLoyaltyPoints > 0 && !props.isEditMode ? (
             <div className="pt-3 border-t border-dashed border-border/40 space-y-2">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">Điểm tích lũy hiện có:</span>
