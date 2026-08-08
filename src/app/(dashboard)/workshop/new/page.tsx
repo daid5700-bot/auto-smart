@@ -736,14 +736,22 @@ export default function NewRepairOrderPage() {
               <h3 className="text-sm font-bold uppercase text-muted-foreground tracking-wider">
                 Yêu cầu phụ tùng cần xuất
               </h3>
-              <button
-                type="button"
-                onClick={handleAddItem}
-                className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-              >
-                <Plus size={13} /> Thêm phụ tùng
-              </button>
+              {!editId && (
+                <button
+                  type="button"
+                  onClick={handleAddItem}
+                  className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus size={13} /> Thêm phụ tùng
+                </button>
+              )}
             </div>
+            {editId && (
+              <div className="bg-primary/10 border border-primary/20 p-3 rounded-xl text-[11px] text-primary/80 font-medium flex items-center gap-2">
+                <AlertCircle size={14} />
+                <span>Bạn không thể chỉnh sửa trực tiếp phụ tùng khi cập nhật lệnh. Vui lòng quản lý qua Kho và Phiếu Yêu Cầu.</span>
+              </div>
+            )}
 
             {items.length === 0 ? (
               <div className="text-center py-10 space-y-2 border-2 border-dashed border-border/50 rounded-2xl bg-secondary/5">
@@ -765,7 +773,7 @@ export default function NewRepairOrderPage() {
                       <th className="p-3 w-24">Số lượng</th>
                       <th className="p-3 w-36">Đơn giá (VND)</th>
                       <th className="p-3 w-36 text-right">Thành tiền</th>
-                      <th className="p-3 w-12 text-center">Xóa</th>
+                      {!editId && <th className="p-3 w-12 text-center">Xóa</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -776,21 +784,29 @@ export default function NewRepairOrderPage() {
                         <tr key={index} className="hover:bg-secondary/5 transition-colors">
                           {/* Searchable Combobox for Product */}
                           <td className="p-2 relative">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenDropdownIdx(openDropdownIdx === index ? null : index);
-                                setSearchQuery("");
-                              }}
-                              className="w-full px-3 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs text-left outline-none flex justify-between items-center hover:bg-secondary/30 transition-colors"
-                            >
-                              <span className="truncate font-medium">
+                            {editId ? (
+                              <div className="w-full px-3 py-2 bg-secondary/10 border border-border/40 rounded-xl text-xs text-left truncate text-muted-foreground">
                                 {selectedProduct
                                   ? `[${selectedProduct.sku}] ${selectedProduct.name} (Tồn: ${selectedProduct.stockCount})`
-                                  : "Chọn phụ tùng..."}
-                              </span>
-                              <ChevronDown size={14} className="text-muted-foreground shrink-0 ml-1.5" />
-                            </button>
+                                  : "---"}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownIdx(openDropdownIdx === index ? null : index);
+                                  setSearchQuery("");
+                                }}
+                                className="w-full px-3 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs text-left outline-none flex justify-between items-center hover:bg-secondary/30 transition-colors"
+                              >
+                                <span className="truncate font-medium">
+                                  {selectedProduct
+                                    ? `[${selectedProduct.sku}] ${selectedProduct.name} (Tồn: ${selectedProduct.stockCount})`
+                                    : "Chọn phụ tùng..."}
+                                </span>
+                                <ChevronDown size={14} className="text-muted-foreground shrink-0 ml-1.5" />
+                              </button>
+                            )}
 
                             {/* Dropdown menu */}
                             {openDropdownIdx === index && (
@@ -850,30 +866,34 @@ export default function NewRepairOrderPage() {
                           </td>
                           <td className="p-2">
                             <NumericInput
+                              disabled={!!editId}
                               value={item.quantity}
                               onChange={(c) => handleItemQuantityChange(index, c === "" ? "" : parseInt(c, 10))}
-                              className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-center outline-none"
+                              className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-center outline-none disabled:opacity-60"
                             />
                           </td>
                           <td className="p-2">
                             <NumericInput
+                              disabled={!!editId}
                               value={item.unitPrice}
                               onChange={(c) => handleItemPriceChange(index, c === "" ? "" : parseInt(c, 10))}
-                              className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-primary outline-none"
+                              className="w-full px-2.5 py-2 bg-secondary/20 border border-border/70 rounded-xl text-xs font-semibold text-primary outline-none disabled:opacity-60"
                             />
                           </td>
                           <td className="p-2 text-right font-bold text-foreground">
                             {formatCurrency((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
                           </td>
-                          <td className="p-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(index)}
-                              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
+                          {!editId && (
+                            <td className="p-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(index)}
+                                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -915,6 +935,7 @@ export default function NewRepairOrderPage() {
             totalPartsQuantity={totalPartsQuantity}
             submitting={submitting}
             onCancel={() => router.push("/workshop")}
+            isEditMode={!!editId}
           />
         </div>
       </form>
