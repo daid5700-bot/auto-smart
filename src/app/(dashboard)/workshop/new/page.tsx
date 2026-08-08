@@ -362,7 +362,7 @@ export default function NewRepairOrderPage() {
         services: activeServices.map(s => ({ name: s.name, cost: Number(s.cost) || 0 })),
       });
 
-      const payload = {
+      const payload: any = {
         customerName: customerName.trim(),
         phone: phone.trim(),
         plateNumber: plateNumber.trim(),
@@ -385,10 +385,13 @@ export default function NewRepairOrderPage() {
         discountPercent: 0,
         discountCodeId: selectedDiscount?.id || null,
         birthday: birthday || undefined,
-        status,
-        servicesJson: activeServices.map((service) => ({ name: service.name.trim(), cost: Number(service.cost) || 0 })),
-        photos: carCondition ? [carCondition] : [],
       };
+
+      if (editId) {
+        payload.status = status;
+        payload.servicesJson = activeServices.map((service) => ({ name: service.name.trim(), cost: Number(service.cost) || 0 }));
+        payload.photos = carCondition ? [carCondition] : [];
+      }
 
       const res = await fetch(editId ? `/api/workshop/${editId}` : "/api/workshop/create-with-requisition", {
         method: editId ? "PATCH" : "POST",
