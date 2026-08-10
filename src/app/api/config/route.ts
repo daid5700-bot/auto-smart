@@ -77,6 +77,13 @@ export async function POST(req: NextRequest) {
       const branch = await prisma.branch.findFirst({ where: { id: branchId, isDeleted: false } });
       if (!branch) return NextResponse.json({ error: "Chi nhánh không tồn tại" }, { status: 404 });
 
+      if (body.useLegacyConfig && !isYamahaBranch(branch)) {
+        return NextResponse.json(
+          { error: "Chỉ chi nhánh Yamaha mới được dùng bộ thông tin Zalo OA hiện tại." },
+          { status: 400 },
+        );
+      }
+
       const useLegacyConfig = Boolean(body.useLegacyConfig);
       if (useLegacyConfig) {
         await prisma.systemConfig.upsert({

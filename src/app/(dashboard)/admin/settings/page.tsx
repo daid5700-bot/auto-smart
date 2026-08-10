@@ -27,6 +27,11 @@ export default function SettingsPage() {
   const [initialZaloAccessToken, setInitialZaloAccessToken] = useState("");
   const [initialZaloRefreshToken, setInitialZaloRefreshToken] = useState("");
 
+  const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
+  const canUseLegacyZaloConfig = Boolean(
+    selectedBranch && /yamaha/i.test(`${selectedBranch.code || ""} ${selectedBranch.name}`),
+  );
+
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.json())
@@ -86,7 +91,7 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           branchId: Number(selectedBranchId),
-          useLegacyConfig: usesLegacyZaloConfig,
+          useLegacyConfig: canUseLegacyZaloConfig && usesLegacyZaloConfig,
           credentials: {
             ZALO_APP_ID: zaloAppId,
             ZALO_APP_SECRET: zaloAppSecret,
@@ -201,10 +206,13 @@ export default function SettingsPage() {
             <input
               type="checkbox"
               checked={usesLegacyZaloConfig}
+              disabled={!canUseLegacyZaloConfig}
               onChange={(e) => setUsesLegacyZaloConfig(e.target.checked)}
-              className="h-4 w-4 rounded border-border accent-primary"
+              className="h-4 w-4 rounded border-border accent-primary disabled:cursor-not-allowed disabled:opacity-50"
             />
-            Dùng OA hiện tại cho chi nhánh Yamaha này
+            {canUseLegacyZaloConfig
+              ? "Dùng OA hiện tại cho chi nhánh Yamaha này"
+              : "Chi nhánh này dùng cấu hình OA riêng"}
           </label>
           <div className="grid grid-cols-1 gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
