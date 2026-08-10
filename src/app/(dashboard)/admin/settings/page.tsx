@@ -2,6 +2,54 @@
 import { useEffect, useState } from "react";
 import { Save, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/store";
+import {
+  createEmptyZaloCredentials,
+  ZALO_AUTH_FIELDS,
+  ZALO_CREDENTIAL_KEYS,
+  ZALO_TEMPLATE_DEFINITIONS,
+  type ZaloCredentialKey,
+  type ZaloCredentialValues,
+} from "@/lib/zalo-config";
+
+interface SettingsFormState {
+  leaseRate: string;
+  pointsRate: string;
+  credentials: ZaloCredentialValues;
+}
+
+const INITIAL_FORM_STATE: SettingsFormState = {
+  leaseRate: "7.9",
+  pointsRate: "1",
+  credentials: createEmptyZaloCredentials(),
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function sanitizeDecimal(value: string) {
+  const sanitized = value.replace(/[^0-9.]/g, "");
+  return sanitized.split(".").length <= 2 ? sanitized : null;
+}
+
+function buildFormState(config: Record<string, unknown>): SettingsFormState {
+  const credentials = createEmptyZaloCredentials();
+  for (const key of ZALO_CREDENTIAL_KEYS) {
+    credentials[key] = typeof config[key] === "string" ? config[key] : "";
+  }
+
+  return {
+    leaseRate:
+      typeof config.lease_rate === "string" ? config.lease_rate : "7.9",
+    pointsRate:
+      typeof config.points_rate === "string" ? config.points_rate : "1",
+    credentials,
+  };
+}
 
 export default function SettingsPage() {
   const { activeBranch } = useAuth();
@@ -10,76 +58,79 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  const [leaseRate, setLeaseRate] = useState("7.9");
-  const [pointsRate, setPointsRate] = useState("1");
-  const [zaloAppId, setZaloAppId] = useState("");
-  const [zaloAppSecret, setZaloAppSecret] = useState("");
+  const [form, setForm] = useState<SettingsFormState>(INITIAL_FORM_STATE);
 
-  const [zaloAccessToken, setZaloAccessToken] = useState("");
-  const [zaloRefreshToken, setZaloRefreshToken] = useState("");
-  const [zaloThankYouTemplate, setZaloThankYouTemplate] = useState("");
-  const [zaloOilReminderTemplate, setZaloOilReminderTemplate] = useState("");
-  const [zaloBirthdayTemplate, setZaloBirthdayTemplate] = useState("");
-  const [zaloInspectTemplate, setZaloInspectTemplate] = useState("");
-  const [zaloLoyaltyTemplate, setZaloLoyaltyTemplate] = useState("");
   useEffect(() => {
-    if (!activeBranch?.id) return;
+    if (!activeBranch?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
     setLoading(true);
-    fetch("/api/config")
-      .then((r) => r.json())
+    setError("");
+    fetch("/api/config", { signal: controller.signal })
+      .then(async (response) => {
+        const data: unknown = await response.json();
+        if (!response.ok) {
+          const message =
+            isRecord(data) && typeof data.error === "string"
+              ? data.error
+              : "Không thể tải cấu hình";
+          throw new Error(message);
+        }
+        return data;
+      })
       .then((data) => {
-        if (data.config) {
-          setLeaseRate(data.config.lease_rate || "7.9");
-          setPointsRate(data.config.points_rate || "1");
-          setZaloAppId(data.config.ZALO_APP_ID || "");
-          setZaloAppSecret(data.config.ZALO_APP_SECRET || "");
-          setZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
-          setZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
-          setZaloThankYouTemplate(data.config.ZALO_TEMPLATE_THANK_YOU || "");
-          setZaloOilReminderTemplate(
-            data.config.ZALO_TEMPLATE_OIL_REMIND || "",
-          );
-          setZaloBirthdayTemplate(data.config.ZALO_TEMPLATE_BIRTHDAY || "");
-          setZaloInspectTemplate(data.config.ZALO_TEMPLATE_INSPECT || "");
-          setZaloLoyaltyTemplate(data.config.ZALO_TEMPLATE_LOYALTY || "");
+        if (isRecord(data) && isRecord(data.config)) {
+          setForm(buildFormState(data.config));
         }
       })
-      .catch(() => setError("Không thể tải cấu hình"))
-      .finally(() => setLoading(false));
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) setError(getErrorMessage(requestError));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [activeBranch?.id]);
+
+  const updateCredential = (key: ZaloCredentialKey, value: string) => {
+    setForm((current) => ({
+      ...current,
+      credentials: { ...current.credentials, [key]: value },
+    }));
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError("");
     try {
-      const payload: Record<string, unknown> = {
-        lease_rate: leaseRate,
-        points_rate: pointsRate,
-        credentials: {
-          ZALO_APP_ID: zaloAppId,
-          ZALO_APP_SECRET: zaloAppSecret,
-          ZALO_OA_ACCESS_TOKEN: zaloAccessToken,
-          ZALO_REFRESH_TOKEN: zaloRefreshToken,
-          ZALO_TEMPLATE_THANK_YOU: zaloThankYouTemplate,
-          ZALO_TEMPLATE_OIL_REMIND: zaloOilReminderTemplate,
-          ZALO_TEMPLATE_BIRTHDAY: zaloBirthdayTemplate,
-          ZALO_TEMPLATE_INSPECT: zaloInspectTemplate,
-          ZALO_TEMPLATE_LOYALTY: zaloLoyaltyTemplate,
-        },
+      const payload = {
+        lease_rate: form.leaseRate,
+        points_rate: form.pointsRate,
+        credentials: form.credentials,
       };
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Lỗi lưu cấu hình");
+      const data: unknown = await res.json();
+      if (!res.ok) {
+        const message =
+          isRecord(data) && typeof data.error === "string"
+            ? data.error
+            : "Lỗi lưu cấu hình";
+        throw new Error(message);
+      }
 
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (saveError) {
+      setError(getErrorMessage(saveError));
     } finally {
       setSaving(false);
     }
@@ -88,7 +139,10 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <Loader2
+          aria-label="Đang tải cấu hình"
+          className="w-8 h-8 animate-spin text-primary"
+        />
       </div>
     );
   }
@@ -107,19 +161,23 @@ export default function SettingsPage() {
               1. Cấu hình Kinh doanh xe
             </h3>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+              <label
+                htmlFor="lease-rate"
+                className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase"
+              >
                 Lãi suất trả góp ngân hàng cơ bản (% / năm)
               </label>
               <input
+                id="lease-rate"
                 type="text"
                 inputMode="decimal"
                 pattern="[0-9.]*"
-                value={leaseRate}
+                value={form.leaseRate}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9.]/g, "");
-                  const parts = val.split(".");
-                  if (parts.length > 2) return;
-                  setLeaseRate(val);
+                  const value = sanitizeDecimal(e.target.value);
+                  if (value !== null) {
+                    setForm((current) => ({ ...current, leaseRate: value }));
+                  }
                 }}
                 className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
               />
@@ -132,19 +190,23 @@ export default function SettingsPage() {
               2. Chương trình khách hàng thân thiết
             </h3>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
+              <label
+                htmlFor="points-rate"
+                className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase"
+              >
                 Tỷ lệ tích điểm (% trên tổng thanh toán)
               </label>
               <input
+                id="points-rate"
                 type="text"
                 inputMode="decimal"
                 pattern="[0-9.]*"
-                value={pointsRate}
+                value={form.pointsRate}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9.]/g, "");
-                  const parts = val.split(".");
-                  if (parts.length > 2) return;
-                  setPointsRate(val);
+                  const value = sanitizeDecimal(e.target.value);
+                  if (value !== null) {
+                    setForm((current) => ({ ...current, pointsRate: value }));
+                  }
                 }}
                 className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
               />
@@ -169,102 +231,75 @@ export default function SettingsPage() {
             </p>
             <div className="grid grid-cols-1 gap-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
-                    Zalo App ID
-                  </label>
-                  <input
-                    type="text"
-                    value={zaloAppId}
-                    onChange={(e) => setZaloAppId(e.target.value)}
-                    placeholder="Nhập Zalo App ID..."
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                  />
-                </div>
+                {ZALO_AUTH_FIELDS.map((field) => {
+                  const inputId = field.key.toLowerCase().replaceAll("_", "-");
+                  const className =
+                    "fullWidth" in field && field.fullWidth
+                      ? "md:col-span-2"
+                      : "";
 
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
-                    Zalo App Secret Key
-                  </label>
-                  <input
-                    type="password"
-                    value={zaloAppSecret}
-                    onChange={(e) => setZaloAppSecret(e.target.value)}
-                    placeholder="Nhập Zalo App Secret..."
-                    className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
-                  Zalo Access Token
-                </label>
-                <textarea
-                  rows={3}
-                  value={zaloAccessToken}
-                  onChange={(e) => setZaloAccessToken(e.target.value)}
-                  placeholder="Nhập Zalo Access Token..."
-                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono resize-y"
-                />
+                  return (
+                    <div key={field.key} className={className}>
+                      <label
+                        htmlFor={inputId}
+                        className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase"
+                      >
+                        {field.label}
+                      </label>
+                      {field.inputType === "textarea" ? (
+                        <textarea
+                          id={inputId}
+                          rows={3}
+                          value={form.credentials[field.key]}
+                          onChange={(e) =>
+                            updateCredential(field.key, e.target.value)
+                          }
+                          placeholder={field.placeholder}
+                          className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono resize-y"
+                        />
+                      ) : (
+                        <input
+                          id={inputId}
+                          type={field.inputType}
+                          value={form.credentials[field.key]}
+                          onChange={(e) =>
+                            updateCredential(field.key, e.target.value)
+                          }
+                          placeholder={field.placeholder}
+                          className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {[
-                  [
-                    "Template cảm ơn",
-                    zaloThankYouTemplate,
-                    setZaloThankYouTemplate,
-                  ],
-                  [
-                    "Template nhắc thay dầu",
-                    zaloOilReminderTemplate,
-                    setZaloOilReminderTemplate,
-                  ],
-                  [
-                    "Template sinh nhật",
-                    zaloBirthdayTemplate,
-                    setZaloBirthdayTemplate,
-                  ],
-                  [
-                    "Template kiểm tra",
-                    zaloInspectTemplate,
-                    setZaloInspectTemplate,
-                  ],
-                  [
-                    "Template tích điểm",
-                    zaloLoyaltyTemplate,
-                    setZaloLoyaltyTemplate,
-                  ],
-                ].map(([label, value, setter]) => (
-                  <div key={label as string}>
-                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
-                      {label as string}
-                    </label>
-                    <input
-                      type="text"
-                      value={value as string}
-                      onChange={(e) =>
-                        (setter as (value: string) => void)(e.target.value)
-                      }
-                      placeholder="Mã template ZNS..."
-                      className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">
-                  Zalo Refresh Token
-                </label>
-                <input
-                  type="text"
-                  value={zaloRefreshToken}
-                  onChange={(e) => setZaloRefreshToken(e.target.value)}
-                  placeholder="Nhập Zalo Refresh Token..."
-                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                />
+                {ZALO_TEMPLATE_DEFINITIONS.map((template) => {
+                  const inputId = template.key
+                    .toLowerCase()
+                    .replaceAll("_", "-");
+                  return (
+                    <div key={template.key}>
+                      <label
+                        htmlFor={inputId}
+                        className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase"
+                      >
+                        {template.label}
+                      </label>
+                      <input
+                        id={inputId}
+                        type="text"
+                        value={form.credentials[template.key]}
+                        onChange={(e) =>
+                          updateCredential(template.key, e.target.value)
+                        }
+                        placeholder="Mã template ZNS..."
+                        className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </section>
@@ -272,12 +307,18 @@ export default function SettingsPage() {
 
         {/* Messages */}
         {error && (
-          <div className="flex items-center gap-2 text-xs font-bold text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-xl">
+          <div
+            role="alert"
+            className="flex items-center gap-2 text-xs font-bold text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-xl"
+          >
             <AlertCircle size={16} /> {error}
           </div>
         )}
         {success && (
-          <div className="flex items-center gap-2 text-xs font-bold text-success bg-success/10 border border-success/20 p-3 rounded-xl">
+          <div
+            role="status"
+            className="flex items-center gap-2 text-xs font-bold text-success bg-success/10 border border-success/20 p-3 rounded-xl"
+          >
             <CheckCircle2 size={16} /> Lưu cấu hình hệ thống thành công!
           </div>
         )}

@@ -1,21 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyRole } from "@/lib/auth";
-import { ZALO_CREDENTIAL_KEYS } from "@/lib/zalo";
 import { getActiveBranchId } from "@/lib/branch";
 import {
-  LEGACY_ZALO_BRANCH_KEY,
-  setBranchConfigValue,
+  ensureLegacyConfigOwner,
+  getBranchConfigScope,
+  setBranchConfigValues,
 } from "@/lib/branch-config";
+import { ZALO_CREDENTIAL_KEYS } from "@/lib/zalo-config";
 
-const DEFAULT_CONFIGS: Record<string, string> = {
-  zns_template: "Kính gửi quý khách [NAME], xe [PLATE] đã đến hạn bảo dưỡng thay dầu nhớt. Vui lòng liên hệ Xe Máy Toàn Thắng để đặt lịch!",
+const DEFAULT_CONFIGS: Readonly<Record<string, string>> = {
+  zns_template:
+    "Kính gửi quý khách [NAME], xe [PLATE] đã đến hạn bảo dưỡng thay dầu nhớt. Vui lòng liên hệ Xe Máy Toàn Thắng để đặt lịch!",
   lease_rate: "7.9",
   points_rate: "1",
 };
+const GENERAL_CONFIG_KEYS = Object.keys(DEFAULT_CONFIGS);
+const EDITABLE_ZALO_KEYS = new Set<string>(ZALO_CREDENTIAL_KEYS);
+const ALL_CONFIG_KEYS = [...GENERAL_CONFIG_KEYS, ...ZALO_CREDENTIAL_KEYS];
 
-function isYamahaBranch(branch: { name: string; code: string | null }) {
-  return /yamaha/i.test(`${branch.code || ""} ${branch.name}`);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function pickEditableValues(
+  source: Record<string, unknown>,
+  allowedKeys: ReadonlySet<string>,
+) {
+  return Object.fromEntries(
+    Object.entries(source)
+      .filter(([key, value]) => allowedKeys.has(key) && value !== undefined)
+      .map(([key, value]) => [key, String(value)]),
+  );
 }
 
 // GET /api/config — admin-only configuration for the branch selected in the header.
@@ -23,55 +43,45 @@ export async function GET(req: NextRequest) {
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
-      return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền xem cấu hình" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Chỉ quản trị viên mới có quyền xem cấu hình" },
+        { status: 403 },
+      );
     }
 
     const branchId = await getActiveBranchId();
-    if (!branchId) return NextResponse.json({ error: "Chưa chọn chi nhánh ở header" }, { status: 400 });
+    if (!branchId) {
+      return NextResponse.json(
+        { error: "Chưa chọn chi nhánh ở header" },
+        { status: 400 },
+      );
+    }
 
-    const [branchSettings, legacyRows, branch] = await Promise.all([
-      prisma.branchSetting.findMany({ where: { branchId }, select: { key: true, value: true } }),
-      prisma.systemConfig.findMany({
-        where: { key: { in: [LEGACY_ZALO_BRANCH_KEY, ...Object.keys(DEFAULT_CONFIGS), ...ZALO_CREDENTIAL_KEYS] } },
-        select: { key: true, value: true },
-      }),
-      prisma.branch.findFirst({
-        where: { id: branchId, isDeleted: false },
-        select: { id: true, name: true, code: true },
-      }),
-    ]);
-    if (!branch) return NextResponse.json({ error: "Chi nhánh hiện tại không tồn tại" }, { status: 404 });
-
-    const configByKey = Object.fromEntries(branchSettings.map((row) => [row.key, row.value]));
-    const legacyConfig = Object.fromEntries(legacyRows.map((row) => [row.key, row.value]));
-    const legacyBranchId = Number(legacyConfig[LEGACY_ZALO_BRANCH_KEY]) || null;
-    const usesLegacyConfig = legacyBranchId
-      ? legacyBranchId === branch.id
-      : isYamahaBranch(branch);
-    const readConfig = (key: string) =>
-      configByKey[key]
-      ?? (usesLegacyConfig ? legacyConfig[key] : undefined)
-      ?? DEFAULT_CONFIGS[key]
-      ?? "";
-    const zaloConfig = Object.fromEntries(
-      ZALO_CREDENTIAL_KEYS.map((key) => [
-        key,
-        configByKey[key]
-          ?? (usesLegacyConfig ? legacyConfig[key] : "")
-          ?? "",
-      ])
+    const scope = await getBranchConfigScope(
+      branchId,
+      ALL_CONFIG_KEYS,
+      DEFAULT_CONFIGS,
     );
+    if (!scope) {
+      return NextResponse.json(
+        { error: "Chi nhánh hiện tại không tồn tại" },
+        { status: 404 },
+      );
+    }
 
     return NextResponse.json({
-      branch,
-      activeBranchId: branch.id,
-      legacyBranchId,
-      usesLegacyConfig,
-      config: { ...zaloConfig, lease_rate: readConfig("lease_rate"), points_rate: readConfig("points_rate"), zns_template: readConfig("zns_template") },
+      branch: scope.branch,
+      activeBranchId: scope.branch.id,
+      legacyBranchId: scope.legacyBranchId,
+      usesLegacyConfig: scope.usesLegacyConfig,
+      config: scope.values,
     });
-  } catch (error: any) {
-    console.error("❌ [API_CONFIG] GET error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    console.error("[API_CONFIG] GET error:", error);
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }
 
@@ -80,38 +90,59 @@ export async function POST(req: NextRequest) {
   try {
     const role = await verifyRole(req.cookies.get("user_role")?.value);
     if (role !== "ADMIN") {
-      return NextResponse.json({ error: "Chỉ quản trị viên mới có quyền thay đổi cấu hình" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Chỉ quản trị viên mới có quyền thay đổi cấu hình" },
+        { status: 403 },
+      );
     }
 
-    const body = await req.json();
+    const body: unknown = await req.json();
+    if (!isRecord(body)) {
+      return NextResponse.json(
+        { error: "Dữ liệu cấu hình không hợp lệ" },
+        { status: 400 },
+      );
+    }
+
     const branchId = await getActiveBranchId();
-    if (!branchId) return NextResponse.json({ error: "Chưa chọn chi nhánh ở header" }, { status: 400 });
-    const branch = await prisma.branch.findFirst({ where: { id: branchId, isDeleted: false } });
-    if (!branch) return NextResponse.json({ error: "Chi nhánh hiện tại không tồn tại" }, { status: 404 });
-
-    // Keep the legacy marker pointing at Yamaha, while all newly saved values
-    // are written to the active branch scope.
-    if (isYamahaBranch(branch)) {
-      await prisma.systemConfig.upsert({
-        where: { key: LEGACY_ZALO_BRANCH_KEY },
-        update: { value: String(branchId) },
-        create: { key: LEGACY_ZALO_BRANCH_KEY, value: String(branchId) },
-      });
+    if (!branchId) {
+      return NextResponse.json(
+        { error: "Chưa chọn chi nhánh ở header" },
+        { status: 400 },
+      );
     }
 
-    for (const key of ["lease_rate", "points_rate", "zns_template"]) {
-      if (body[key] !== undefined) await setBranchConfigValue(key, String(body[key]), branchId);
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, isDeleted: false },
+      select: { id: true, name: true, code: true },
+    });
+    if (!branch) {
+      return NextResponse.json(
+        { error: "Chi nhánh hiện tại không tồn tại" },
+        { status: 404 },
+      );
     }
 
-    const allowed = new Set<string>(ZALO_CREDENTIAL_KEYS);
-    const credentials = body.credentials || {};
-    for (const [key, value] of Object.entries(credentials)) {
-      if (!allowed.has(key)) continue;
-      await setBranchConfigValue(key, String(value), branchId);
-    }
+    const generalValues = pickEditableValues(
+      body,
+      new Set(GENERAL_CONFIG_KEYS),
+    );
+    const credentialValues = isRecord(body.credentials)
+      ? pickEditableValues(body.credentials, EDITABLE_ZALO_KEYS)
+      : {};
+
+    await ensureLegacyConfigOwner(branch);
+    await setBranchConfigValues(
+      { ...generalValues, ...credentialValues },
+      branchId,
+    );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    console.error("[API_CONFIG] POST error:", error);
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }
