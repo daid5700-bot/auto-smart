@@ -303,7 +303,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               total_point: String(totalPoint),
             };
             
-            const result = await sendZaloZns(ro.customer.phone, "CRM_THANK_YOU_001", templateData);
+            const result = await sendZaloZns(ro.customer.phone, "CRM_THANK_YOU_001", templateData, ro.branchId);
             
             await prisma.znsLog.create({
               data: {

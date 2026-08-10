@@ -1,6 +1,43 @@
-import fs from "fs";
-import path from "path";
 import { prisma } from "@/lib/prisma";
+
+export const ZALO_CREDENTIAL_KEYS = [
+  "ZALO_APP_ID",
+  "ZALO_APP_SECRET",
+  "ZALO_OA_ACCESS_TOKEN",
+  "ZALO_REFRESH_TOKEN",
+  "ZALO_TEMPLATE_THANK_YOU",
+  "ZALO_TEMPLATE_OIL_REMIND",
+  "ZALO_TEMPLATE_BIRTHDAY",
+  "ZALO_TEMPLATE_INSPECT",
+] as const;
+
+type ZaloCredentialKey = (typeof ZALO_CREDENTIAL_KEYS)[number];
+
+const LEGACY_ZALO_BRANCH_KEY = "ZALO_LEGACY_BRANCH_ID";
+
+function getScopedZaloKey(branchId: number, key: string) {
+  return `ZALO_BRANCH_${branchId}_${key}`;
+}
+
+async function branchUsesLegacyZaloConfig(branchId?: number | null) {
+  if (!branchId) return true;
+
+  const legacyBranch = await prisma.systemConfig.findUnique({ where: { key: LEGACY_ZALO_BRANCH_KEY } });
+  if (legacyBranch?.value) return Number(legacyBranch.value) === branchId;
+
+  // Backward-compatible default: the existing shared OA belongs to Yamaha.
+  const branch = await prisma.branch.findUnique({
+    where: { id: branchId },
+    select: { name: true, code: true },
+  });
+  return /yamaha/i.test(`${branch?.code || ""} ${branch?.name || ""}`);
+}
+
+async function getZaloConfigKey(key: string, branchId?: number | null) {
+  return (await branchUsesLegacyZaloConfig(branchId)) || !branchId
+    ? key
+    : getScopedZaloKey(branchId, key);
+}
 
 // Format phone number for Zalo (e.g. 0901234567 -> 84901234567)
 export function formatPhoneForZalo(phone: string): string {
@@ -15,9 +52,10 @@ export function formatPhoneForZalo(phone: string): string {
 }
 
 // Get credential from Database only
-export async function getZaloCredential(key: string): Promise<string> {
+export async function getZaloCredential(key: ZaloCredentialKey, branchId?: number | null): Promise<string> {
   try {
-    const config = await prisma.systemConfig.findUnique({ where: { key } });
+    const configKey = await getZaloConfigKey(key, branchId);
+    const config = await prisma.systemConfig.findUnique({ where: { key: configKey } });
     return config?.value || "";
   } catch (dbErr) {
     console.error(`❌ [ZALO] Could not read ${key} from DB:`, dbErr);
@@ -26,13 +64,17 @@ export async function getZaloCredential(key: string): Promise<string> {
 }
 
 // Update token in DB only
-export async function updateZaloCredentials(updates: Record<string, string>) {
+export async function updateZaloCredentials(
+  updates: Partial<Record<ZaloCredentialKey, string>>,
+  branchId?: number | null
+) {
   for (const [key, value] of Object.entries(updates)) {
     try {
+      const configKey = await getZaloConfigKey(key, branchId);
       await prisma.systemConfig.upsert({
-        where: { key },
+        where: { key: configKey },
         update: { value },
-        create: { key, value },
+        create: { key: configKey, value },
       });
       console.log(`✅ Persisted Zalo key ${key} to database.`);
     } catch (dbErr: any) {
@@ -42,10 +84,10 @@ export async function updateZaloCredentials(updates: Record<string, string>) {
 }
 
 // Refresh Zalo OA Access Token using Refresh Token
-export async function refreshZaloToken(): Promise<string> {
-  const appId = await getZaloCredential("ZALO_APP_ID");
-  const secretKey = await getZaloCredential("ZALO_APP_SECRET");
-  const refreshToken = await getZaloCredential("ZALO_REFRESH_TOKEN");
+export async function refreshZaloToken(branchId?: number | null): Promise<string> {
+  const appId = await getZaloCredential("ZALO_APP_ID", branchId);
+  const secretKey = await getZaloCredential("ZALO_APP_SECRET", branchId);
+  const refreshToken = await getZaloCredential("ZALO_REFRESH_TOKEN", branchId);
 
   if (!appId || !secretKey || !refreshToken) {
     throw new Error("Missing Zalo credentials (App ID, Secret Key, or Refresh Token) in environment/database");
@@ -73,7 +115,7 @@ export async function refreshZaloToken(): Promise<string> {
     await updateZaloCredentials({
       ZALO_OA_ACCESS_TOKEN: data.access_token,
       ZALO_REFRESH_TOKEN: data.refresh_token,
-    });
+    }, branchId);
     return data.access_token;
   } else {
     console.error("❌ Zalo Token Refresh Error Response:", data);
@@ -85,14 +127,15 @@ export async function refreshZaloToken(): Promise<string> {
 export async function sendZaloZns(
   phone: string,
   templateId: string,
-  templateData: Record<string, any>
+  templateData: Record<string, any>,
+  branchId?: number | null
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   const formattedPhone = formatPhoneForZalo(phone);
-  let accessToken = await getZaloCredential("ZALO_OA_ACCESS_TOKEN");
+  let accessToken = await getZaloCredential("ZALO_OA_ACCESS_TOKEN", branchId);
 
   if (!accessToken) {
     try {
-      accessToken = await refreshZaloToken();
+      accessToken = await refreshZaloToken(branchId);
     } catch (err: any) {
       return { success: false, error: `No access token available and refresh failed: ${err.message}` };
     }
@@ -101,16 +144,16 @@ export async function sendZaloZns(
   // Map internal logical template IDs to actual Zalo ZNS numerical IDs
   let realTemplateId = templateId;
   if (templateId === "CRM_THANK_YOU_001") {
-    const dbVal = await getZaloCredential("ZALO_TEMPLATE_THANK_YOU");
+    const dbVal = await getZaloCredential("ZALO_TEMPLATE_THANK_YOU", branchId);
     if (dbVal) realTemplateId = dbVal;
   } else if (templateId === "CRM_OIL_REMIND_002" || templateId === "CRM_SERVICE_REMIND_002") {
-    const dbVal = await getZaloCredential("ZALO_TEMPLATE_OIL_REMIND");
+    const dbVal = await getZaloCredential("ZALO_TEMPLATE_OIL_REMIND", branchId);
     if (dbVal) realTemplateId = dbVal;
   } else if (templateId === "CRM_BIRTHDAY_003") {
-    const dbVal = await getZaloCredential("ZALO_TEMPLATE_BIRTHDAY");
+    const dbVal = await getZaloCredential("ZALO_TEMPLATE_BIRTHDAY", branchId);
     if (dbVal) realTemplateId = dbVal;
   } else if (templateId === "CRM_INSPECT_004") {
-    const dbVal = await getZaloCredential("ZALO_TEMPLATE_INSPECT");
+    const dbVal = await getZaloCredential("ZALO_TEMPLATE_INSPECT", branchId);
     if (dbVal) realTemplateId = dbVal;
   }
 
@@ -156,7 +199,7 @@ export async function sendZaloZns(
     if (resData.error === -124 || resData.error === -216 || resData.error === -301) {
       console.warn(`⚠️ [ZNS] Token lỗi (${resData.error}: ${resData.message}). Đang tự động lấy token mới...`);
       try {
-        const newAccessToken = await refreshZaloToken();
+        const newAccessToken = await refreshZaloToken(branchId);
         console.log(`[ZNS] ✅ Lấy token mới thành công! Token mới (10 ký tự đầu): ${newAccessToken.substring(0, 10)}...`);
         response = await makeRequest(newAccessToken);
         resData = await response.json();
@@ -194,4 +237,3 @@ export function formatDateForZalo(dateInput: Date | string | number | null | und
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
 }
-
