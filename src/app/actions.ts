@@ -5,6 +5,7 @@ import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 import { cookies } from "next/headers";
 import { verifyRole } from "@/lib/auth";
 import { customerBelongsToBranch, ensureCustomerBranch } from "@/lib/customer-branch";
+import { getBranchConfigValue } from "@/lib/branch-config";
 
 // ===== INVENTORY LOGIC =====
 
@@ -447,10 +448,8 @@ export async function updateROStatus(data: {
     }
 
     // Add customer loyalty points
-    const configPointsRate = await prisma.systemConfig.findUnique({
-      where: { key: "points_rate" }
-    });
-    const pointsRatePercent = configPointsRate ? parseFloat(configPointsRate.value) : 1.0;
+    const pointsRateValue = await getBranchConfigValue("points_rate", updatedRo.branchId, "1");
+    const pointsRatePercent = parseFloat(pointsRateValue) || 1.0;
     const points = Math.max(0, Math.floor((Number(updatedRo.totalAmount) * (pointsRatePercent / 100)) / 1000));
 
     await prisma.customer.update({

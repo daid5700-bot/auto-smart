@@ -15,10 +15,6 @@ type ZaloCredentialKey = (typeof ZALO_CREDENTIAL_KEYS)[number];
 
 const LEGACY_ZALO_BRANCH_KEY = "ZALO_LEGACY_BRANCH_ID";
 
-function getScopedZaloKey(branchId: number, key: string) {
-  return `ZALO_BRANCH_${branchId}_${key}`;
-}
-
 async function branchUsesLegacyZaloConfig(branchId?: number | null) {
   if (!branchId) return true;
 
@@ -31,12 +27,6 @@ async function branchUsesLegacyZaloConfig(branchId?: number | null) {
     select: { name: true, code: true },
   });
   return /yamaha/i.test(`${branch?.code || ""} ${branch?.name || ""}`);
-}
-
-async function getZaloConfigKey(key: string, branchId?: number | null) {
-  return (await branchUsesLegacyZaloConfig(branchId)) || !branchId
-    ? key
-    : getScopedZaloKey(branchId, key);
 }
 
 // Format phone number for Zalo (e.g. 0901234567 -> 84901234567)
@@ -54,8 +44,15 @@ export function formatPhoneForZalo(phone: string): string {
 // Get credential from Database only
 export async function getZaloCredential(key: ZaloCredentialKey, branchId?: number | null): Promise<string> {
   try {
-    const configKey = await getZaloConfigKey(key, branchId);
-    const config = await prisma.systemConfig.findUnique({ where: { key: configKey } });
+    if (branchId) {
+      const scopedConfig = await prisma.branchSetting.findUnique({
+        where: { branchId_key: { branchId, key } },
+      });
+      if (scopedConfig?.value) return scopedConfig.value;
+    }
+
+    if (branchId && !(await branchUsesLegacyZaloConfig(branchId))) return "";
+    const config = await prisma.systemConfig.findUnique({ where: { key } });
     return config?.value || "";
   } catch (dbErr) {
     console.error(`❌ [ZALO] Could not read ${key} from DB:`, dbErr);
@@ -70,12 +67,19 @@ export async function updateZaloCredentials(
 ) {
   for (const [key, value] of Object.entries(updates)) {
     try {
-      const configKey = await getZaloConfigKey(key, branchId);
-      await prisma.systemConfig.upsert({
-        where: { key: configKey },
-        update: { value },
-        create: { key: configKey, value },
-      });
+      if (branchId) {
+        await prisma.branchSetting.upsert({
+          where: { branchId_key: { branchId, key } },
+          update: { value },
+          create: { branchId, key, value },
+        });
+      } else {
+        await prisma.systemConfig.upsert({
+          where: { key },
+          update: { value },
+          create: { key, value },
+        });
+      }
       console.log(`✅ Persisted Zalo key ${key} to database.`);
     } catch (dbErr: any) {
       console.error(`❌ Failed to save ${key} to database:`, dbErr.message);

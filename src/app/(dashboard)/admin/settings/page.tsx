@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Settings, Save, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { Save, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { useAuth } from "@/lib/store";
 
 export default function SettingsPage() {
+  const { activeBranch } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -19,97 +21,55 @@ export default function SettingsPage() {
   const [zaloOilReminderTemplate, setZaloOilReminderTemplate] = useState("");
   const [zaloBirthdayTemplate, setZaloBirthdayTemplate] = useState("");
   const [zaloInspectTemplate, setZaloInspectTemplate] = useState("");
-  const [branches, setBranches] = useState<Array<{ id: number; name: string; code?: string | null }>>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState("");
-  const [usesLegacyZaloConfig, setUsesLegacyZaloConfig] = useState(false);
-  
-  // Track initial values to check if they are dirty before saving
-  const [initialZaloAccessToken, setInitialZaloAccessToken] = useState("");
-  const [initialZaloRefreshToken, setInitialZaloRefreshToken] = useState("");
-
-  const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
-  const canUseLegacyZaloConfig = Boolean(
-    selectedBranch && /yamaha/i.test(`${selectedBranch.code || ""} ${selectedBranch.name}`),
-  );
-
   useEffect(() => {
+    if (!activeBranch?.id) return;
+    setLoading(true);
     fetch("/api/config")
       .then((r) => r.json())
       .then((data) => {
         if (data.config) {
           setLeaseRate(data.config.lease_rate || "7.9");
           setPointsRate(data.config.points_rate || "1");
-          setBranches(data.branches || []);
-          const branchId = data.legacyBranchId || data.branches?.find((branch: any) => /yamaha/i.test(`${branch.code || ""} ${branch.name}`))?.id || data.branches?.[0]?.id;
-          if (branchId) setSelectedBranchId(String(branchId));
+          setZaloAppId(data.config.ZALO_APP_ID || "");
+          setZaloAppSecret(data.config.ZALO_APP_SECRET || "");
+          setZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
+          setZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
+          setZaloThankYouTemplate(data.config.ZALO_TEMPLATE_THANK_YOU || "");
+          setZaloOilReminderTemplate(data.config.ZALO_TEMPLATE_OIL_REMIND || "");
+          setZaloBirthdayTemplate(data.config.ZALO_TEMPLATE_BIRTHDAY || "");
+          setZaloInspectTemplate(data.config.ZALO_TEMPLATE_INSPECT || "");
         }
       })
       .catch(() => setError("Không thể tải cấu hình"))
       .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedBranchId) return;
-    fetch(`/api/config?branchId=${selectedBranchId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.config) throw new Error(data.error || "Không thể tải cấu hình Zalo");
-        setUsesLegacyZaloConfig(Boolean(data.usesLegacyConfig));
-        setZaloAppId(data.config.ZALO_APP_ID || "");
-        setZaloAppSecret(data.config.ZALO_APP_SECRET || "");
-        setZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
-        setZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
-        setInitialZaloAccessToken(data.config.ZALO_OA_ACCESS_TOKEN || "");
-        setInitialZaloRefreshToken(data.config.ZALO_REFRESH_TOKEN || "");
-        setZaloThankYouTemplate(data.config.ZALO_TEMPLATE_THANK_YOU || "");
-        setZaloOilReminderTemplate(data.config.ZALO_TEMPLATE_OIL_REMIND || "");
-        setZaloBirthdayTemplate(data.config.ZALO_TEMPLATE_BIRTHDAY || "");
-        setZaloInspectTemplate(data.config.ZALO_TEMPLATE_INSPECT || "");
-      })
-      .catch((err) => setError(err.message));
-  }, [selectedBranchId]);
+  }, [activeBranch?.id]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError("");
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, unknown> = {
         lease_rate: leaseRate,
         points_rate: pointsRate,
+        credentials: {
+          ZALO_APP_ID: zaloAppId,
+          ZALO_APP_SECRET: zaloAppSecret,
+          ZALO_OA_ACCESS_TOKEN: zaloAccessToken,
+          ZALO_REFRESH_TOKEN: zaloRefreshToken,
+          ZALO_TEMPLATE_THANK_YOU: zaloThankYouTemplate,
+          ZALO_TEMPLATE_OIL_REMIND: zaloOilReminderTemplate,
+          ZALO_TEMPLATE_BIRTHDAY: zaloBirthdayTemplate,
+          ZALO_TEMPLATE_INSPECT: zaloInspectTemplate,
+        },
       };
-      const generalRes = await fetch("/api/config", {
+      const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const generalData = await generalRes.json();
-      if (!generalRes.ok) throw new Error(generalData.error || "Lỗi lưu cấu hình");
-
-      const zaloRes = await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          branchId: Number(selectedBranchId),
-          useLegacyConfig: canUseLegacyZaloConfig && usesLegacyZaloConfig,
-          credentials: {
-            ZALO_APP_ID: zaloAppId,
-            ZALO_APP_SECRET: zaloAppSecret,
-            ZALO_OA_ACCESS_TOKEN: zaloAccessToken,
-            ZALO_REFRESH_TOKEN: zaloRefreshToken,
-            ZALO_TEMPLATE_THANK_YOU: zaloThankYouTemplate,
-            ZALO_TEMPLATE_OIL_REMIND: zaloOilReminderTemplate,
-            ZALO_TEMPLATE_BIRTHDAY: zaloBirthdayTemplate,
-            ZALO_TEMPLATE_INSPECT: zaloInspectTemplate,
-          },
-        }),
-      });
-      const zaloData = await zaloRes.json();
-      if (!zaloRes.ok) throw new Error(zaloData.error || "Lỗi lưu cấu hình Zalo");
-      
-      // Update initial values so they are clean again
-      setInitialZaloAccessToken(zaloAccessToken);
-      setInitialZaloRefreshToken(zaloRefreshToken);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lỗi lưu cấu hình");
       
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -186,34 +146,15 @@ export default function SettingsPage() {
 
         {/* Section 3: Zalo API Config */}
         <div className="space-y-4">
-          <div className="flex flex-col gap-1 border-b border-border/40 pb-2 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-1 border-b border-border/40 pb-2">
             <h3 className="font-bold">3. Zalo OA theo chi nhánh</h3>
-            <select
-              aria-label="Chọn chi nhánh cấu hình Zalo OA"
-              value={selectedBranchId}
-              onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="min-h-11 rounded-xl border border-border bg-secondary/30 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            <p className="text-xs font-semibold text-primary">
+              Đang cấu hình: {activeBranch?.name || "Chưa chọn chi nhánh"}
+            </p>
           </div>
           <p className="text-xs text-muted-foreground">
-            {usesLegacyZaloConfig
-              ? "Chi nhánh Yamaha đang dùng OA hiện tại. Lưu lại tại đây sẽ giữ OA này gắn riêng cho Yamaha."
-              : "Nhập OA và các mã template riêng cho chi nhánh đang chọn (ví dụ: VinFast)."}
+            Các thông tin bên dưới được đọc và lưu theo chi nhánh đang chọn ở header.
           </p>
-          <label className="flex min-h-11 items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={usesLegacyZaloConfig}
-              disabled={!canUseLegacyZaloConfig}
-              onChange={(e) => setUsesLegacyZaloConfig(e.target.checked)}
-              className="h-4 w-4 rounded border-border accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            {canUseLegacyZaloConfig
-              ? "Dùng OA hiện tại cho chi nhánh Yamaha này"
-              : "Chi nhánh này dùng cấu hình OA riêng"}
-          </label>
           <div className="grid grid-cols-1 gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
