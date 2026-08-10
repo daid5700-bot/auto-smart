@@ -63,6 +63,7 @@ model Branch {
   stockMovements      StockMovement[]
   discountCodes       DiscountCode[]
   plateServices       PlateService[]
+  settings            BranchSetting[]
   isDeleted           Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -537,6 +538,22 @@ model SystemConfig {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+/// Settings owned by one branch. Unlike legacy SystemConfig keys, this is
+/// enforced by a database foreign key and cannot be shared accidentally
+/// between branches.
+model BranchSetting {
+  id        Int      @id @default(autoincrement())
+  branchId  Int
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, key])
+  @@index([branchId])
 }
 
 /// Shared login throttling state. This survives container restarts and is

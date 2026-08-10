@@ -5,6 +5,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { releaseReservedStock, restoreStockOnce, type ReturnSourceItem } from "@/lib/inventory-cancellation";
 import { calculateSnapshotDiscount } from "@/lib/discounts";
 import { requireAuth } from "@/lib/guard";
+import { getBranchConfigValue } from "@/lib/branch-config";
 
 const serializeRepairOrder = (ro: any) => {
   if (!ro) return null;
@@ -256,10 +257,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         if (!existingEarnTx) {
           // Send loyalty points & ZNS
-          const configPointsRate = await prisma.systemConfig.findUnique({
-            where: { key: "points_rate" }
-          });
-          const pointsRatePercent = configPointsRate ? parseFloat(configPointsRate.value) : 1.0;
+          const pointsRateValue = await getBranchConfigValue("points_rate", ro.branchId, "1");
+          const pointsRatePercent = parseFloat(pointsRateValue) || 1.0;
           const points = Math.max(0, Math.floor((Number(ro.totalAmount) * (pointsRatePercent / 100)) / 1000));
 
           // Update customer: add spent value (paidAmount) and loyalty points
