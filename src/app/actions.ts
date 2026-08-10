@@ -4,7 +4,10 @@ import { getActiveBranchId } from "@/lib/branch";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 import { cookies } from "next/headers";
 import { verifyRole } from "@/lib/auth";
-import { customerBelongsToBranch, ensureCustomerBranch } from "@/lib/customer-branch";
+import {
+  customerBelongsToBranch,
+  ensureCustomerBranch,
+} from "@/lib/customer-branch";
 import { getBranchConfigValue } from "@/lib/branch-config";
 
 // ===== INVENTORY LOGIC =====
@@ -30,7 +33,9 @@ export async function importStock(data: {
   const actualQty = data.quantity * factor;
   const avgCost = data.unitCost / factor;
 
-  const product = await prisma.product.findUnique({ where: { id: data.productId } });
+  const product = await prisma.product.findUnique({
+    where: { id: data.productId },
+  });
   if (!product) throw new Error("Sản phẩm không tồn tại");
   const branchId = await getActiveBranchId();
   if (!branchId) throw new Error("Branch not found");
@@ -38,9 +43,19 @@ export async function importStock(data: {
 
   const result = await prisma.$transaction(async (tx) => {
     const pb = await tx.productBranch.upsert({
-      where: { productId_branchId: { productId: data.productId, branchId: targetBranchId } },
+      where: {
+        productId_branchId: {
+          productId: data.productId,
+          branchId: targetBranchId,
+        },
+      },
       update: {},
-      create: { productId: data.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+      create: {
+        productId: data.productId,
+        branchId: targetBranchId,
+        stockCount: 0,
+        movingAvgCost: 0,
+      },
     });
 
     const lockedRows: any[] = await tx.$queryRaw`
@@ -53,14 +68,14 @@ export async function importStock(data: {
 
     let newMac = oldMac;
     if (newStock > 0) {
-       newMac = ((oldStock * oldMac) + (actualQty * avgCost)) / newStock;
+      newMac = (oldStock * oldMac + actualQty * avgCost) / newStock;
     }
 
     const updatedPb = await tx.productBranch.update({
       where: { id: pb.id },
       data: {
         stockCount: newStock,
-        movingAvgCost: newMac
+        movingAvgCost: newMac,
       },
     });
 
@@ -75,7 +90,7 @@ export async function importStock(data: {
         branchId: targetBranchId,
       },
     });
-    
+
     return updatedPb;
   });
 
@@ -112,13 +127,26 @@ export async function createManualImport(data: {
       const actualQty = item.quantity * factor;
       const avgCost = item.unitCost / factor;
 
-      const product = await tx.product.findUnique({ where: { id: item.productId } });
-      if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
+      const product = await tx.product.findUnique({
+        where: { id: item.productId },
+      });
+      if (!product)
+        throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
 
       const pb = await tx.productBranch.upsert({
-        where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
+        where: {
+          productId_branchId: {
+            productId: item.productId,
+            branchId: targetBranchId,
+          },
+        },
         update: {},
-        create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+        create: {
+          productId: item.productId,
+          branchId: targetBranchId,
+          stockCount: 0,
+          movingAvgCost: 0,
+        },
       });
 
       // Lấy data mới nhất và khóa dòng để chống Race Condition (Đụng độ dữ liệu)
@@ -126,21 +154,21 @@ export async function createManualImport(data: {
         SELECT "stockCount", "movingAvgCost" FROM "ProductBranch" 
         WHERE "id" = ${pb.id} FOR UPDATE
       `;
-      
+
       const oldStock = Number(lockedRows[0]?.stockCount || 0);
       const oldMac = Number(lockedRows[0]?.movingAvgCost || 0);
       const newStock = oldStock + actualQty;
 
       let newMac = oldMac;
       if (newStock > 0) {
-         newMac = ((oldStock * oldMac) + (actualQty * avgCost)) / newStock;
+        newMac = (oldStock * oldMac + actualQty * avgCost) / newStock;
       }
 
       await tx.productBranch.update({
         where: { id: pb.id },
         data: {
           stockCount: newStock,
-          movingAvgCost: newMac
+          movingAvgCost: newMac,
         },
       });
 
@@ -185,7 +213,12 @@ export async function sellItem(productId: number, quantity: number) {
     const pb = await tx.productBranch.upsert({
       where: { productId_branchId: { productId, branchId: targetBranchId } },
       update: {},
-      create: { productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+      create: {
+        productId,
+        branchId: targetBranchId,
+        stockCount: 0,
+        movingAvgCost: 0,
+      },
     });
 
     const lockedRows: any[] = await tx.$queryRaw`
@@ -206,9 +239,6 @@ export async function sellItem(productId: number, quantity: number) {
 
   return updated;
 }
-
-
-
 
 export async function createDirectExport(data: {
   items: {
@@ -237,14 +267,14 @@ export async function createDirectExport(data: {
 
     if (!branchId) throw new Error("Branch not found");
     const targetBranchId = branchId;
-    const productIds = Array.from(new Set(data.items.map(i => i.productId)));
+    const productIds = Array.from(new Set(data.items.map((i) => i.productId)));
 
     const products = await tx.product.findMany({
       where: { id: { in: productIds } },
-      include: { prices: true }
+      include: { prices: true },
     });
 
-    const productMap = new Map(products.map(p => [p.id, p]));
+    const productMap = new Map(products.map((p) => [p.id, p]));
 
     for (const item of data.items) {
       if (item.conversionFactor !== undefined && item.conversionFactor <= 0) {
@@ -255,13 +285,24 @@ export async function createDirectExport(data: {
       const actualQty = item.quantity * factor;
 
       const product = productMap.get(item.productId);
-      if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
+      if (!product)
+        throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
 
       // Upsert to ensure the product branch entry exists
       const pb = await tx.productBranch.upsert({
-        where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
+        where: {
+          productId_branchId: {
+            productId: item.productId,
+            branchId: targetBranchId,
+          },
+        },
         update: {},
-        create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+        create: {
+          productId: item.productId,
+          branchId: targetBranchId,
+          stockCount: 0,
+          movingAvgCost: 0,
+        },
       });
 
       // Obtain a write lock on the product branch row
@@ -273,7 +314,9 @@ export async function createDirectExport(data: {
       const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
 
       if (currentStock < actualQty) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho (hiện tại: ${currentStock}, cần: ${actualQty})`);
+        throw new Error(
+          `Sản phẩm "${product.name}" không đủ tồn kho (hiện tại: ${currentStock}, cần: ${actualQty})`,
+        );
       }
 
       const newStock = currentStock - actualQty;
@@ -284,14 +327,15 @@ export async function createDirectExport(data: {
       });
 
       // Find the price based on export type
-      const priceObj = product.prices.find((p) => p.type === exportType) ||
+      const priceObj =
+        product.prices.find((p) => p.type === exportType) ||
         product.prices.find((p) => p.type === "RETAIL");
       const unitPrice = priceObj ? Number(priceObj.amount) : 0;
 
       const exportTypeLabel = exportType === "RETAIL" ? "Bán lẻ" : "Bán buôn";
       const finalReason = item.note
-          ? `[${exportTypeLabel}] ${item.note}`
-          : `[${exportTypeLabel}]`;
+        ? `[${exportTypeLabel}] ${item.note}`
+        : `[${exportTypeLabel}]`;
 
       const movement = await tx.stockMovement.create({
         data: {
@@ -338,66 +382,86 @@ export async function createManualAdjust(data: {
     throw new Error("Danh sách kiểm kê không được trống");
   }
 
-  const results = await prisma.$transaction(async (tx) => {
-    const movementsCreated = [];
+  const results = await prisma.$transaction(
+    async (tx) => {
+      const movementsCreated = [];
 
-    for (const item of data.items) {
-      const product = await tx.product.findUnique({ where: { id: item.productId } });
-      if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
-      if (!branchId) throw new Error("Branch not found");
-      const targetBranchId = branchId;
+      for (const item of data.items) {
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+        });
+        if (!product)
+          throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
+        if (!branchId) throw new Error("Branch not found");
+        const targetBranchId = branchId;
 
-      const pb = await tx.productBranch.upsert({
-        where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
-        update: {},
-        create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
-      });
+        const pb = await tx.productBranch.upsert({
+          where: {
+            productId_branchId: {
+              productId: item.productId,
+              branchId: targetBranchId,
+            },
+          },
+          update: {},
+          create: {
+            productId: item.productId,
+            branchId: targetBranchId,
+            stockCount: 0,
+            movingAvgCost: 0,
+          },
+        });
 
-      // Obtain write lock on the product branch row
-      const lockedRows: any[] = await tx.$queryRaw`
+        // Obtain write lock on the product branch row
+        const lockedRows: any[] = await tx.$queryRaw`
         SELECT "stockCount", "movingAvgCost" FROM "ProductBranch"
         WHERE "id" = ${pb.id} FOR UPDATE
       `;
-      const currentStock = Number(lockedRows[0]?.stockCount || 0);
-      const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
+        const currentStock = Number(lockedRows[0]?.stockCount || 0);
+        const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
 
-      const diff = item.actualStock - currentStock;
-      if (diff !== 0) {
-        await tx.productBranch.update({
-          where: { id: pb.id },
-          data: { stockCount: item.actualStock },
-        });
+        const diff = item.actualStock - currentStock;
+        if (diff !== 0) {
+          await tx.productBranch.update({
+            where: { id: pb.id },
+            data: { stockCount: item.actualStock },
+          });
 
-        // Nếu tăng tồn, tính toán lại MAC
-        if (diff > 0) {
-           const avgCost = currentMac; // Điều chỉnh thì giá vốn hàng nhập thường là 0 nếu không biết
-           const newMac = item.actualStock > 0 ? ((currentStock * currentMac) + (diff * avgCost)) / item.actualStock : currentMac;
-           await tx.productBranch.update({
-             where: { id: pb.id },
-             data: { movingAvgCost: newMac }
-           });
+          // Nếu tăng tồn, tính toán lại MAC
+          if (diff > 0) {
+            const avgCost = currentMac; // Điều chỉnh thì giá vốn hàng nhập thường là 0 nếu không biết
+            const newMac =
+              item.actualStock > 0
+                ? (currentStock * currentMac + diff * avgCost) /
+                  item.actualStock
+                : currentMac;
+            await tx.productBranch.update({
+              where: { id: pb.id },
+              data: { movingAvgCost: newMac },
+            });
+          }
+
+          const unitCost = Number(pb.movingAvgCost || 0);
+
+          const movement = await tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              type: "ADJUST",
+              quantity: Math.abs(diff),
+              unitCost: unitCost,
+              totalCost: unitCost * Math.abs(diff),
+              createdBy: data.createdBy,
+              reason: item.note || `Kiểm kê lệch ${diff > 0 ? "+" : ""}${diff}`,
+              branchId: targetBranchId,
+            },
+          });
+          movementsCreated.push(movement);
         }
-
-        const unitCost = Number(pb.movingAvgCost || 0);
-
-        const movement = await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: "ADJUST",
-            quantity: Math.abs(diff),
-            unitCost: unitCost,
-            totalCost: unitCost * Math.abs(diff),
-            createdBy: data.createdBy,
-            reason: item.note || `Kiểm kê lệch ${diff > 0 ? "+" : ""}${diff}`,
-            branchId: targetBranchId,
-          },
-        });
-        movementsCreated.push(movement);
       }
-    }
 
-    return { movements: movementsCreated };
-  }, { timeout: 15000, maxWait: 15000 });
+      return { movements: movementsCreated };
+    },
+    { timeout: 15000, maxWait: 15000 },
+  );
 
   return { success: true, movements: results.movements };
 }
@@ -448,9 +512,18 @@ export async function updateROStatus(data: {
     }
 
     // Add customer loyalty points
-    const pointsRateValue = await getBranchConfigValue("points_rate", updatedRo.branchId, "1");
+    const pointsRateValue = await getBranchConfigValue(
+      "points_rate",
+      updatedRo.branchId,
+      "1",
+    );
     const pointsRatePercent = parseFloat(pointsRateValue) || 1.0;
-    const points = Math.max(0, Math.floor((Number(updatedRo.totalAmount) * (pointsRatePercent / 100)) / 1000));
+    const points = Math.max(
+      0,
+      Math.floor(
+        (Number(updatedRo.totalAmount) * (pointsRatePercent / 100)) / 1000,
+      ),
+    );
 
     await prisma.customer.update({
       where: { id: updatedRo.customerId },
@@ -475,15 +548,24 @@ export async function updateROStatus(data: {
     try {
       const { sendZaloZns, formatDateForZalo } = await import("@/lib/zalo");
       const custName = updatedRo.customer.name;
-      const noteVal = updatedRo.vehicleModel || updatedRo.plateNumber || "Dịch vụ sửa chữa xe";
+      const noteVal =
+        updatedRo.vehicleModel ||
+        updatedRo.plateNumber ||
+        "Dịch vụ sửa chữa xe";
       const templateData = {
-        customer_name: custName.length > 49 ? custName.substring(0, 49) : custName,
+        customer_name:
+          custName.length > 30 ? custName.substring(0, 30) : custName,
         order_date: formatDateForZalo(new Date()),
-        note: noteVal.length > 29 ? noteVal.substring(0, 29) : noteVal,
-        point: String(points),
-        total_point: String(totalPoint),
+        note: noteVal.length > 30 ? noteVal.substring(0, 30) : noteVal,
+        point: points,
+        total_point: totalPoint,
       };
-      const result = await sendZaloZns(updatedRo.customer.phone, "CRM_THANK_YOU_001", templateData, updatedRo.branchId);
+      const result = await sendZaloZns(
+        updatedRo.customer.phone,
+        "CRM_LOYALTY_005",
+        templateData,
+        updatedRo.branchId,
+      );
       if (!result.success) {
         znsStatus = "FAILED";
         znsError = result.error || "Lỗi không xác định";
@@ -497,9 +579,9 @@ export async function updateROStatus(data: {
       data: {
         customerId: updatedRo.customerId,
         phone: updatedRo.customer.phone,
-        messageType: "THANK_YOU",
-        templateId: "CRM_THANK_YOU_001",
-        content: `Cảm ơn khách hàng ${updatedRo.customer.name} đã sửa chữa xe. Quý khách tích được +${points} điểm!`,
+        messageType: "LOYALTY",
+        templateId: "CRM_LOYALTY_005",
+        content: `Thông báo tích điểm cho ${updatedRo.customer.name}: +${points} điểm, tổng ${totalPoint} điểm.`,
         status: znsStatus === "SUCCESS" ? "SUCCESS" : "FAILED",
         error: znsError,
         branchId: updatedRo.branchId,
@@ -533,14 +615,17 @@ export async function exportStockForRO(data: {
   if (!branchId) throw new Error("Branch not found");
   const targetBranchId = branchId;
 
-  const ro = await prisma.repairOrder.findUnique({ where: { id: data.repairOrderId } });
+  const ro = await prisma.repairOrder.findUnique({
+    where: { id: data.repairOrderId },
+  });
   if (!ro) throw new Error("Lệnh sửa chữa không tồn tại");
   if (branchId && ro.branchId !== branchId) {
     throw new Error("Lệnh sửa chữa không thuộc chi nhánh hiện tại");
   }
 
   const selectedPrice = product.prices.find((p) => p.type === data.priceType);
-  if (!selectedPrice) throw new Error(`Không tìm thấy bảng giá ${data.priceType}`);
+  if (!selectedPrice)
+    throw new Error(`Không tìm thấy bảng giá ${data.priceType}`);
 
   const unitPrice = Number(selectedPrice.amount);
   const totalPrice = unitPrice * data.quantity;
@@ -548,9 +633,19 @@ export async function exportStockForRO(data: {
   const item = await prisma.$transaction(async (tx) => {
     // Upsert to ensure product branch entry exists
     const pb = await tx.productBranch.upsert({
-      where: { productId_branchId: { productId: data.productId, branchId: targetBranchId } },
+      where: {
+        productId_branchId: {
+          productId: data.productId,
+          branchId: targetBranchId,
+        },
+      },
       update: {},
-      create: { productId: data.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+      create: {
+        productId: data.productId,
+        branchId: targetBranchId,
+        stockCount: 0,
+        movingAvgCost: 0,
+      },
     });
 
     // Obtain write lock on the product branch row
@@ -602,7 +697,10 @@ export async function exportStockForRO(data: {
     where: { repairOrderId: data.repairOrderId },
   });
 
-  const partsCost = roItems.reduce((acc, curr) => acc + Number(curr.totalPrice), 0);
+  const partsCost = roItems.reduce(
+    (acc, curr) => acc + Number(curr.totalPrice),
+    0,
+  );
   const laborCost = ro ? Number(ro.laborCost) : 0;
 
   await prisma.repairOrder.update({
@@ -618,12 +716,14 @@ export async function exportStockForRO(data: {
 
 // ===== CRM LOGIC =====
 
-
-
 /**
  * Mock ZNS sending
  */
-export async function sendZNSMock(phone: string, templateId: string, payload: any) {
+export async function sendZNSMock(
+  phone: string,
+  templateId: string,
+  payload: any,
+) {
   // Simply mock successful network response returning sent payload
   return {
     success: true,
@@ -634,14 +734,23 @@ export async function sendZNSMock(phone: string, templateId: string, payload: an
   };
 }
 
-export async function redeemPointsDb(data: { customerId: number; points: number; description?: string }) {
+export async function redeemPointsDb(data: {
+  customerId: number;
+  points: number;
+  description?: string;
+}) {
   const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
-  if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
-  if (!Number.isInteger(data.customerId) || data.customerId <= 0) throw new Error("Khách hàng không hợp lệ");
-  if (!Number.isInteger(data.points) || data.points <= 0) throw new Error("Số điểm quy đổi không hợp lệ");
+  if (!userRole)
+    throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+  if (!Number.isInteger(data.customerId) || data.customerId <= 0)
+    throw new Error("Khách hàng không hợp lệ");
+  if (!Number.isInteger(data.points) || data.points <= 0)
+    throw new Error("Số điểm quy đổi không hợp lệ");
 
-  const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
+  const customer = await prisma.customer.findUnique({
+    where: { id: data.customerId },
+  });
   if (!customer) throw new Error("Khách hàng không tồn tại");
   const branchId = await getActiveBranchId();
   const activityBranchId = branchId || customer.branchId;
@@ -660,7 +769,9 @@ export async function redeemPointsDb(data: { customerId: number; points: number;
         customerId: data.customerId,
         type: "REDEEM",
         points: -data.points,
-        description: data.description ? `${data.description} (${defaultDesc})` : defaultDesc,
+        description: data.description
+          ? `${data.description} (${defaultDesc})`
+          : defaultDesc,
         branchId: activityBranchId,
       },
     });
@@ -680,12 +791,19 @@ export async function redeemPointsDb(data: { customerId: number; points: number;
   return data.points * 1000; // 1 point = 1,000 VND
 }
 
-export async function sendOilChangeReminderAction(data: { customerId: number; phone: string; plateNumber: string }) {
+export async function sendOilChangeReminderAction(data: {
+  customerId: number;
+  phone: string;
+  plateNumber: string;
+}) {
   const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
-  if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+  if (!userRole)
+    throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
 
-  const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
+  const customer = await prisma.customer.findUnique({
+    where: { id: data.customerId },
+  });
   if (!customer) throw new Error("Khách hàng không tồn tại");
   const branchId = await getActiveBranchId();
   if (!(await customerBelongsToBranch(data.customerId, branchId))) {
@@ -700,15 +818,23 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
 
   const orderDate = lastRo?.createdAt || new Date();
   const vehicleModel = lastRo?.vehicleModel || "xe máy";
-  const vehicleName200 = vehicleModel.length > 199 ? vehicleModel.substring(0, 199) : vehicleModel;
-  const licensePlate30 = data.plateNumber.length > 29 ? data.plateNumber.substring(0, 29) : data.plateNumber;
+  const vehicleName200 =
+    vehicleModel.length > 199 ? vehicleModel.substring(0, 199) : vehicleModel;
+  const licensePlate30 =
+    data.plateNumber.length > 29
+      ? data.plateNumber.substring(0, 29)
+      : data.plateNumber;
 
-  const branch = branchId ? await prisma.branch.findUnique({ where: { id: branchId } }) : null;
+  const branch = branchId
+    ? await prisma.branch.findUnique({ where: { id: branchId } })
+    : null;
   const storeName = branch?.name || "Yamaha Town Toàn Thắng";
-  const storeName200 = storeName.length > 199 ? storeName.substring(0, 199) : storeName;
+  const storeName200 =
+    storeName.length > 199 ? storeName.substring(0, 199) : storeName;
 
   const cleanCustName = customer.name.trim();
-  const customerName30 = cleanCustName.length > 29 ? cleanCustName.substring(0, 29) : cleanCustName;
+  const customerName30 =
+    cleanCustName.length > 29 ? cleanCustName.substring(0, 29) : cleanCustName;
 
   const templateData = {
     customer_name: customerName30,
@@ -718,7 +844,12 @@ export async function sendOilChangeReminderAction(data: { customerId: number; ph
     store_name: storeName200,
   };
 
-  const result = await sendZaloZns(data.phone, "CRM_OIL_REMIND_002", templateData, branchId || customer.branchId);
+  const result = await sendZaloZns(
+    data.phone,
+    "CRM_OIL_REMIND_002",
+    templateData,
+    branchId || customer.branchId,
+  );
 
   let status = "SUCCESS";
   let errorMsg: string | null = null;
@@ -770,106 +901,140 @@ export async function createManualExport(data: {
     throw new Error("Danh sách xuất kho không được trống");
   }
 
-  const reasonText = data.reason || (data.exportType === "REPAIR" ? "Xuất kho sửa chữa" : "Xuất kho bán lẻ");
+  const reasonText =
+    data.reason ||
+    (data.exportType === "REPAIR" ? "Xuất kho sửa chữa" : "Xuất kho bán lẻ");
 
   // Run everything inside a transaction to ensure atomic execution
-  const results = await prisma.$transaction(async (tx) => {
-    const movementsCreated = [];
-    const orderItemsCreated = [];
+  const results = await prisma.$transaction(
+    async (tx) => {
+      const movementsCreated = [];
+      const orderItemsCreated = [];
 
-    if (!branchId) throw new Error("Branch not found");
-    const targetBranchId = branchId;
-    const productIds = Array.from(new Set(data.items.map(i => i.productId)));
+      if (!branchId) throw new Error("Branch not found");
+      const targetBranchId = branchId;
+      const productIds = Array.from(
+        new Set(data.items.map((i) => i.productId)),
+      );
 
-    const products = await tx.product.findMany({
-      where: { id: { in: productIds } },
-      include: { prices: true }
-    });
-
-    const productMap = new Map(products.map(p => [p.id, p]));
-
-    for (const item of data.items) {
-      const product = productMap.get(item.productId);
-      if (!product) throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
-
-      // Upsert to ensure the product branch entry exists
-      const pb = await tx.productBranch.upsert({
-        where: { productId_branchId: { productId: item.productId, branchId: targetBranchId } },
-        update: {},
-        create: { productId: item.productId, branchId: targetBranchId, stockCount: 0, movingAvgCost: 0 }
+      const products = await tx.product.findMany({
+        where: { id: { in: productIds } },
+        include: { prices: true },
       });
 
-      // Obtain write lock on the product branch row
-      const lockedRows: any[] = await tx.$queryRaw`
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      for (const item of data.items) {
+        const product = productMap.get(item.productId);
+        if (!product)
+          throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);
+
+        // Upsert to ensure the product branch entry exists
+        const pb = await tx.productBranch.upsert({
+          where: {
+            productId_branchId: {
+              productId: item.productId,
+              branchId: targetBranchId,
+            },
+          },
+          update: {},
+          create: {
+            productId: item.productId,
+            branchId: targetBranchId,
+            stockCount: 0,
+            movingAvgCost: 0,
+          },
+        });
+
+        // Obtain write lock on the product branch row
+        const lockedRows: any[] = await tx.$queryRaw`
         SELECT id, "stockCount", "movingAvgCost" FROM "ProductBranch"
         WHERE id = ${pb.id} FOR UPDATE
       `;
-      const currentStock = Number(lockedRows[0]?.stockCount || 0);
-      const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
+        const currentStock = Number(lockedRows[0]?.stockCount || 0);
+        const currentMac = Number(lockedRows[0]?.movingAvgCost || 0);
 
-      if (currentStock < item.quantity) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${currentStock}, Yêu cầu: ${item.quantity})`);
-      }
-
-      // Determine selling price
-      let unitPrice = 0;
-      if (item.customUnitPrice !== undefined && item.customUnitPrice !== null) {
-        unitPrice = item.customUnitPrice;
-      } else {
-        const selectedPrice = product.prices.find((p) => p.type === item.priceType);
-        if (!selectedPrice) throw new Error(`Không tìm thấy bảng giá ${item.priceType} cho sản phẩm ${product.name}`);
-        unitPrice = Number(selectedPrice.amount);
-      }
-
-      const totalPrice = unitPrice * item.quantity;
-
-      // Update stock
-      await tx.productBranch.update({
-        where: { id: pb.id },
-        data: { stockCount: { decrement: item.quantity } },
-      });
-
-      // Create Stock Movement
-      const movement = await tx.stockMovement.create({
-        data: {
-          productId: item.productId,
-          type: "EXPORT",
-          quantity: item.quantity,
-          unitCost: currentMac,
-          totalCost: currentMac * item.quantity,
-          reason: reasonText,
-          relatedRoId: data.exportType === "REPAIR" ? data.repairOrderId : null,
-          createdBy: data.createdBy,
-          branchId: targetBranchId,
-        },
-      });
-      movementsCreated.push(movement);
-
-      // Create OrderItem if RO repair export
-      if (data.exportType === "REPAIR") {
-        if (!data.repairOrderId) throw new Error("Yêu cầu mã lệnh sửa chữa (RO) để xuất kho sửa chữa");
-
-        const ro = await tx.repairOrder.findUnique({ where: { id: data.repairOrderId } });
-        if (!ro) throw new Error("Lệnh sửa chữa không tồn tại");
-        if (branchId && ro.branchId !== branchId) {
-          throw new Error("Lệnh sửa chữa không thuộc chi nhánh hiện tại");
+        if (currentStock < item.quantity) {
+          throw new Error(
+            `Sản phẩm "${product.name}" không đủ số lượng trong kho (Tồn: ${currentStock}, Yêu cầu: ${item.quantity})`,
+          );
         }
 
-        const orderItem = await tx.orderItem.create({
+        // Determine selling price
+        let unitPrice = 0;
+        if (
+          item.customUnitPrice !== undefined &&
+          item.customUnitPrice !== null
+        ) {
+          unitPrice = item.customUnitPrice;
+        } else {
+          const selectedPrice = product.prices.find(
+            (p) => p.type === item.priceType,
+          );
+          if (!selectedPrice)
+            throw new Error(
+              `Không tìm thấy bảng giá ${item.priceType} cho sản phẩm ${product.name}`,
+            );
+          unitPrice = Number(selectedPrice.amount);
+        }
+
+        const totalPrice = unitPrice * item.quantity;
+
+        // Update stock
+        await tx.productBranch.update({
+          where: { id: pb.id },
+          data: { stockCount: { decrement: item.quantity } },
+        });
+
+        // Create Stock Movement
+        const movement = await tx.stockMovement.create({
           data: {
-            repairOrderId: data.repairOrderId,
             productId: item.productId,
+            type: "EXPORT",
             quantity: item.quantity,
-            unitPrice,
-            totalPrice,
+            unitCost: currentMac,
+            totalCost: currentMac * item.quantity,
+            reason: reasonText,
+            relatedRoId:
+              data.exportType === "REPAIR" ? data.repairOrderId : null,
+            createdBy: data.createdBy,
+            branchId: targetBranchId,
           },
         });
-        orderItemsCreated.push(orderItem);
-      }
-    }
+        movementsCreated.push(movement);
 
-    return { movements: movementsCreated, items: orderItemsCreated };
-  }, { timeout: 10000, maxWait: 10000 });
+        // Create OrderItem if RO repair export
+        if (data.exportType === "REPAIR") {
+          if (!data.repairOrderId)
+            throw new Error(
+              "Yêu cầu mã lệnh sửa chữa (RO) để xuất kho sửa chữa",
+            );
+
+          const ro = await tx.repairOrder.findUnique({
+            where: { id: data.repairOrderId },
+          });
+          if (!ro) throw new Error("Lệnh sửa chữa không tồn tại");
+          if (branchId && ro.branchId !== branchId) {
+            throw new Error("Lệnh sửa chữa không thuộc chi nhánh hiện tại");
+          }
+
+          const orderItem = await tx.orderItem.create({
+            data: {
+              repairOrderId: data.repairOrderId,
+              productId: item.productId,
+              quantity: item.quantity,
+              unitPrice,
+              totalPrice,
+            },
+          });
+          orderItemsCreated.push(orderItem);
+        }
+      }
+
+      return { movements: movementsCreated, items: orderItemsCreated };
+    },
+    { timeout: 10000, maxWait: 10000 },
+  );
 
   // Recalculate bill if REPAIR
   if (data.exportType === "REPAIR" && data.repairOrderId) {
@@ -877,8 +1042,13 @@ export async function createManualExport(data: {
       where: { repairOrderId: data.repairOrderId },
     });
 
-    const partsCost = roItems.reduce((acc, curr) => acc + Number(curr.totalPrice), 0);
-    const ro = await prisma.repairOrder.findUnique({ where: { id: data.repairOrderId } });
+    const partsCost = roItems.reduce(
+      (acc, curr) => acc + Number(curr.totalPrice),
+      0,
+    );
+    const ro = await prisma.repairOrder.findUnique({
+      where: { id: data.repairOrderId },
+    });
     const laborCost = ro ? Number(ro.laborCost) : 0;
 
     await prisma.repairOrder.update({
@@ -972,7 +1142,7 @@ export async function createPartsRequisition(data: {
     // Cập nhật trạng thái của RepairOrder sang WAITING_PARTS (Chờ phụ tùng)
     await tx.repairOrder.update({
       where: { id: data.repairOrderId },
-      data: { status: "WAITING_PARTS" }
+      data: { status: "WAITING_PARTS" },
     });
 
     const requisitionItemsCreated = [];
@@ -991,9 +1161,20 @@ export async function createPartsRequisition(data: {
 
       // Upsert to ensure the product branch entry exists
       const pb = await tx.productBranch.upsert({
-        where: { productId_branchId: { productId: item.productId, branchId: activeBranchId } },
+        where: {
+          productId_branchId: {
+            productId: item.productId,
+            branchId: activeBranchId,
+          },
+        },
         update: {},
-        create: { productId: item.productId, branchId: activeBranchId, stockCount: 0, reservedStock: 0, movingAvgCost: 0 }
+        create: {
+          productId: item.productId,
+          branchId: activeBranchId,
+          stockCount: 0,
+          reservedStock: 0,
+          movingAvgCost: 0,
+        },
       });
 
       // Obtain a write lock on the product branch row
@@ -1004,8 +1185,10 @@ export async function createPartsRequisition(data: {
       const currentStock = Number(lockedRows[0]?.stockCount || 0);
       const currentReserved = Number(lockedRows[0]?.reservedStock || 0);
 
-      if ((currentStock - currentReserved) < item.quantity) {
-        throw new Error(`Sản phẩm "${product.name}" không đủ tồn kho khả dụng (Tồn: ${currentStock}, Đang giữ chỗ: ${currentReserved}, Yêu cầu: ${item.quantity})`);
+      if (currentStock - currentReserved < item.quantity) {
+        throw new Error(
+          `Sản phẩm "${product.name}" không đủ tồn kho khả dụng (Tồn: ${currentStock}, Đang giữ chỗ: ${currentReserved}, Yêu cầu: ${item.quantity})`,
+        );
       }
 
       // Chỉ tăng reservedStock để giữ chỗ, không trừ stockCount
@@ -1033,7 +1216,10 @@ export async function createPartsRequisition(data: {
     where: { repairOrderId: data.repairOrderId },
   });
 
-  const partsCost = roItems.reduce((acc, curr) => acc + Number(curr.totalPrice), 0);
+  const partsCost = roItems.reduce(
+    (acc, curr) => acc + Number(curr.totalPrice),
+    0,
+  );
   const laborCost = Number(ro.laborCost);
 
   await prisma.repairOrder.update({
@@ -1051,9 +1237,9 @@ export async function createPartsRequisition(data: {
     success: true,
     requisition: {
       ...result.requisition,
-      items: result.requisitionItemsCreated.map(i => ({
+      items: result.requisitionItemsCreated.map((i) => ({
         ...i,
-        product: undefined // UI can fetch separately or we can query it later
+        product: undefined, // UI can fetch separately or we can query it later
       })),
     },
   };
@@ -1068,9 +1254,12 @@ export async function sendCustomZnsAction(data: {
 }) {
   const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
-  if (!userRole) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+  if (!userRole)
+    throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
 
-  const customer = await prisma.customer.findUnique({ where: { id: data.customerId } });
+  const customer = await prisma.customer.findUnique({
+    where: { id: data.customerId },
+  });
   if (!customer) throw new Error("Khách hàng không tồn tại");
   const activeBranchId = await getActiveBranchId();
   if (!(await customerBelongsToBranch(data.customerId, activeBranchId))) {
@@ -1083,7 +1272,10 @@ export async function sendCustomZnsAction(data: {
   if (data.templateId) {
     // Compile template data dynamically for Zalo ZNS
     const lastRo = await prisma.repairOrder.findFirst({
-      where: { customerId: data.customerId, ...(activeBranchId ? { branchId: activeBranchId } : {}) },
+      where: {
+        customerId: data.customerId,
+        ...(activeBranchId ? { branchId: activeBranchId } : {}),
+      },
       orderBy: { createdAt: "desc" },
     });
     const plate = lastRo?.plateNumber || customer.vehiclePlates?.[0] || "N/A";
@@ -1096,8 +1288,14 @@ export async function sendCustomZnsAction(data: {
     let templateData: Record<string, any> = {};
 
     const cleanCustName = customer.name.trim();
-    const customerName30 = cleanCustName.length > 29 ? cleanCustName.substring(0, 29) : cleanCustName;
-    const customerName50 = cleanCustName.length > 49 ? cleanCustName.substring(0, 49) : cleanCustName;
+    const customerName30 =
+      cleanCustName.length > 29
+        ? cleanCustName.substring(0, 29)
+        : cleanCustName;
+    const customerName50 =
+      cleanCustName.length > 49
+        ? cleanCustName.substring(0, 49)
+        : cleanCustName;
 
     if (data.templateId === "CRM_BIRTHDAY_003") {
       let expiryDate = new Date();
@@ -1105,7 +1303,11 @@ export async function sendCustomZnsAction(data: {
       if (customer.birthday) {
         const bday = new Date(customer.birthday);
         const today = new Date();
-        const bdayThisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+        const bdayThisYear = new Date(
+          today.getFullYear(),
+          bday.getMonth(),
+          bday.getDate(),
+        );
         bdayThisYear.setDate(bdayThisYear.getDate() + 7);
         expiryDate = bdayThisYear;
       }
@@ -1114,16 +1316,25 @@ export async function sendCustomZnsAction(data: {
         expiry_date: formatDateForZalo(expiryDate),
         phone_number: customer.phone,
       };
-    } else if (data.templateId === "CRM_OIL_REMIND_002" || data.templateId === "CRM_SERVICE_REMIND_002") {
+    } else if (
+      data.templateId === "CRM_OIL_REMIND_002" ||
+      data.templateId === "CRM_SERVICE_REMIND_002"
+    ) {
       const orderDate = lastRo?.createdAt || new Date();
       const vehicleModel = lastRo?.vehicleModel || "xe máy";
-      const vehicleName200 = vehicleModel.length > 199 ? vehicleModel.substring(0, 199) : vehicleModel;
+      const vehicleName200 =
+        vehicleModel.length > 199
+          ? vehicleModel.substring(0, 199)
+          : vehicleModel;
       const licensePlate30 = plate.length > 29 ? plate.substring(0, 29) : plate;
 
       const branchId = lastRo?.branchId || customer.branchId;
-      const branch = branchId ? await prisma.branch.findUnique({ where: { id: branchId } }) : null;
+      const branch = branchId
+        ? await prisma.branch.findUnique({ where: { id: branchId } })
+        : null;
       const storeName = branch?.name || "Yamaha Town Toàn Thắng";
-      const storeName200 = storeName.length > 199 ? storeName.substring(0, 199) : storeName;
+      const storeName200 =
+        storeName.length > 199 ? storeName.substring(0, 199) : storeName;
 
       templateData = {
         customer_name: customerName30,
@@ -1136,9 +1347,11 @@ export async function sendCustomZnsAction(data: {
       const nextServiceDate = new Date();
       nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
 
-      const actionLabel = data.messageType === "GENERAL_INSPECT" ? "Bảo dưỡng" : "Thay dầu";
+      const actionLabel =
+        data.messageType === "GENERAL_INSPECT" ? "Bảo dưỡng" : "Thay dầu";
       const rawNote = `${actionLabel} xe ${plate}`;
-      const truncatedNote = rawNote.length > 29 ? rawNote.substring(0, 29) : rawNote;
+      const truncatedNote =
+        rawNote.length > 29 ? rawNote.substring(0, 29) : rawNote;
 
       templateData = {
         customer_name: customerName50,
@@ -1149,7 +1362,12 @@ export async function sendCustomZnsAction(data: {
       };
     }
 
-    const result = await sendZaloZns(data.phone, data.templateId, templateData, activeBranchId || customer.branchId);
+    const result = await sendZaloZns(
+      data.phone,
+      data.templateId,
+      templateData,
+      activeBranchId || customer.branchId,
+    );
 
     if (!result.success) {
       status = "FAILED";
