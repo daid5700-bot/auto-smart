@@ -1,120 +1,116 @@
-import { prisma } from "@/lib/prisma";
+import {
+  getBranchConfigValue,
+  getBranchConfigValues,
+  setBranchConfigValues,
+} from "@/lib/branch-config";
+import {
+  ZALO_CREDENTIAL_KEYS,
+  resolveZaloTemplateId,
+  type ZaloCredentialKey,
+  type ZaloCredentialValues,
+} from "@/lib/zalo-config";
 
-export const ZALO_CREDENTIAL_KEYS = [
-  "ZALO_APP_ID",
-  "ZALO_APP_SECRET",
-  "ZALO_OA_ACCESS_TOKEN",
-  "ZALO_REFRESH_TOKEN",
-  "ZALO_TEMPLATE_THANK_YOU",
-  "ZALO_TEMPLATE_OIL_REMIND",
-  "ZALO_TEMPLATE_BIRTHDAY",
-  "ZALO_TEMPLATE_INSPECT",
-  "ZALO_TEMPLATE_LOYALTY",
-] as const;
+export { ZALO_CREDENTIAL_KEYS } from "@/lib/zalo-config";
+export { resolveZaloTemplateId } from "@/lib/zalo-config";
 
-type ZaloCredentialKey = (typeof ZALO_CREDENTIAL_KEYS)[number];
+const ZALO_TOKEN_URL = "https://oauth.zaloapp.com/v4/oa/access_token";
+const ZALO_ZNS_URL = "https://business.openapi.zalo.me/message/template";
+const INVALID_TOKEN_CODES = new Set([-124, -216, -301]);
 
-const LEGACY_ZALO_BRANCH_KEY = "ZALO_LEGACY_BRANCH_ID";
+interface ZaloTokenResponse {
+  access_token?: string;
+  refresh_token?: string;
+  error_description?: string;
+  message?: string;
+}
 
-async function branchUsesLegacyZaloConfig(branchId?: number | null) {
-  if (!branchId) return true;
+interface ZaloZnsResponse {
+  error?: number;
+  message?: string;
+  data?: { msg_id?: string } & Record<string, unknown>;
+  [key: string]: unknown;
+}
 
-  const legacyBranch = await prisma.systemConfig.findUnique({
-    where: { key: LEGACY_ZALO_BRANCH_KEY },
-  });
-  if (legacyBranch?.value) return Number(legacyBranch.value) === branchId;
+interface ZaloZnsPayload {
+  phone: string;
+  template_id: string;
+  template_data: Record<string, unknown>;
+  tracking_id: string;
+}
 
-  // Backward-compatible default: the existing shared OA belongs to Yamaha.
-  const branch = await prisma.branch.findUnique({
-    where: { id: branchId },
-    select: { name: true, code: true },
-  });
-  return /yamaha/i.test(`${branch?.code || ""} ${branch?.name || ""}`);
+export interface ZaloSendResult {
+  success: boolean;
+  data?: ZaloZnsResponse;
+  error?: string;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function maskPhone(phone: string) {
+  return phone.length > 4 ? `${phone.slice(0, 4)}***${phone.slice(-3)}` : "***";
+}
+
+async function getZaloCredentialValues(
+  branchId?: number | null,
+): Promise<ZaloCredentialValues> {
+  const values = await getBranchConfigValues(ZALO_CREDENTIAL_KEYS, branchId);
+  return values as ZaloCredentialValues;
 }
 
 // Format phone number for Zalo (e.g. 0901234567 -> 84901234567)
 export function formatPhoneForZalo(phone: string): string {
-  let cleaned = phone.replace(/\D/g, ""); // Keep only digits
-  if (cleaned.startsWith("0")) {
-    cleaned = "84" + cleaned.substring(1);
-  }
-  if (!cleaned.startsWith("84") && cleaned.length > 0) {
-    cleaned = "84" + cleaned;
-  }
+  let cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("0")) cleaned = `84${cleaned.substring(1)}`;
+  if (!cleaned.startsWith("84") && cleaned.length > 0) cleaned = `84${cleaned}`;
   return cleaned;
 }
 
-// Get credential from Database only
 export async function getZaloCredential(
   key: ZaloCredentialKey,
   branchId?: number | null,
 ): Promise<string> {
   try {
-    if (branchId) {
-      const scopedConfig = await prisma.branchSetting.findUnique({
-        where: { branchId_key: { branchId, key } },
-      });
-      if (scopedConfig?.value) return scopedConfig.value;
-    }
-
-    if (branchId && !(await branchUsesLegacyZaloConfig(branchId))) return "";
-    const config = await prisma.systemConfig.findUnique({ where: { key } });
-    return config?.value || "";
-  } catch (dbErr) {
-    console.error(`❌ [ZALO] Could not read ${key} from DB:`, dbErr);
+    return await getBranchConfigValue(key, branchId);
+  } catch (error) {
+    console.error(`[ZALO] Không thể đọc cấu hình ${key}:`, error);
     return "";
   }
 }
 
-// Update token in DB only
 export async function updateZaloCredentials(
   updates: Partial<Record<ZaloCredentialKey, string>>,
   branchId?: number | null,
 ) {
-  for (const [key, value] of Object.entries(updates)) {
-    try {
-      if (branchId) {
-        await prisma.branchSetting.upsert({
-          where: { branchId_key: { branchId, key } },
-          update: { value },
-          create: { branchId, key, value },
-        });
-      } else {
-        await prisma.systemConfig.upsert({
-          where: { key },
-          update: { value },
-          create: { key, value },
-        });
-      }
-      console.log(`✅ Persisted Zalo key ${key} to database.`);
-    } catch (dbErr: any) {
-      console.error(`❌ Failed to save ${key} to database:`, dbErr.message);
-    }
-  }
+  const values = Object.fromEntries(
+    Object.entries(updates).filter((entry): entry is [string, string] =>
+      typeof entry[1] === "string",
+    ),
+  );
+  await setBranchConfigValues(values, branchId);
 }
 
-// Refresh Zalo OA Access Token using Refresh Token
 export async function refreshZaloToken(
   branchId?: number | null,
 ): Promise<string> {
-  const appId = await getZaloCredential("ZALO_APP_ID", branchId);
-  const secretKey = await getZaloCredential("ZALO_APP_SECRET", branchId);
-  const refreshToken = await getZaloCredential("ZALO_REFRESH_TOKEN", branchId);
+  const credentials = await getZaloCredentialValues(branchId);
+  const appId = credentials.ZALO_APP_ID;
+  const secretKey = credentials.ZALO_APP_SECRET;
+  const refreshToken = credentials.ZALO_REFRESH_TOKEN;
 
   if (!appId || !secretKey || !refreshToken) {
     throw new Error(
-      "Missing Zalo credentials (App ID, Secret Key, or Refresh Token) in environment/database",
+      "Thiếu Zalo App ID, App Secret hoặc Refresh Token của chi nhánh",
     );
   }
 
-  console.log("🔄 Attempting to refresh Zalo OA Access Token...");
-
-  const params = new URLSearchParams();
-  params.append("refresh_token", refreshToken);
-  params.append("app_id", appId);
-  params.append("grant_type", "refresh_token");
-
-  let response = await fetch("https://oauth.zaloapp.com/v4/oa/access_token", {
+  const params = new URLSearchParams({
+    refresh_token: refreshToken,
+    app_id: appId,
+    grant_type: "refresh_token",
+  });
+  const response = await fetch(ZALO_TOKEN_URL, {
     method: "POST",
     headers: {
       secret_key: secretKey,
@@ -122,178 +118,107 @@ export async function refreshZaloToken(
     },
     body: params,
   });
+  const data = (await response.json()) as ZaloTokenResponse;
 
-  let data = await response.json();
-
-  if (data.access_token && data.refresh_token) {
-    await updateZaloCredentials(
-      {
-        ZALO_OA_ACCESS_TOKEN: data.access_token,
-        ZALO_REFRESH_TOKEN: data.refresh_token,
-      },
-      branchId,
-    );
-    return data.access_token;
-  } else {
-    console.error("❌ Zalo Token Refresh Error Response:", data);
+  if (!data.access_token || !data.refresh_token) {
+    console.error("[ZALO] Token refresh failed:", data);
     throw new Error(
-      data.error_description ||
-        data.message ||
-        "Failed to refresh Zalo access token",
+      data.error_description || data.message || "Không thể làm mới Zalo token",
     );
   }
+
+  await updateZaloCredentials(
+    {
+      ZALO_OA_ACCESS_TOKEN: data.access_token,
+      ZALO_REFRESH_TOKEN: data.refresh_token,
+    },
+    branchId,
+  );
+  return data.access_token;
 }
 
-// Send ZNS using the official Zalo OpenAPI
+async function requestZaloZns(
+  payload: ZaloZnsPayload,
+  accessToken: string,
+): Promise<ZaloZnsResponse> {
+  const response = await fetch(ZALO_ZNS_URL, {
+    method: "POST",
+    headers: {
+      access_token: accessToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = (await response.json()) as ZaloZnsResponse;
+  console.info("[ZNS] Zalo response", {
+    httpStatus: response.status,
+    error: data.error,
+    message: data.message,
+    trackingId: payload.tracking_id,
+  });
+  return data;
+}
+
+async function sendWithTokenRetry(
+  payload: ZaloZnsPayload,
+  accessToken: string,
+  branchId?: number | null,
+) {
+  const firstResponse = await requestZaloZns(payload, accessToken);
+  if (!INVALID_TOKEN_CODES.has(firstResponse.error ?? 0)) return firstResponse;
+
+  console.warn("[ZNS] Access token hết hạn, đang làm mới", {
+    branchId,
+    error: firstResponse.error,
+  });
+  const newAccessToken = await refreshZaloToken(branchId);
+  return requestZaloZns(payload, newAccessToken);
+}
+
 export async function sendZaloZns(
   phone: string,
   templateId: string,
-  templateData: Record<string, any>,
+  templateData: Record<string, unknown>,
   branchId?: number | null,
-): Promise<{ success: boolean; data?: any; error?: string }> {
+): Promise<ZaloSendResult> {
   const formattedPhone = formatPhoneForZalo(phone);
-  let accessToken = await getZaloCredential("ZALO_OA_ACCESS_TOKEN", branchId);
-
-  if (!accessToken) {
-    try {
-      accessToken = await refreshZaloToken(branchId);
-    } catch (err: any) {
-      return {
-        success: false,
-        error: `No access token available and refresh failed: ${err.message}`,
-      };
-    }
-  }
-
-  // Map internal logical template IDs to actual Zalo ZNS numerical IDs
-  let realTemplateId = templateId;
-  if (templateId === "CRM_THANK_YOU_001") {
-    const dbVal = await getZaloCredential("ZALO_TEMPLATE_THANK_YOU", branchId);
-    if (dbVal) realTemplateId = dbVal;
-  } else if (
-    templateId === "CRM_OIL_REMIND_002" ||
-    templateId === "CRM_SERVICE_REMIND_002"
-  ) {
-    const dbVal = await getZaloCredential("ZALO_TEMPLATE_OIL_REMIND", branchId);
-    if (dbVal) realTemplateId = dbVal;
-  } else if (templateId === "CRM_BIRTHDAY_003") {
-    const dbVal = await getZaloCredential("ZALO_TEMPLATE_BIRTHDAY", branchId);
-    if (dbVal) realTemplateId = dbVal;
-  } else if (templateId === "CRM_INSPECT_004") {
-    const dbVal = await getZaloCredential("ZALO_TEMPLATE_INSPECT", branchId);
-    if (dbVal) realTemplateId = dbVal;
-  } else if (templateId === "CRM_LOYALTY_005") {
-    // VinFast's loyalty template uses customer_name, order_date, note, point
-    // and total_point. Other branches keep their current thank-you template
-    // until a dedicated loyalty template is configured for that branch.
-    const loyaltyTemplate = await getZaloCredential(
-      "ZALO_TEMPLATE_LOYALTY",
-      branchId,
-    );
-    const fallbackTemplate = await getZaloCredential(
-      "ZALO_TEMPLATE_THANK_YOU",
-      branchId,
-    );
-    realTemplateId = loyaltyTemplate || fallbackTemplate || realTemplateId;
-  }
-
-  const trackingId = `zns_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-  const payload = {
-    phone: formattedPhone,
-    template_id: realTemplateId,
-    template_data: templateData,
-    tracking_id: trackingId,
-  };
-
-  // === LOG CHI TIẾT KHI GỬI ZNS ===
-  console.log("[ZNS] ====== BẮT ĐẦU GỬI ZNS ======");
-  console.log(`[ZNS] 📱 Số điện thoại: ${formattedPhone}`);
-  console.log(
-    `[ZNS] 📋 Template ID (nội bộ): ${templateId} → (Zalo): ${realTemplateId}`,
-  );
-  console.log(
-    `[ZNS] 🔑 Access Token (10 ký tự đầu): ${accessToken?.substring(0, 10)}...`,
-  );
-  console.log(`[ZNS] 📤 Template Data:`, JSON.stringify(templateData));
-  console.log(`[ZNS] 🏷️  Tracking ID: ${trackingId}`);
-
-  const makeRequest = async (token: string) => {
-    console.log(
-      `[ZNS] 🚀 Gửi yêu cầu POST đến https://business.openapi.zalo.me/message/template`,
-    );
-    console.log(
-      `[ZNS] 🚀 Headers: { access_token: "${token.substring(0, 10)}...", Content-Type: "application/json" }`,
-    );
-    console.log(`[ZNS] 🚀 Payload gửi đi:`, JSON.stringify(payload, null, 2));
-    return fetch("https://business.openapi.zalo.me/message/template", {
-      method: "POST",
-      headers: {
-        access_token: token,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-  };
 
   try {
-    let response = await makeRequest(accessToken);
-    let resData = await response.json();
+    const credentials = await getZaloCredentialValues(branchId);
+    const accessToken =
+      credentials.ZALO_OA_ACCESS_TOKEN || (await refreshZaloToken(branchId));
+    const realTemplateId = resolveZaloTemplateId(templateId, credentials);
+    const trackingId = `zns_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    const payload: ZaloZnsPayload = {
+      phone: formattedPhone,
+      template_id: realTemplateId,
+      template_data: templateData,
+      tracking_id: trackingId,
+    };
 
-    console.log(`[ZNS] 📨 Zalo API HTTP Status: ${response.status}`);
-    console.log(
-      `[ZNS] 📨 Phản hồi từ Zalo: error=${resData.error}, message=${resData.message}`,
-    );
-    console.log(
-      `[ZNS] 📨 Chi tiết phản hồi:`,
-      JSON.stringify(resData, null, 2),
-    );
+    console.info("[ZNS] Sending message", {
+      branchId,
+      phone: maskPhone(formattedPhone),
+      logicalTemplateId: templateId,
+      templateId: realTemplateId,
+      trackingId,
+    });
 
-    // Auto-refresh khi token hết hạn hoặc không hợp lệ (-124, -216, -301)
-    if (
-      resData.error === -124 ||
-      resData.error === -216 ||
-      resData.error === -301
-    ) {
-      console.warn(
-        `⚠️ [ZNS] Token lỗi (${resData.error}: ${resData.message}). Đang tự động lấy token mới...`,
-      );
-      try {
-        const newAccessToken = await refreshZaloToken(branchId);
-        console.log(
-          `[ZNS] ✅ Lấy token mới thành công! Token mới (10 ký tự đầu): ${newAccessToken.substring(0, 10)}...`,
-        );
-        response = await makeRequest(newAccessToken);
-        resData = await response.json();
-        console.log(
-          `[ZNS] 📨 Phản hồi sau khi dùng token mới: error=${resData.error}, message=${resData.message}`,
-        );
-        console.log(
-          `[ZNS] 📨 Chi tiết phản hồi sau refresh:`,
-          JSON.stringify(resData, null, 2),
-        );
-      } catch (refreshErr: any) {
-        console.warn(`⚠️ [ZNS] Lấy token mới thất bại: ${refreshErr.message}`);
-      }
-    }
+    const response = await sendWithTokenRetry(payload, accessToken, branchId);
+    if (response.error === 0) return { success: true, data: response };
 
-    if (resData.error === 0) {
-      console.log(
-        `[ZNS] ✅ GỬI THÀNH CÔNG đến ${formattedPhone} | msg_id: ${resData.data?.msg_id}`,
-      );
-      console.log("[ZNS] ====== KẾT THÚC GỬI ZNS ======");
-      return { success: true, data: resData };
-    } else {
-      const detailedError = `Lỗi Zalo API [Mã ${resData.error}]: ${resData.message} | Phản hồi đầy đủ: ${JSON.stringify(resData)}`;
-      console.error(
-        `[ZNS] ❌ GỬI THẤT BẠI đến ${formattedPhone} | ${detailedError}`,
-      );
-      console.log("[ZNS] ====== KẾT THÚC GỬI ZNS ======");
-      return { success: false, error: detailedError };
-    }
-  } catch (error: any) {
-    const networkError = `Lỗi kết nối mạng khi gửi ZNS đến ${formattedPhone}: ${error.message}`;
-    console.error(`❌ ${networkError}`, error);
-    return { success: false, error: networkError };
+    return {
+      success: false,
+      error: `Lỗi Zalo API [Mã ${response.error}]: ${response.message || "Không rõ lỗi"}`,
+    };
+  } catch (error) {
+    const message = getErrorMessage(error);
+    console.error("[ZNS] Gửi thất bại", {
+      branchId,
+      phone: maskPhone(formattedPhone),
+      error: message,
+    });
+    return { success: false, error: message };
   }
 }
 
