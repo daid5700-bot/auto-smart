@@ -56,6 +56,17 @@ export const ZALO_TEMPLATE_DEFINITIONS = [
   },
 ] as const;
 
+// Only these templates are configured per branch in the admin UI. The other
+// logical templates remain available internally for backwards compatibility.
+export const ZALO_BRANCH_TEMPLATE_DEFINITIONS =
+  ZALO_TEMPLATE_DEFINITIONS.filter(({ key }) =>
+    [
+      "ZALO_TEMPLATE_THANK_YOU",
+      "ZALO_TEMPLATE_OIL_REMIND",
+      "ZALO_TEMPLATE_BIRTHDAY",
+    ].includes(key),
+  );
+
 export type ZaloCredentialKey =
   | (typeof ZALO_AUTH_FIELDS)[number]["key"]
   | (typeof ZALO_TEMPLATE_DEFINITIONS)[number]["key"];

@@ -2,11 +2,12 @@
 import { useEffect, useState } from "react";
 import { Save, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/store";
+import { isVinFastBranchId } from "@/lib/branch-identity";
 import {
   createEmptyZaloCredentials,
   ZALO_AUTH_FIELDS,
+  ZALO_BRANCH_TEMPLATE_DEFINITIONS,
   ZALO_CREDENTIAL_KEYS,
-  ZALO_TEMPLATE_DEFINITIONS,
   type ZaloCredentialKey,
   type ZaloCredentialValues,
 } from "@/lib/zalo-config";
@@ -53,6 +54,7 @@ function buildFormState(config: Record<string, unknown>): SettingsFormState {
 
 export default function SettingsPage() {
   const { activeBranch } = useAuth();
+  const isVinFast = isVinFastBranchId(activeBranch?.id);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -275,7 +277,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {ZALO_TEMPLATE_DEFINITIONS.map((template) => {
+                {ZALO_BRANCH_TEMPLATE_DEFINITIONS.map((template) => {
                   const inputId = template.key
                     .toLowerCase()
                     .replaceAll("_", "-");
@@ -285,7 +287,11 @@ export default function SettingsPage() {
                         htmlFor={inputId}
                         className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase"
                       >
-                        {template.label}
+                        {template.key === "ZALO_TEMPLATE_OIL_REMIND"
+                          ? isVinFast
+                            ? "Template nhắc bảo dưỡng"
+                            : "Template nhắc thay dầu"
+                          : template.label}
                       </label>
                       <input
                         id={inputId}

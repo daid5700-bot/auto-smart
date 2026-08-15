@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import {
+  BRANCH_ID,
+  isVinFastBranchId,
+  isYamahaBranchId,
+} from "@/lib/branch-identity";
 
 export const LEGACY_ZALO_BRANCH_KEY = "ZALO_LEGACY_BRANCH_ID";
 
@@ -9,9 +14,7 @@ export interface BranchConfigScope {
   values: Record<string, string>;
 }
 
-export function isYamahaBranch(branch: { name: string; code: string | null }) {
-  return /yamaha/i.test(`${branch.code || ""} ${branch.name}`);
-}
+export { BRANCH_ID, isVinFastBranchId, isYamahaBranchId };
 
 function rowsToConfig(rows: Array<{ key: string; value: string }>) {
   return Object.fromEntries(rows.map(({ key, value }) => [key, value]));
@@ -47,12 +50,14 @@ export async function getBranchConfigScope(
 
   const scopedConfig = rowsToConfig(scopedRows);
   const legacyConfig = rowsToConfig(legacyRows);
-  const legacyBranchId = parseLegacyBranchId(
+  const storedLegacyBranchId = parseLegacyBranchId(
     legacyConfig[LEGACY_ZALO_BRANCH_KEY],
   );
-  const usesLegacyConfig = legacyBranchId
-    ? legacyBranchId === branchId
-    : isYamahaBranch(branch);
+  const legacyBranchId =
+    storedLegacyBranchId === BRANCH_ID.YAMAHA_TOAN_THANG
+      ? storedLegacyBranchId
+      : BRANCH_ID.YAMAHA_TOAN_THANG;
+  const usesLegacyConfig = isYamahaBranchId(branchId);
 
   const values = Object.fromEntries(
     uniqueKeys.map((key) => [
@@ -87,9 +92,7 @@ export async function getBranchConfigValues(
   const scope = await getBranchConfigScope(branchId, uniqueKeys, defaults);
   return (
     scope?.values ??
-    Object.fromEntries(
-      uniqueKeys.map((key) => [key, defaults[key] ?? ""]),
-    )
+    Object.fromEntries(uniqueKeys.map((key) => [key, defaults[key] ?? ""]))
   );
 }
 
@@ -142,16 +145,15 @@ export async function setBranchConfigValue(
   await setBranchConfigValues({ [key]: value }, branchId);
 }
 
-export async function ensureLegacyConfigOwner(branch: {
-  id: number;
-  name: string;
-  code: string | null;
-}) {
-  if (!isYamahaBranch(branch)) return;
+export async function ensureLegacyConfigOwner(branchId: number) {
+  if (!isYamahaBranchId(branchId)) return;
 
   await prisma.systemConfig.upsert({
     where: { key: LEGACY_ZALO_BRANCH_KEY },
-    update: { value: String(branch.id) },
-    create: { key: LEGACY_ZALO_BRANCH_KEY, value: String(branch.id) },
+    update: { value: String(BRANCH_ID.YAMAHA_TOAN_THANG) },
+    create: {
+      key: LEGACY_ZALO_BRANCH_KEY,
+      value: String(BRANCH_ID.YAMAHA_TOAN_THANG),
+    },
   });
 }

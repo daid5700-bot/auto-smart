@@ -1,11 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Building2, Loader2, Plus, Edit, Trash2, X, MapPin, Phone, Upload } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  Plus,
+  Edit,
+  Trash2,
+  X,
+  MapPin,
+  Phone,
+  Upload,
+} from "lucide-react";
 import { useAuth } from "@/lib/store";
+import { isVinFastBranchId, isYamahaBranchId } from "@/lib/branch-identity";
 import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
-
 
 export default function BranchesPage() {
   const modal = useModal();
@@ -162,7 +172,9 @@ export default function BranchesPage() {
       setModalOpen(false);
       await modal.alert({
         title: "Thành công",
-        message: editingId ? "Cập nhật thông tin cơ sở thành công!" : "Tạo cơ sở mới thành công!",
+        message: editingId
+          ? "Cập nhật thông tin cơ sở thành công!"
+          : "Tạo cơ sở mới thành công!",
         type: "success",
       });
 
@@ -185,8 +197,10 @@ export default function BranchesPage() {
   if (user?.role !== "ADMIN") {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
-        <p className="text-destructive font-bold text-lg">Quyền truy cập bị từ chối</p>
-        </div>
+        <p className="text-destructive font-bold text-lg">
+          Quyền truy cập bị từ chối
+        </p>
+      </div>
     );
   }
 
@@ -205,8 +219,11 @@ export default function BranchesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Quản lý cơ sở hệ thống</h2>
-          </div>
-        <button onClick={handleOpenAdd} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
+        </div>
+        <button
+          onClick={handleOpenAdd}
+          className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit"
+        >
           <Plus size={16} /> Thêm cơ sở mới
         </button>
       </div>
@@ -249,22 +266,42 @@ export default function BranchesPage() {
                     <div className="flex items-center gap-3">
                       {b.logoUrl ? (
                         <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-0.5 shadow-sm">
-                          <Image src={b.logoUrl} alt={`${b.name} Logo`} width={36} height={36} className="w-full h-full object-contain" />
+                          <Image
+                            src={b.logoUrl}
+                            alt={`${b.name} Logo`}
+                            width={36}
+                            height={36}
+                            className="w-full h-full object-contain"
+                          />
                         </div>
-                      ) : b.name.toLowerCase().includes("vinfast") ? (
+                      ) : isVinFastBranchId(b.id) ? (
                         <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
-                          <Image src="/vinfast.png" alt="Vinfast Logo" width={36} height={36} className="w-full h-full object-contain" />
+                          <Image
+                            src="/vinfast.png"
+                            alt="Vinfast Logo"
+                            width={36}
+                            height={36}
+                            className="w-full h-full object-contain"
+                          />
                         </div>
-                      ) : b.name.toLowerCase().includes("yamaha") ? (
+                      ) : isYamahaBranchId(b.id) ? (
                         <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-sm">
-                          <Image src="/yamaha.png" alt="Yamaha Logo" width={36} height={36} className="w-full h-full object-contain" />
+                          <Image
+                            src="/yamaha.png"
+                            alt="Yamaha Logo"
+                            width={36}
+                            height={36}
+                            className="w-full h-full object-contain"
+                          />
                         </div>
                       ) : (
                         <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white shrink-0">
                           <Building2 size={16} />
                         </div>
                       )}
-                      <span className="font-bold text-foreground text-base">{b.name}</span>
+                      <span className="font-bold text-foreground text-base">
+                        {b.name}
+                      </span>
                     </div>
                   </td>
                   <td className="text-muted-foreground">
@@ -308,7 +345,10 @@ export default function BranchesPage() {
               ))}
               {filteredBranches.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <td
+                    colSpan={6}
+                    className="text-center py-8 text-muted-foreground"
+                  >
                     Không tìm thấy cơ sở nào.
                   </td>
                 </tr>
@@ -336,45 +376,61 @@ export default function BranchesPage() {
               </div>
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Mã cơ sở/chi nhánh</label>
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Mã cơ sở/chi nhánh
+                  </label>
                   <input
                     type="text"
                     value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, code: e.target.value })
+                    }
                     placeholder="Ví dụ: CN9, HN, SG..."
                     className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Tên cơ sở/chi nhánh *</label>
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Tên cơ sở/chi nhánh *
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
                     placeholder="Ví dụ: Chi nhánh Quận 9"
                     className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Địa chỉ</label>
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Địa chỉ
+                  </label>
                   <input
                     type="text"
                     value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, address: e.target.value })
+                    }
                     placeholder="Nhập địa chỉ chi tiết"
                     className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Số điện thoại</label>
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Số điện thoại
+                  </label>
                   <input
                     type="text"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
                     placeholder="Nhập số điện thoại liên hệ"
                     className="w-full px-4 py-2.5 bg-secondary/30 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
@@ -382,14 +438,24 @@ export default function BranchesPage() {
 
                 {/* Logo / Avatar Upload */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Logo / Avatar chi nhánh</label>
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Logo / Avatar chi nhánh
+                  </label>
                   <div className="flex items-center gap-4 bg-secondary/10 p-3 rounded-xl border border-border">
                     {formData.logoUrl ? (
                       <div className="relative w-16 h-16 rounded-xl bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                        <Image src={formData.logoUrl} alt="Preview Logo" width={64} height={64} className="w-full h-full object-contain" />
+                        <Image
+                          src={formData.logoUrl}
+                          alt="Preview Logo"
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-contain"
+                        />
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, logoUrl: "" })}
+                          onClick={() =>
+                            setFormData({ ...formData, logoUrl: "" })
+                          }
                           className="absolute top-0.5 right-0.5 bg-destructive text-white rounded-full p-0.5 shadow hover:bg-destructive/80 transition-colors"
                         >
                           <X size={10} />
@@ -402,15 +468,27 @@ export default function BranchesPage() {
                         ) : (
                           <>
                             <Upload className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-[9px] text-muted-foreground mt-0.5 font-semibold">Tải lên</span>
+                            <span className="text-[9px] text-muted-foreground mt-0.5 font-semibold">
+                              Tải lên
+                            </span>
                           </>
                         )}
-                        <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleUpload}
+                          disabled={uploading}
+                        />
                       </label>
                     )}
                     <div className="text-xs text-muted-foreground space-y-0.5">
-                      <p className="font-semibold text-foreground text-[11px]">Chọn hình ảnh làm logo đại diện</p>
-                      <p className="text-[10px]">Định dạng: JPG, PNG, WEBP (Max 5MB)</p>
+                      <p className="font-semibold text-foreground text-[11px]">
+                        Chọn hình ảnh làm logo đại diện
+                      </p>
+                      <p className="text-[10px]">
+                        Định dạng: JPG, PNG, WEBP (Max 5MB)
+                      </p>
                     </div>
                   </div>
                 </div>

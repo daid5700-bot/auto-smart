@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
       ? pickEditableValues(body.credentials, EDITABLE_ZALO_KEYS)
       : {};
 
-    await ensureLegacyConfigOwner(branch);
+    await ensureLegacyConfigOwner(branch.id);
     await setBranchConfigValues(
       { ...generalValues, ...credentialValues },
       branchId,
