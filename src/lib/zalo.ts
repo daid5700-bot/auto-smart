@@ -3,6 +3,7 @@ import {
   getBranchConfigValues,
   setBranchConfigValues,
 } from "@/lib/branch-config";
+import { createHmac } from "crypto";
 import {
   ZALO_CREDENTIAL_KEYS,
   resolveZaloTemplateId,
@@ -140,11 +141,18 @@ export async function refreshZaloToken(
 async function requestZaloZns(
   payload: ZaloZnsPayload,
   accessToken: string,
+  appSecret: string,
 ): Promise<ZaloZnsResponse> {
+  // Zalo verifies this proof against the same access token and App Secret.
+  // It must be regenerated when a refreshed access token is used.
+  const appSecretProof = createHmac("sha256", appSecret)
+    .update(accessToken)
+    .digest("hex");
   const response = await fetch(ZALO_ZNS_URL, {
     method: "POST",
     headers: {
       access_token: accessToken,
+      appsecret_proof: appSecretProof,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
@@ -162,9 +170,10 @@ async function requestZaloZns(
 async function sendWithTokenRetry(
   payload: ZaloZnsPayload,
   accessToken: string,
+  appSecret: string,
   branchId?: number | null,
 ) {
-  const firstResponse = await requestZaloZns(payload, accessToken);
+  const firstResponse = await requestZaloZns(payload, accessToken, appSecret);
   if (!INVALID_TOKEN_CODES.has(firstResponse.error ?? 0)) return firstResponse;
 
   console.warn("[ZNS] Access token hết hạn, đang làm mới", {
@@ -172,7 +181,7 @@ async function sendWithTokenRetry(
     error: firstResponse.error,
   });
   const newAccessToken = await refreshZaloToken(branchId);
-  return requestZaloZns(payload, newAccessToken);
+  return requestZaloZns(payload, newAccessToken, appSecret);
 }
 
 export async function sendZaloZns(
@@ -187,6 +196,10 @@ export async function sendZaloZns(
     const credentials = await getZaloCredentialValues(branchId);
     const accessToken =
       credentials.ZALO_OA_ACCESS_TOKEN || (await refreshZaloToken(branchId));
+    const appSecret = credentials.ZALO_APP_SECRET;
+    if (!appSecret) {
+      throw new Error("Thiếu Zalo App Secret của chi nhánh");
+    }
     const realTemplateId = resolveZaloTemplateId(templateId, credentials);
     const trackingId = `zns_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
     const payload: ZaloZnsPayload = {
@@ -204,7 +217,12 @@ export async function sendZaloZns(
       trackingId,
     });
 
-    const response = await sendWithTokenRetry(payload, accessToken, branchId);
+    const response = await sendWithTokenRetry(
+      payload,
+      accessToken,
+      appSecret,
+      branchId,
+    );
     if (response.error === 0) return { success: true, data: response };
 
     return {

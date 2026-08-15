@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedCron, runBirthdayCron } from "@/lib/zns-cron";
+import { isAuthorizedCron, runDailyZnsCron } from "@/lib/zns-cron";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    return NextResponse.json(await runBirthdayCron());
+    return NextResponse.json(await runDailyZnsCron());
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal Server Error" },

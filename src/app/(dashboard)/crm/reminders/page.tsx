@@ -35,6 +35,13 @@ const DEFAULT_TEMPLATES = [
     name: "Nhắc thay dầu & bảo dưỡng",
     content: "Đã đến hạn bảo dưỡng xe! Chào anh/chị {{customerName}}. Đã 3 tháng kể từ lần chăm sóc xe gần nhất (ngày {{orderDate}}), chiếc {{vehicleName}} biển số {{vehiclePlate}} của anh/chị đã đến định kỳ thay dầu máy và bảo dưỡng các hạng mục tiêu hao. Để xe luôn vận hành êm ái và tiết kiệm xăng, mời anh/chị mang xe qua xưởng dịch vụ {{storeName}} để đội ngũ Kỹ thuật viên kiểm tra tổng thể miễn phí 100%.",
     status: "ACTIVE",
+    category: "OIL_CHANGE"
+  },
+  {
+    id: "CRM_SERVICE_REMIND_002",
+    name: "Nhắc lịch bảo dưỡng",
+    content: "Đã đến hạn bảo dưỡng xe! Chào anh/chị {{customerName}}. Ngày dịch vụ gần nhất: {{orderDate}}. Xe {{vehicleName}} biển số {{vehiclePlate}} đã đến kỳ bảo dưỡng định kỳ.",
+    status: "ACTIVE",
     category: "MAINTENANCE"
   },
   {
@@ -52,6 +59,7 @@ interface ReminderItem {
   plate: string;
   serviceType: "VEHICLE_PURCHASE" | "REPAIR_SERVICE";
   serviceLabel: string;
+  templateId: "CRM_OIL_REMIND_002" | "CRM_SERVICE_REMIND_002";
   dueDate: Date;
   daysRemaining: number;
   isOverdue: boolean;
@@ -105,7 +113,18 @@ export default function RemindersPage() {
     // Load ZNS templates
     const saved = localStorage.getItem("zns_templates_v2");
     if (saved) {
-      setTemplates(JSON.parse(saved));
+      const savedTemplates = JSON.parse(saved);
+      const mergedTemplates = [
+        ...savedTemplates,
+        ...DEFAULT_TEMPLATES.filter(
+          (template) =>
+            !savedTemplates.some((savedTemplate: { id: string }) =>
+              savedTemplate.id === template.id,
+            ),
+        ),
+      ];
+      localStorage.setItem("zns_templates_v2", JSON.stringify(mergedTemplates));
+      setTemplates(mergedTemplates);
     } else {
       localStorage.setItem("zns_templates_v2", JSON.stringify(DEFAULT_TEMPLATES));
       setTemplates(DEFAULT_TEMPLATES);
@@ -137,9 +156,13 @@ export default function RemindersPage() {
   const handleOpenZnsModal = (reminder: ReminderItem) => {
     setSelectedReminder(reminder);
     
-    // Choose initial active template or default
+    // The API selects this ID from the active branch. The actual Zalo ID is
+    // then resolved on the server from that branch's settings.
     const activeTemplates = templates.filter(t => t.status === "ACTIVE");
-    let initialTemplate = activeTemplates.find(t => t.category === "MAINTENANCE") || activeTemplates[0] || templates[0];
+    let initialTemplate =
+      activeTemplates.find(t => t.id === reminder.templateId) ||
+      activeTemplates[0] ||
+      templates[0];
     
     if (initialTemplate) {
       setSelectedTemplateId(initialTemplate.id);

@@ -5,6 +5,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { requireAuth } from "@/lib/guard";
 import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
 import { ensureCustomerBranch } from "@/lib/customer-branch";
+import { isVinFastBranchId } from "@/lib/branch-identity";
 import { parseAppDateRange } from "@/lib/date-range";
 import { crmQuerySchema, createCrmEntrySchema } from "@/lib/validation/crm";
 import {
@@ -18,7 +19,9 @@ async function getCrmData(req: NextRequest) {
   const guard = await requireAuth(req);
   if (!guard.ok) return guard.response;
 
-  const query = crmQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
+  const query = crmQuerySchema.parse(
+    Object.fromEntries(req.nextUrl.searchParams),
+  );
   const { tab, search, category: customerCategory } = query;
   const allBranches = query.allBranches && tab === "customers";
   const branchId = allBranches ? null : await getActiveBranchId();
@@ -39,9 +42,12 @@ async function getCrmData(req: NextRequest) {
         take: limit,
         include: { customer: true, assignedTo: true },
       }),
-      prisma.lead.count({ where: baseWhere })
+      prisma.lead.count({ where: baseWhere }),
     ]);
-    return NextResponse.json({ leads, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
+    return NextResponse.json({
+      leads,
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
   }
 
   if (tab === "customers") {
@@ -58,23 +64,34 @@ async function getCrmData(req: NextRequest) {
         skip,
         take: limit,
       }),
-      prisma.customer.count({ where: baseWhere })
+      prisma.customer.count({ where: baseWhere }),
     ]);
     const serializedCustomers = customers.map(serializeCustomerSummary);
-    return NextResponse.json({ customers: serializedCustomers, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
+    return NextResponse.json({
+      customers: serializedCustomers,
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
   }
 
   if (tab === "reminders") {
+    const activeBranch = branchId
+      ? await prisma.branch.findUnique({ where: { id: branchId } })
+      : null;
+    const isVinFastActiveBranch = isVinFastBranchId(activeBranch?.id);
+    const reminderLabel = isVinFastActiveBranch ? "BẢO DƯỠNG XE" : "THAY DẦU";
+
     // Count total active customers
     const totalCustomers = await prisma.customer.count({
       where: {
         isDeleted: false,
         ...(branchId ? { branchId } : {}),
-      }
+      },
     });
 
     // Fetch up to 500 most recent active customers (configurable via ?limit=N, max 1000)
-    const requestedReminderLimit = req.nextUrl.searchParams.has("limit") ? query.limit : 500;
+    const requestedReminderLimit = req.nextUrl.searchParams.has("limit")
+      ? query.limit
+      : 500;
     const reminderLimit = Math.min(1000, Math.max(50, requestedReminderLimit));
     const customers = await prisma.customer.findMany({
       where: {
@@ -93,17 +110,17 @@ async function getCrmData(req: NextRequest) {
             technician: true,
             items: {
               include: {
-                product: true
-              }
-            }
+                product: true,
+              },
+            },
           },
-          orderBy: { completedAt: "desc" }
+          orderBy: { completedAt: "desc" },
         },
         znsLogs: {
           take: 5,
-          orderBy: { sentAt: "desc" }
-        }
-      }
+          orderBy: { sentAt: "desc" },
+        },
+      },
     });
 
     const reminders = [];
@@ -121,35 +138,41 @@ async function getCrmData(req: NextRequest) {
         totalSpent: Number(c.totalSpent),
         birthday: c.birthday ? c.birthday.toISOString() : null,
         branch: c.branch ? { id: c.branch.id, name: c.branch.name } : null,
-        lastRepairOrder: lastRo ? {
-          id: lastRo.id,
-          plateNumber: lastRo.plateNumber,
-          vehicleModel: lastRo.vehicleModel,
-          createdAt: lastRo.createdAt,
-          laborCost: Number(lastRo.laborCost),
-          partsCost: Number(lastRo.partsCost),
-          totalAmount: Number(lastRo.totalAmount),
-          symptoms: lastRo.symptoms || null,
-          kmIn: lastRo.kmIn || 0,
-          technician: lastRo.technician ? {
-            name: lastRo.technician.name,
-            phone: lastRo.technician.phone
-          } : null,
-          items: lastRo.items.map((i: any) => ({
-            id: i.id,
-            productName: i.product.name,
-            quantity: i.quantity,
-            totalPrice: Number(i.totalPrice)
-          }))
-        } : null,
-        lastVehicle: lastVehicle ? {
-          model: lastVehicle.model,
-          variant: lastVehicle.variant,
-          color: lastVehicle.color,
-          vin: lastVehicle.vin,
-          createdAt: lastVehicle.createdAt,
-          listPrice: Number(lastVehicle.listPrice)
-        } : null
+        lastRepairOrder: lastRo
+          ? {
+              id: lastRo.id,
+              plateNumber: lastRo.plateNumber,
+              vehicleModel: lastRo.vehicleModel,
+              createdAt: lastRo.createdAt,
+              laborCost: Number(lastRo.laborCost),
+              partsCost: Number(lastRo.partsCost),
+              totalAmount: Number(lastRo.totalAmount),
+              symptoms: lastRo.symptoms || null,
+              kmIn: lastRo.kmIn || 0,
+              technician: lastRo.technician
+                ? {
+                    name: lastRo.technician.name,
+                    phone: lastRo.technician.phone,
+                  }
+                : null,
+              items: lastRo.items.map((i: any) => ({
+                id: i.id,
+                productName: i.product.name,
+                quantity: i.quantity,
+                totalPrice: Number(i.totalPrice),
+              })),
+            }
+          : null,
+        lastVehicle: lastVehicle
+          ? {
+              model: lastVehicle.model,
+              variant: lastVehicle.variant,
+              color: lastVehicle.color,
+              vin: lastVehicle.vin,
+              createdAt: lastVehicle.createdAt,
+              listPrice: Number(lastVehicle.listPrice),
+            }
+          : null,
       };
 
       // FIX #1: Chỉ tạo vehicle reminder nếu KH thực sự mua xe qua hệ thống
@@ -157,66 +180,102 @@ async function getCrmData(req: NextRequest) {
         const purchaseDate = new Date(lastVehicle.createdAt);
         const vehicleDueDate = new Date(purchaseDate);
         vehicleDueDate.setMonth(vehicleDueDate.getMonth() + 3);
-        const vehicleDiff = Math.ceil((vehicleDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const vehicleDiff = Math.ceil(
+          (vehicleDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+        );
 
-        const hasRecentVehicleZns = c.znsLogs.some(log =>
-          log.messageType === "VEHICLE_PURCHASE" &&
-          new Date(log.sentAt).getTime() > today.getTime() - (30 * 24 * 60 * 60 * 1000)
+        const hasRecentVehicleZns = c.znsLogs.some(
+          (log) =>
+            ["VEHICLE_PURCHASE", "MAINTENANCE", "OIL_CHANGE"].includes(
+              log.messageType,
+            ) &&
+            ["SUCCESS", "SENT", "DELIVERED"].includes(log.status) &&
+            new Date(log.sentAt).getTime() >
+              today.getTime() - 30 * 24 * 60 * 60 * 1000,
         );
 
         reminders.push({
           id: `${c.id}-VEHICLE_PURCHASE`,
           customer: customerDetails,
-          plate: c.vehiclePlates[0] || (lastVehicle.color ? `${lastVehicle.model} (${lastVehicle.color})` : lastVehicle.model),
+          plate:
+            c.vehiclePlates[0] ||
+            (lastVehicle.color
+              ? `${lastVehicle.model} (${lastVehicle.color})`
+              : lastVehicle.model),
           serviceType: "VEHICLE_PURCHASE",
-          serviceLabel: "MUA XE",
+          serviceLabel: reminderLabel,
+          templateId: isVinFastActiveBranch
+            ? "CRM_SERVICE_REMIND_002"
+            : "CRM_OIL_REMIND_002",
           dueDate: vehicleDueDate,
           daysRemaining: vehicleDiff,
           isOverdue: vehicleDiff < 0,
           isUpcoming: vehicleDiff >= 0 && vehicleDiff <= 14,
           isFarther: vehicleDiff > 14,
-          isReminded: hasRecentVehicleZns
+          isReminded: hasRecentVehicleZns,
         });
       }
 
       // FIX #4: Chỉ tạo repair reminder nếu KH có ít nhất 1 lệnh sửa chữa đã hoàn thành
       if (lastRo) {
-        const repairDate = lastRo.completedAt ? new Date(lastRo.completedAt) : (c.lastVisit ? new Date(c.lastVisit) : new Date(lastRo.createdAt));
+        const repairDate = lastRo.completedAt
+          ? new Date(lastRo.completedAt)
+          : c.lastVisit
+            ? new Date(c.lastVisit)
+            : new Date(lastRo.createdAt);
         const repairDueDate = new Date(repairDate);
         repairDueDate.setMonth(repairDueDate.getMonth() + 3);
-        const repairDiff = Math.ceil((repairDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const repairDiff = Math.ceil(
+          (repairDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+        );
 
-        const hasRecentRepairZns = c.znsLogs.some(log =>
-          log.messageType === "REPAIR_SERVICE" &&
-          new Date(log.sentAt).getTime() > today.getTime() - (30 * 24 * 60 * 60 * 1000)
+        const hasRecentRepairZns = c.znsLogs.some(
+          (log) =>
+            ["REPAIR_SERVICE", "MAINTENANCE", "OIL_CHANGE"].includes(
+              log.messageType,
+            ) &&
+            ["SUCCESS", "SENT", "DELIVERED"].includes(log.status) &&
+            new Date(log.sentAt).getTime() >
+              today.getTime() - 30 * 24 * 60 * 60 * 1000,
         );
 
         reminders.push({
           id: `${c.id}-REPAIR_SERVICE`,
           customer: customerDetails,
-          plate: c.vehiclePlates[0] || lastRo.plateNumber || (lastVehicle ? lastVehicle.vin : "Chưa có"),
+          plate:
+            c.vehiclePlates[0] ||
+            lastRo.plateNumber ||
+            (lastVehicle ? lastVehicle.vin : "Chưa có"),
           serviceType: "REPAIR_SERVICE",
-          serviceLabel: "DỊCH VỤ SỬA CHỮA",
+          serviceLabel: reminderLabel,
+          templateId: isVinFastActiveBranch
+            ? "CRM_SERVICE_REMIND_002"
+            : "CRM_OIL_REMIND_002",
           dueDate: repairDueDate,
           daysRemaining: repairDiff,
           isOverdue: repairDiff < 0,
           isUpcoming: repairDiff >= 0 && repairDiff <= 14,
           isFarther: repairDiff > 14,
-          isReminded: hasRecentRepairZns
+          isReminded: hasRecentRepairZns,
         });
       }
     }
 
     return NextResponse.json({
       reminders,
-      warning: totalCustomers > reminderLimit ? `Chỉ hiển thị nhắc nhở của ${reminderLimit} khách hàng hoạt động gần đây nhất trên tổng số ${totalCustomers} khách hàng.` : null,
-      totalCustomers
+      warning:
+        totalCustomers > reminderLimit
+          ? `Chỉ hiển thị nhắc nhở của ${reminderLimit} khách hàng hoạt động gần đây nhất trên tổng số ${totalCustomers} khách hàng.`
+          : null,
+      totalCustomers,
     });
   }
 
-
   if (tab === "zns") {
-    const { startDate, endDate } = parseAppDateRange(query.dateFrom, query.dateTo);
+    const { startDate, endDate } = parseAppDateRange(
+      query.dateFrom,
+      query.dateTo,
+    );
     const znsStatus = query.status;
     const statusWhere =
       znsStatus === "SUCCESS"
@@ -229,18 +288,27 @@ async function getCrmData(req: NextRequest) {
     const baseWhere = {
       ...(branchId ? { branchId } : {}),
       ...(startDate || endDate
-        ? { sentAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } }
+        ? {
+            sentAt: {
+              ...(startDate ? { gte: startDate } : {}),
+              ...(endDate ? { lte: endDate } : {}),
+            },
+          }
         : {}),
       ...statusWhere,
-      ...(search ? {
-        OR: [
-          { phone: { contains: search, mode: "insensitive" } },
-          { content: { contains: search, mode: "insensitive" } },
-          { messageType: { contains: search, mode: "insensitive" } },
-          { customer: { name: { contains: search, mode: "insensitive" } } },
-          ...(/^\d+$/.test(search.trim()) ? [{ id: parseInt(search.trim(), 10) }] : []),
-        ],
-      } : {}),
+      ...(search
+        ? {
+            OR: [
+              { phone: { contains: search, mode: "insensitive" } },
+              { content: { contains: search, mode: "insensitive" } },
+              { messageType: { contains: search, mode: "insensitive" } },
+              { customer: { name: { contains: search, mode: "insensitive" } } },
+              ...(/^\d+$/.test(search.trim())
+                ? [{ id: parseInt(search.trim(), 10) }]
+                : []),
+            ],
+          }
+        : {}),
     } as any;
 
     const [znsLogs, total] = await Promise.all([
@@ -251,23 +319,32 @@ async function getCrmData(req: NextRequest) {
         take: limit,
         include: { customer: true },
       }),
-      prisma.znsLog.count({ where: baseWhere })
+      prisma.znsLog.count({ where: baseWhere }),
     ]);
-    return NextResponse.json({ znsLogs, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
+    return NextResponse.json({
+      znsLogs,
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
   }
 
   if (tab === "loyalty") {
     const baseWhere = {
       type: "REDEEM",
       ...(branchId ? { branchId } : {}),
-      ...(search ? {
-        OR: [
-          { description: { contains: search, mode: "insensitive" } },
-          { customer: { name: { contains: search, mode: "insensitive" } } },
-          { customer: { phone: { contains: search, mode: "insensitive" } } },
-          ...(/^\d+$/.test(search.trim()) ? [{ id: parseInt(search.trim(), 10) }] : []),
-        ],
-      } : {}),
+      ...(search
+        ? {
+            OR: [
+              { description: { contains: search, mode: "insensitive" } },
+              { customer: { name: { contains: search, mode: "insensitive" } } },
+              {
+                customer: { phone: { contains: search, mode: "insensitive" } },
+              },
+              ...(/^\d+$/.test(search.trim())
+                ? [{ id: parseInt(search.trim(), 10) }]
+                : []),
+            ],
+          }
+        : {}),
     } as any;
 
     const [transactions, total] = await Promise.all([
@@ -282,24 +359,36 @@ async function getCrmData(req: NextRequest) {
         skip,
         take: limit,
       }),
-      prisma.loyaltyTransaction.count({ where: baseWhere })
+      prisma.loyaltyTransaction.count({ where: baseWhere }),
     ]);
-    return NextResponse.json({ transactions, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } });
+    return NextResponse.json({
+      transactions,
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
   }
 
   // stats — FIX: also filter isDeleted customers
-  const baseCustomerWhere = { isDeleted: false, ...(branchId ? { branchId } : {}) } as any;
-  const [leadCount, customerCount, znsCount, convertedCount, totalLeads] = await Promise.all([
-    prisma.lead.count({ where: branchId ? { branchId } : {} }),
-    prisma.customer.count({ where: baseCustomerWhere }),
-    prisma.znsLog.count({ where: (branchId ? { branchId } : {}) as any }),
-    prisma.lead.count({ where: { status: "CONVERTED", ...(branchId ? { branchId } : {}) } }),
-    prisma.lead.count({ where: branchId ? { branchId } : {} }),
-  ]);
+  const baseCustomerWhere = {
+    isDeleted: false,
+    ...(branchId ? { branchId } : {}),
+  } as any;
+  const [leadCount, customerCount, znsCount, convertedCount, totalLeads] =
+    await Promise.all([
+      prisma.lead.count({ where: branchId ? { branchId } : {} }),
+      prisma.customer.count({ where: baseCustomerWhere }),
+      prisma.znsLog.count({ where: (branchId ? { branchId } : {}) as any }),
+      prisma.lead.count({
+        where: { status: "CONVERTED", ...(branchId ? { branchId } : {}) },
+      }),
+      prisma.lead.count({ where: branchId ? { branchId } : {} }),
+    ]);
 
   return NextResponse.json({
-    leadCount, customerCount, znsCount,
-    conversionRate: totalLeads > 0 ? Math.round((convertedCount / totalLeads) * 100) : 0,
+    leadCount,
+    customerCount,
+    znsCount,
+    conversionRate:
+      totalLeads > 0 ? Math.round((convertedCount / totalLeads) * 100) : 0,
   });
 }
 
@@ -330,10 +419,20 @@ export async function POST(req: NextRequest) {
             source: body.source,
             birthday: body.birthday ? new Date(body.birthday) : null,
             vehiclePlates: body.vehiclePlates
-              ? (typeof body.vehiclePlates === "string" ? body.vehiclePlates.split(",").map((p) => p.trim()).filter(Boolean) : body.vehiclePlates)
+              ? typeof body.vehiclePlates === "string"
+                ? body.vehiclePlates
+                    .split(",")
+                    .map((p) => p.trim())
+                    .filter(Boolean)
+                : body.vehiclePlates
               : [],
             tags: body.tags
-              ? (typeof body.tags === "string" ? body.tags.split(",").map((t) => t.trim()).filter(Boolean) : body.tags)
+              ? typeof body.tags === "string"
+                ? body.tags
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter(Boolean)
+                : body.tags
               : [],
             branchId,
           },
@@ -344,7 +443,7 @@ export async function POST(req: NextRequest) {
       const serializedCustomer = {
         ...customer,
         totalSpent: Number(customer.totalSpent || 0),
-        totalDebt: Number(customer.totalDebt || 0)
+        totalDebt: Number(customer.totalDebt || 0),
       };
       return NextResponse.json(serializedCustomer, { status: 201 });
     } else {
@@ -357,7 +456,7 @@ export async function POST(req: NextRequest) {
           notes: body.notes,
           assignedToId: body.assignedToId,
           branchId,
-        }
+        },
       });
       return NextResponse.json(lead, { status: 201 });
     }

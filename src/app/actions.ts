@@ -9,6 +9,7 @@ import {
   ensureCustomerBranch,
 } from "@/lib/customer-branch";
 import { getBranchConfigValue } from "@/lib/branch-config";
+import { isVinFastBranchId } from "@/lib/branch-identity";
 
 // ===== INVENTORY LOGIC =====
 
@@ -828,25 +829,27 @@ export async function sendOilChangeReminderAction(data: {
   const branch = branchId
     ? await prisma.branch.findUnique({ where: { id: branchId } })
     : null;
-  const storeName = branch?.name || "Yamaha Town Toàn Thắng";
-  const storeName200 =
-    storeName.length > 199 ? storeName.substring(0, 199) : storeName;
-
   const cleanCustName = customer.name.trim();
   const customerName30 =
     cleanCustName.length > 29 ? cleanCustName.substring(0, 29) : cleanCustName;
 
-  const templateData = {
+  const maintenanceTemplateData = {
     customer_name: customerName30,
     order_date: formatDateForZalo(orderDate),
     vehicle_name: vehicleName200,
     license_plate: licensePlate30,
-    store_name: storeName200,
   };
+  const isVinFast = isVinFastBranchId(branch?.id);
+  const templateData = isVinFast
+    ? maintenanceTemplateData
+    : {
+        ...maintenanceTemplateData,
+        store_name: (branch?.name || "Yamaha Town Toàn Thắng").slice(0, 199),
+      };
 
   const result = await sendZaloZns(
     data.phone,
-    "CRM_OIL_REMIND_002",
+    isVinFast ? "CRM_SERVICE_REMIND_002" : "CRM_OIL_REMIND_002",
     templateData,
     branchId || customer.branchId,
   );
@@ -863,9 +866,11 @@ export async function sendOilChangeReminderAction(data: {
     data: {
       customerId: data.customerId,
       phone: data.phone,
-      messageType: "OIL_CHANGE",
-      templateId: "CRM_OIL_REMIND_002",
-      content: `Nhắc lịch: Xe ${data.plateNumber} của quý khách đã đến kỳ thay dầu nhớt định kỳ. Vui lòng liên hệ Xe Máy Toàn Thắng để đặt lịch hẹn!`,
+      messageType: isVinFast ? "MAINTENANCE" : "OIL_CHANGE",
+      templateId: isVinFast ? "CRM_SERVICE_REMIND_002" : "CRM_OIL_REMIND_002",
+      content: isVinFast
+        ? `Nhắc lịch bảo dưỡng: Xe ${data.plateNumber} của quý khách đã đến kỳ bảo dưỡng định kỳ. Vui lòng liên hệ ${branch?.name || "VinFast Toàn Thắng"} để đặt lịch hẹn!`
+        : `Nhắc lịch thay dầu: Xe ${data.plateNumber} của quý khách đã đến kỳ thay dầu nhớt định kỳ. Vui lòng liên hệ ${branch?.name || "Yamaha Town Toàn Thắng"} để đặt lịch hẹn!`,
       status,
       error: errorMsg,
       branchId: branchId || customer.branchId,
@@ -1266,10 +1271,25 @@ export async function sendCustomZnsAction(data: {
     throw new Error("Khách hàng không thuộc chi nhánh hiện tại");
   }
 
+  const znsBranchId = activeBranchId || customer.branchId;
+  const branch = znsBranchId
+    ? await prisma.branch.findUnique({ where: { id: znsBranchId } })
+    : null;
+  const isScheduledMaintenanceReminder = [
+    "VEHICLE_PURCHASE",
+    "REPAIR_SERVICE",
+    "OIL_CHANGE",
+  ].includes(data.messageType);
+  const templateId = isScheduledMaintenanceReminder
+    ? isVinFastBranchId(branch?.id)
+      ? "CRM_SERVICE_REMIND_002"
+      : "CRM_OIL_REMIND_002"
+    : data.templateId;
+
   let status = "SUCCESS";
   let errorMsg: string | null = null;
 
-  if (data.templateId) {
+  if (templateId) {
     // Compile template data dynamically for Zalo ZNS
     const lastRo = await prisma.repairOrder.findFirst({
       where: {
@@ -1297,7 +1317,7 @@ export async function sendCustomZnsAction(data: {
         ? cleanCustName.substring(0, 49)
         : cleanCustName;
 
-    if (data.templateId === "CRM_BIRTHDAY_003") {
+    if (templateId === "CRM_BIRTHDAY_003") {
       let expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 7); // Default 1 week from today
       if (customer.birthday) {
@@ -1317,8 +1337,8 @@ export async function sendCustomZnsAction(data: {
         phone_number: customer.phone,
       };
     } else if (
-      data.templateId === "CRM_OIL_REMIND_002" ||
-      data.templateId === "CRM_SERVICE_REMIND_002"
+      templateId === "CRM_OIL_REMIND_002" ||
+      templateId === "CRM_SERVICE_REMIND_002"
     ) {
       const orderDate = lastRo?.createdAt || new Date();
       const vehicleModel = lastRo?.vehicleModel || "xe máy";
@@ -1328,21 +1348,21 @@ export async function sendCustomZnsAction(data: {
           : vehicleModel;
       const licensePlate30 = plate.length > 29 ? plate.substring(0, 29) : plate;
 
-      const branchId = lastRo?.branchId || customer.branchId;
-      const branch = branchId
-        ? await prisma.branch.findUnique({ where: { id: branchId } })
-        : null;
-      const storeName = branch?.name || "Yamaha Town Toàn Thắng";
-      const storeName200 =
-        storeName.length > 199 ? storeName.substring(0, 199) : storeName;
-
-      templateData = {
+      const maintenanceTemplateData = {
         customer_name: customerName30,
         order_date: formatDateForZalo(orderDate),
         vehicle_name: vehicleName200,
         license_plate: licensePlate30,
-        store_name: storeName200,
       };
+      templateData = isVinFastBranchId(branch?.id)
+        ? maintenanceTemplateData
+        : {
+            ...maintenanceTemplateData,
+            store_name: (branch?.name || "Yamaha Town Toàn Thắng").slice(
+              0,
+              199,
+            ),
+          };
     } else {
       const nextServiceDate = new Date();
       nextServiceDate.setMonth(nextServiceDate.getMonth() + 6);
@@ -1364,9 +1384,9 @@ export async function sendCustomZnsAction(data: {
 
     const result = await sendZaloZns(
       data.phone,
-      data.templateId,
+      templateId,
       templateData,
-      activeBranchId || customer.branchId,
+      znsBranchId,
     );
 
     if (!result.success) {
@@ -1383,11 +1403,11 @@ export async function sendCustomZnsAction(data: {
       customerId: data.customerId,
       phone: data.phone,
       messageType: data.messageType,
-      templateId: data.templateId || null,
+      templateId: templateId || null,
       content: data.content,
       status,
       error: errorMsg,
-      branchId: activeBranchId || customer.branchId,
+      branchId: znsBranchId,
     },
   });
 

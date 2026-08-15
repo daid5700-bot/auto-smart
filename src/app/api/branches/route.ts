@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     }
 
     const branches = await prisma.branch.findMany({
+      where: { isDeleted: false },
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json({ branches });
@@ -30,7 +31,10 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     if (!body.name) {
-      return NextResponse.json({ error: "Tên chi nhánh là bắt buộc" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Tên chi nhánh là bắt buộc" },
+        { status: 400 },
+      );
     }
 
     const branch = await prisma.branch.create({
