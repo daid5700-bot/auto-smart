@@ -5,7 +5,7 @@ import { verifyRole, verifyData } from "@/lib/auth";
 // Role-to-allowed-paths mapping for RBAC middleware
 const ROLE_PATHS: Record<string, string[]> = {
   ADMIN: ["/admin", "/inventory", "/workshop", "/sales", "/crm", "/api"],
-  WAREHOUSE: ["/inventory", "/api/inventory", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
+  WAREHOUSE: ["/inventory", "/api/inventory", "/api/workshop/requisitions", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
   WORKSHOP: ["/workshop", "/inventory", "/crm", "/api/workshop", "/api/inventory", "/api/crm", "/api/discounts", "/api/stats", "/api/technicians", "/api/dashboard", "/api/search", "/api/config"],
   SALES: ["/sales", "/crm", "/api/sales", "/api/crm", "/api/discounts", "/api/stats", "/api/dashboard", "/api/search", "/api/config"],
 };
