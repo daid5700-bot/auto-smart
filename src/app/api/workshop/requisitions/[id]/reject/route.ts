@@ -5,7 +5,7 @@ import { calculateSnapshotDiscount } from "@/lib/discounts";
 import { requireAuth } from "@/lib/guard";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const guard = await requireAuth(req);
+  const guard = await requireAuth(req, ["ADMIN", "WAREHOUSE"]);
   if (!guard.ok) return guard.response;
 
   const requisitionId = parseInt((await params).id);
