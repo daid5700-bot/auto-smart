@@ -173,8 +173,17 @@
 .stagger > *:nth-child(8) { animation-delay: .4s; }
 
 /* ===== PRINT STYLES ===== */
+@page {
+  size: auto;
+  margin: 0mm; /* Tự động ẩn Header (Tiêu đề, Ngày) và Footer (URL website, Số trang) mặc định của trình duyệt */
+}
+
 @media print {
-  aside, header, button, .no-print, nav, kbd {
+  @page {
+    size: auto;
+    margin: 0mm;
+  }
+  aside, header, button, .no-print, nav, kbd, footer {
     display: none !important;
   }
   main {
@@ -225,3 +234,4 @@
     overflow-wrap: break-word !important;
   }
 }
+

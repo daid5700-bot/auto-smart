@@ -85,7 +85,24 @@ export async function POST(req: NextRequest) {
     const body = await parseJson(req, createInventoryOrderSchema);
     const branchId = await getActiveBranchId();
     if (!branchId) throw new ApiError("Không xác định được chi nhánh hiện tại", 400, "BRANCH_REQUIRED");
-    const userName = req.cookies.get("user_name")?.value || "System";
+    let userName = "Thủ kho";
+    if (guard.userId) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: guard.userId },
+        select: { name: true },
+      });
+      if (dbUser?.name) userName = dbUser.name;
+    }
+    if (userName === "Thủ kho") {
+      const cookieName = req.cookies.get("user_name")?.value;
+      if (cookieName) {
+        try {
+          userName = decodeURIComponent(cookieName);
+        } catch {
+          userName = cookieName;
+        }
+      }
+    }
 
     // Build the inventory order
     const { customerId, type, items, address, reason } = body;

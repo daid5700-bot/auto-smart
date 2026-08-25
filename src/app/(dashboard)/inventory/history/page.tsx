@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { exportToCsv, formatCurrency, formatDate, formatExportDate, handleNumericInputChange } from "@/lib/utils";
+import { exportToCsv, formatCurrency, formatDate, formatExportDate, handleNumericInputChange, readVietnameseNumber } from "@/lib/utils";
 import { NumericInput } from "@/components/NumericInput";
-import { Loader2, DollarSign, X, Edit3, Eye, Search, Calendar, CalendarDays, Download } from "lucide-react";
+import { Loader2, DollarSign, X, Edit3, Eye, Search, Calendar, CalendarDays, Download, Printer } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
 import { getAppDatePresetRange } from "@/lib/date-range";
+import { printHtmlElement } from "@/lib/print";
+import { useAuth } from "@/lib/store";
 
 function InventoryHistoryContent() {
+  const { user } = useAuth();
   const modal = useModal();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "ALL";
@@ -61,6 +64,28 @@ function InventoryHistoryContent() {
   const [paymentInput, setPaymentInput] = useState("");
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
+  const formatCreatedBy = useCallback((rawName?: string | null) => {
+    if (!rawName) return user?.name || "Quản trị viên";
+    const lower = rawName.trim().toLowerCase();
+    if (lower === "system" || lower === "hệ thống" || lower.startsWith("hệ thống")) {
+      return user?.name || "Quản trị viên";
+    }
+    return rawName;
+  }, [user?.name]);
+
+  const formatReceiptFullDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = d.getDate();
+    const month = d.getMonth() + 1;
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const seconds = String(d.getSeconds()).padStart(2, "0");
+    return `Ngày ${day} tháng ${month} năm ${year} (${hours}:${minutes}:${seconds})`;
+  };
+
   const groupMovementsIntoReceipts = (movements: any[]) => {
     const groups: Record<string, {
       id: string;
@@ -68,6 +93,13 @@ function InventoryHistoryContent() {
       createdBy: string;
       createdAt: string;
       branchName: string;
+      branchAddress?: string;
+      branchPhone?: string;
+      customerName?: string;
+      customerPhone?: string;
+      customerAddress?: string;
+      paidAmount?: number;
+      debtAmount?: number;
       reason: string;
       items: any[];
       totalAmount: number;
@@ -93,6 +125,13 @@ function InventoryHistoryContent() {
           createdBy: m.createdBy,
           createdAt: m.createdAt,
           branchName: m.branch?.name || "",
+          branchAddress: m.branch?.address || "",
+          branchPhone: m.branch?.phone || "",
+          customerName: m.inventoryOrder?.customer?.name || "",
+          customerPhone: m.inventoryOrder?.customer?.phone || "",
+          customerAddress: m.inventoryOrder?.customer?.address || "",
+          paidAmount: Number(m.inventoryOrder?.paidAmount || 0),
+          debtAmount: Number(m.inventoryOrder?.debtAmount || 0),
           reason: m.reason || "",
           items: [],
           totalAmount: 0,
@@ -101,11 +140,32 @@ function InventoryHistoryContent() {
       }
       
       // Merge properties if this movement has inventoryOrder info
-      if (m.inventoryOrder && !groups[key].inventoryOrder) {
-        groups[key].inventoryOrder = m.inventoryOrder;
-        groups[key].type = "EXPORT";
-        groups[key].createdBy = m.createdBy;
+      if (m.inventoryOrder) {
+        if (!groups[key].inventoryOrder) {
+          groups[key].inventoryOrder = m.inventoryOrder;
+          groups[key].type = "EXPORT";
+        }
+        if (m.inventoryOrder.customer) {
+          groups[key].customerName = m.inventoryOrder.customer.name || groups[key].customerName;
+          groups[key].customerPhone = m.inventoryOrder.customer.phone || groups[key].customerPhone;
+          groups[key].customerAddress = m.inventoryOrder.customer.address || groups[key].customerAddress;
+        }
+        groups[key].paidAmount = Number(m.inventoryOrder.paidAmount ?? groups[key].paidAmount ?? 0);
+        groups[key].debtAmount = Number(m.inventoryOrder.debtAmount ?? groups[key].debtAmount ?? 0);
+
+        const orderCreator = m.inventoryOrder.createdBy;
+        if (orderCreator && !["system", "hệ thống"].includes(orderCreator.trim().toLowerCase())) {
+          groups[key].createdBy = orderCreator;
+        } else if (m.createdBy && !["system", "hệ thống"].includes(m.createdBy.trim().toLowerCase())) {
+          groups[key].createdBy = m.createdBy;
+        }
         groups[key].reason = m.reason || groups[key].reason;
+      }
+
+      if (m.branch) {
+        groups[key].branchName = m.branch.name || groups[key].branchName;
+        groups[key].branchAddress = m.branch.address || groups[key].branchAddress;
+        groups[key].branchPhone = m.branch.phone || groups[key].branchPhone;
       }
       
       groups[key].items.push(m);
@@ -410,7 +470,7 @@ function InventoryHistoryContent() {
                            "Kiểm kê"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs font-medium">{r.createdBy}</td>
+                      <td className="px-4 py-3 text-xs font-medium">{formatCreatedBy(r.createdBy)}</td>
                       <td className="px-4 py-3 text-xs font-bold text-foreground">
                         {r.type === "EXPORT_GIFT" ? (
                           <div className="space-y-0.5">
@@ -550,83 +610,108 @@ function InventoryHistoryContent() {
               </div>
 
               {/* Modal Body / Invoice Printable Area */}
-              <div className="p-8 flex-1 overflow-y-auto print:overflow-visible space-y-6 bg-white text-zinc-900" id="printable-receipt">
+              <div className="p-8 flex-1 overflow-y-auto print:overflow-visible space-y-5 bg-white text-zinc-900 font-sans" id="printable-receipt">
                 {/* Invoice Header */}
-                <div className="flex justify-between items-start border-b border-zinc-200 pb-6">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tight text-primary">Xe Máy Toàn Thắng</h1>
-                    <p className="text-xs text-zinc-500 mt-1">Người lập: {selectedReceipt.createdBy || "—"}</p>
-                    <p className="text-xs text-zinc-400">Chi nhánh: {selectedReceipt.branchName || "Chưa xác định"}</p>
+                <div className="flex justify-between items-start border-b border-zinc-200 pb-4">
+                  <div className="max-w-[55%]">
+                    <h1 className="text-xl font-black tracking-tight text-zinc-950 uppercase">
+                      {selectedReceipt.branchName || "Xe Máy Toàn Thắng"}
+                    </h1>
+                    <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-wide mt-0.5">
+                      Chuyên doanh phụ tùng & dịch vụ chính hiệu
+                    </p>
+                    <p className="text-[11px] text-zinc-600 mt-1">
+                      <span className="font-semibold">ĐC:</span> {selectedReceipt.branchAddress || "Cầu Va - Tản Lĩnh - Ba Vì - Hà Nội"}
+                    </p>
+                    <p className="text-[11px] text-zinc-600">
+                      <span className="font-semibold">ĐT:</span> {selectedReceipt.branchPhone || "0433 881 413 - DĐ: 0965 622 169"}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <h2 className="text-lg font-bold uppercase tracking-wider text-zinc-700">
+                    <h2 className="text-lg font-black uppercase tracking-wider text-zinc-900">
                       {selectedReceipt.type === "IMPORT" ? "PHIẾU NHẬP KHO" : 
-                       selectedReceipt.type === "EXPORT" ? "PHIẾU XUẤT KHO" : "BIÊN BẢN KIỂM KÊ"}
+                       selectedReceipt.type === "EXPORT" ? "PHIẾU XUẤT KHO" : 
+                       selectedReceipt.type === "EXPORT_GIFT" ? "PHIẾU XUẤT QUÀ TẶNG" : "BIÊN BẢN KIỂM KÊ"}
                     </h2>
-                    <p className="font-mono font-bold text-xs text-zinc-800 mt-1">
-                      Số: {getReceiptCode(selectedReceipt.type, selectedReceipt.createdAt)}
+                    <p className="text-xs text-zinc-500 italic mt-0.5">
+                      {formatReceiptFullDate(selectedReceipt.createdAt)}
                     </p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      Ngày lập: {formatDate(selectedReceipt.createdAt)}
+                    <p className="font-mono font-bold text-xs text-zinc-900 mt-1">
+                      Số: {getReceiptCode(selectedReceipt.type, selectedReceipt.createdAt)}
                     </p>
                   </div>
                 </div>
 
-                {/* Invoice Metadata */}
-                <div className="grid grid-cols-2 gap-4 text-xs text-zinc-600 bg-zinc-50 p-4 rounded-xl">
-                  <div>
-                    <p><span className="font-bold text-zinc-800">Người lập phiếu:</span> {selectedReceipt.createdBy}</p>
-                    <p className="mt-1"><span className="font-bold text-zinc-800">Bộ phận:</span> Phòng phụ tùng / Kho hàng</p>
+                {/* Customer & Receipt Metadata */}
+                <div className="text-xs text-zinc-800 space-y-1.5 pt-1">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="font-semibold text-zinc-900">Tên khách hàng:</span>{" "}
+                      <span className="font-bold text-zinc-950">
+                        {selectedReceipt.customerName || (selectedReceipt.type === "IMPORT" ? "Nhập từ nhà cung cấp" : "Khách lẻ / Khách vãng lai")}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-zinc-900">Điện thoại:</span>{" "}
+                      <span className="font-medium font-mono">{selectedReceipt.customerPhone || "—"}</span>
+                    </div>
                   </div>
                   <div>
-                    <p><span className="font-bold text-zinc-800">Hình thức:</span> {
-                      selectedReceipt.type === "IMPORT" ? "Nhập tay (Manual)" : 
-                      selectedReceipt.type === "EXPORT" ? "Xuất kho trực tiếp" : "Kiểm kê định kỳ"
-                    }</p>
-                    <p className="mt-1"><span className="font-bold text-zinc-800">Ghi chú:</span> {selectedReceipt.reason || "—"}</p>
+                    <span className="font-semibold text-zinc-900">Địa chỉ:</span>{" "}
+                    <span>{selectedReceipt.customerAddress || "—"}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-zinc-700">
+                    <div>
+                      <span className="font-semibold text-zinc-900">Người lập phiếu:</span>{" "}
+                      <span>{formatCreatedBy(selectedReceipt.createdBy)}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-zinc-900">Bộ phận:</span>{" "}
+                      <span>Phòng phụ tùng / Kho hàng</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Invoice Table */}
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full text-left text-xs border border-zinc-300 border-collapse mt-2">
                   <thead>
-                    <tr className="border-b-2 border-zinc-300 text-zinc-850 font-bold">
-                      <th className="py-2.5 w-10">STT</th>
-                      <th className="py-2.5">Mã SKU</th>
-                      <th className="py-2.5">Tên sản phẩm / phụ tùng</th>
-                      <th className="py-2.5 text-center w-20">Số lượng</th>
-                      <th className="py-2.5 text-center w-16">Đơn vị</th>
+                    <tr className="border-b border-zinc-300 text-zinc-900 font-bold">
+                      <th className="py-2 px-2 border-r border-zinc-300 text-center w-10">TT</th>
+                      <th className="py-2 px-2.5 border-r border-zinc-300">Sản phẩm hàng hóa</th>
+                      <th className="py-2 px-2 border-r border-zinc-300 text-center w-14">ĐVT</th>
+                      <th className="py-2 px-2 border-r border-zinc-300 text-center w-12">SL</th>
                       {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
                         <>
-                          <th className="py-2.5 text-right w-28">Đơn giá</th>
-                          <th className="py-2.5 text-right w-28">Thành tiền</th>
+                          <th className="py-2 px-2.5 border-r border-zinc-300 text-right w-24">Đơn giá</th>
+                          <th className="py-2 px-2.5 text-right w-28">Thành tiền</th>
                         </>
                       )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-200">
+                  <tbody className="divide-y divide-zinc-300">
                     {selectedReceipt.items.map((m: any, idx: number) => (
-                      <tr key={m.id} className="text-zinc-700">
-                        <td className="py-2.5">{idx + 1}</td>
-                        <td className="py-2.5 font-mono font-bold text-zinc-850">{m.product?.sku}</td>
-                        <td className="py-2.5">{m.product?.name}</td>
-                        <td className="py-2.5 text-center">{m.quantity}</td>
-                        <td className="py-2.5 text-center">{m.product?.unit}</td>
+                      <tr key={m.id} className="text-zinc-800">
+                        <td className="py-2 px-2 border-r border-zinc-300 text-center">{idx + 1}</td>
+                        <td className="py-2 px-2.5 border-r border-zinc-300">
+                          <span className="font-semibold text-zinc-900">{m.product?.name}</span>
+                          {m.product?.sku && (
+                            <span className="text-[10px] text-zinc-500 font-mono block">{m.product.sku}</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 border-r border-zinc-300 text-center">{m.product?.unit || "Cái"}</td>
+                        <td className="py-2 px-2 border-r border-zinc-300 text-center font-bold">{m.quantity}</td>
                         {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
                           <>
-                            <td className="py-2.5 text-right text-zinc-650">
+                            <td className="py-2 px-2.5 border-r border-zinc-300 text-right font-mono">
                               {m.type === "EXPORT_GIFT" ? (
-                                <div className="text-right flex flex-col items-end">
-                                  <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 rounded font-bold">Hàng tặng</span>
-                                  <span className="text-[10px] text-zinc-400 font-mono mt-0.5">(Giá lẻ: {formatCurrency(Number(m.unitCost))})</span>
-                                </div>
+                                <span className="text-[10px] text-emerald-600 font-bold">Hàng tặng</span>
                               ) : (
                                 formatCurrency(Number(m.unitCost))
                               )}
                             </td>
-                            <td className="py-2.5 text-right font-semibold text-zinc-950">
+                            <td className="py-2 px-2.5 text-right font-bold font-mono text-zinc-950">
                               {m.type === "EXPORT_GIFT" ? (
-                                <span className="text-emerald-605 font-bold">0 đ (Quà tặng)</span>
+                                <span className="text-emerald-600 font-bold">0 đ</span>
                               ) : (
                                 formatCurrency(Number(m.totalCost))
                               )}
@@ -639,47 +724,60 @@ function InventoryHistoryContent() {
                 </table>
 
                 {/* Total Summary */}
-                {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
-                  <div className="border-t border-zinc-300 pt-4 flex justify-between items-start">
-                    <div className="text-xs text-zinc-500 italic max-w-sm">
-                      {selectedReceipt.type === "IMPORT" 
-                        ? "* Giá trị trên được tính theo đơn giá trung bình nhập kho thực tế."
-                        : selectedReceipt.type === "EXPORT_GIFT"
-                        ? "* Đây là phiếu xuất quà tặng không thu tiền. Giá trị vốn tổn hao được ghi nhận để tính toán chi phí showroom."
-                        : "* Giá trị xuất kho được tính dựa theo hình thức bán (Bán lẻ hoặc Bán buôn)."}
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs text-zinc-500 font-bold uppercase mr-4">
-                        {selectedReceipt.type === "EXPORT_GIFT" ? "Tổng giá vốn quà tặng:" : "Tổng cộng:"}
-                      </span>
-                      <span className="text-lg font-black text-zinc-950">
-                        {formatCurrency(
-                          selectedReceipt.items.reduce((sum: number, it: any) => {
-                            if (it.type === "EXPORT_GIFT" && selectedReceipt.type !== "EXPORT_GIFT") {
-                              return sum;
-                            }
-                            return sum + Number(it.totalCost || 0);
-                          }, 0)
+                {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (() => {
+                  const total = selectedReceipt.items.reduce((sum: number, it: any) => {
+                    if (it.type === "EXPORT_GIFT" && selectedReceipt.type !== "EXPORT_GIFT") return sum;
+                    return sum + Number(it.totalCost || 0);
+                  }, 0);
+                  const paid = selectedReceipt.paidAmount || 0;
+                  const debt = selectedReceipt.debtAmount !== undefined && selectedReceipt.debtAmount > 0 
+                    ? selectedReceipt.debtAmount 
+                    : (selectedReceipt.inventoryOrder && paid < total ? total - paid : 0);
+
+                  return (
+                    <div className="space-y-2.5 pt-2">
+                      <div className="flex flex-col items-end gap-1 text-xs text-zinc-800">
+                        <div className="flex justify-between w-72">
+                          <span className="font-semibold text-zinc-900">Cộng tiền hàng :</span>
+                          <span className="font-bold font-mono text-sm text-zinc-950">{formatCurrency(total)}</span>
+                        </div>
+                        {selectedReceipt.inventoryOrder && paid > 0 && (
+                          <div className="flex justify-between w-72 text-zinc-600">
+                            <span>Đã thanh toán :</span>
+                            <span className="font-medium font-mono">{formatCurrency(paid)}</span>
+                          </div>
                         )}
-                      </span>
+                        {selectedReceipt.inventoryOrder && debt > 0 && (
+                          <div className="flex justify-between w-72 text-rose-600 font-bold">
+                            <span>Còn nợ lại :</span>
+                            <span className="font-mono">{formatCurrency(debt)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-zinc-700 italic border-t border-zinc-200 pt-2">
+                        <span className="font-bold not-italic text-zinc-900">Bằng chữ:</span> {readVietnameseNumber(total)}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Signatures */}
-                <div className="grid grid-cols-3 gap-4 text-center text-xs pt-12 text-zinc-800">
+                <div className="grid grid-cols-3 gap-4 text-center text-xs pt-8 text-zinc-800">
                   <div>
-                    <p className="font-bold">Người lập phiếu</p>
-                    <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
-                    <p className="mt-14 font-semibold">{selectedReceipt.createdBy}</p>
+                    <p className="font-bold uppercase text-zinc-900">Người lập phiếu</p>
+                    <p className="text-zinc-400 text-[11px] mt-0.5">(Ký, ghi rõ họ tên)</p>
+                    <p className="mt-14 font-bold text-zinc-900">{formatCreatedBy(selectedReceipt.createdBy)}</p>
                   </div>
                   <div>
-                    <p className="font-bold">Thủ kho</p>
-                    <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                    <p className="font-bold uppercase text-zinc-900">Thủ kho</p>
+                    <p className="text-zinc-400 text-[11px] mt-0.5">(Ký, ghi rõ họ tên)</p>
                   </div>
                   <div>
-                    <p className="font-bold">Kế toán trưởng</p>
-                    <p className="text-zinc-400 mt-0.5">(Ký, ghi rõ họ tên)</p>
+                    <p className="font-bold uppercase text-zinc-900">
+                      {selectedReceipt.type === "EXPORT" ? "Khách nhận hàng" : "Kế toán trưởng"}
+                    </p>
+                    <p className="text-zinc-400 text-[11px] mt-0.5">(Ký, ghi rõ họ tên)</p>
                   </div>
                 </div>
               </div>
@@ -692,17 +790,10 @@ function InventoryHistoryContent() {
                   Đóng
                 </button>
                 <button 
-                  onClick={() => {
-                    const printContents = document.getElementById("printable-receipt")?.innerHTML;
-                    if (!printContents) return;
-                    const originalContents = document.body.innerHTML;
-                    document.body.innerHTML = printContents;
-                    window.print();
-                    document.body.innerHTML = originalContents;
-                    window.location.reload();
-                  }}
-                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity"
+                  onClick={() => printHtmlElement("printable-receipt", `Phieu_${selectedReceipt.type || "KHO"}_${getReceiptCode(selectedReceipt.type, selectedReceipt.createdAt)}`)}
+                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity flex items-center gap-1.5"
                 >
+                  <Printer size={16} />
                   In phiếu
                 </button>
               </div>

@@ -263,7 +263,15 @@ export default function InvoicePage() {
       </div>
 
       <style jsx global>{`
+        @page {
+          size: auto;
+          margin: 0mm !important;
+        }
         @media print {
+          @page {
+            size: auto;
+            margin: 0mm !important;
+          }
           body * { visibility: hidden; }
           .print\\:hidden { display: none !important; }
           .max-w-2xl { visibility: visible; position: fixed; top: 0; left: 0; width: 100%; }
