@@ -263,6 +263,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     let requisitionEventBranchId: number | null | undefined = null;
 
+    let operatorName = "Quản trị viên";
+    if (guard.userId) {
+      const u = await prisma.user.findUnique({ where: { id: guard.userId }, select: { name: true } });
+      if (u?.name) operatorName = u.name;
+    }
+
     await prisma.$transaction(async (tx) => {
       // Revert customer debt and spent if it was sold/reserved
       if (currentVehicle.customerId && ["RESERVED", "SOLD"].includes(currentVehicle.status)) {
@@ -304,7 +310,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
               })),
             reason: `Hoàn kho phụ kiện do hủy hồ sơ xe VIN ${currentVehicle.vin}`,
             inventoryOrderId: exportOrder.id,
-            createdBy: "system",
+            createdBy: operatorName,
           });
         }
         await tx.inventoryOrder.update({
@@ -363,7 +369,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         branchId: currentVehicle.branchId || branchId || 1,
         items: approvedGiftItems,
         reason: `Hoàn kho quà tặng do hủy hồ sơ xe VIN ${currentVehicle.vin}`,
-        createdBy: "system",
+        createdBy: operatorName,
       });
 
       await tx.vehicle.update({

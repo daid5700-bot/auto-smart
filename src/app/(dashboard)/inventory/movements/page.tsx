@@ -291,7 +291,7 @@ function MovementsPageContent() {
             conversionFactor: Number(i.conversionFactor) || 1,
             note: i.note
           })),
-          createdBy: user?.name || "system"
+          createdBy: user?.name || "Thủ kho"
         });
       } else if (activeTab === "EXPORT") {
         const payload = {

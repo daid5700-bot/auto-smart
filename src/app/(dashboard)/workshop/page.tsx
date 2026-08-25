@@ -14,6 +14,7 @@ import {
   type DiscountOption,
 } from "@/components/discounts/DiscountPicker";
 import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
+import { printHtmlElement } from "@/lib/print";
 
 
 const RO_COLS = [
@@ -996,7 +997,7 @@ export default function WorkshopPage() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printHtmlElement("print-area", `Bao_gia_RO_${printRo?.id}`)}
                 className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90 flex items-center gap-1.5"
               >
                 <Printer size={16} />
@@ -1312,7 +1313,7 @@ export default function WorkshopPage() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printHtmlElement("print-requisition-area", `Phieu_REQ_${detailReq?.id}`)}
                 className="gradient-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90 flex items-center gap-1.5"
               >
                 <Printer size={16} />

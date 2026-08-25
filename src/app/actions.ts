@@ -11,6 +11,29 @@ import {
 import { getBranchConfigValue } from "@/lib/branch-config";
 import { isVinFastBranchId } from "@/lib/branch-identity";
 
+async function getCurrentUserName(): Promise<string> {
+  try {
+    const cookieStore = await cookies();
+    const userIdVal = cookieStore.get("user_id")?.value;
+    if (userIdVal) {
+      const { verifyData } = await import("@/lib/auth");
+      const userIdStr = await verifyData(userIdVal);
+      if (userIdStr) {
+        const user = await prisma.user.findUnique({
+          where: { id: parseInt(userIdStr, 10) },
+          select: { name: true },
+        });
+        if (user?.name) return user.name;
+      }
+    }
+    const cookieName = cookieStore.get("user_name")?.value;
+    if (cookieName) return decodeURIComponent(cookieName);
+  } catch {
+    // ignore
+  }
+  return "Thủ kho";
+}
+
 // ===== INVENTORY LOGIC =====
 
 /**
@@ -41,6 +64,7 @@ export async function importStock(data: {
   const branchId = await getActiveBranchId();
   if (!branchId) throw new Error("Branch not found");
   const targetBranchId = branchId;
+  const currentUserName = await getCurrentUserName();
 
   const result = await prisma.$transaction(async (tx) => {
     const pb = await tx.productBranch.upsert({
@@ -87,7 +111,7 @@ export async function importStock(data: {
         quantity: actualQty,
         unitCost: avgCost,
         totalCost: data.unitCost * data.quantity,
-        createdBy: "system",
+        createdBy: currentUserName,
         branchId: targetBranchId,
       },
     });
@@ -106,7 +130,7 @@ export async function createManualImport(data: {
     conversionFactor?: number;
     note?: string;
   }[];
-  createdBy: string;
+  createdBy?: string;
 }) {
   const branchId = await getActiveBranchId();
   if (!branchId) throw new Error("Branch not found");
@@ -115,6 +139,11 @@ export async function createManualImport(data: {
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách nhập kho không được trống");
   }
+
+  const rawCreator = (data.createdBy || "").trim().toLowerCase();
+  const currentUserName = data.createdBy && rawCreator !== "system" && rawCreator !== "hệ thống"
+    ? data.createdBy
+    : await getCurrentUserName();
 
   const results = await prisma.$transaction(async (tx) => {
     const movementsCreated = [];
@@ -180,7 +209,7 @@ export async function createManualImport(data: {
           quantity: actualQty,
           unitCost: avgCost,
           totalCost: item.unitCost * item.quantity,
-          createdBy: data.createdBy,
+          createdBy: currentUserName,
           reason: item.note,
           branchId: targetBranchId,
         },
@@ -248,7 +277,7 @@ export async function createDirectExport(data: {
     conversionFactor?: number;
     note?: string;
   }[];
-  createdBy: string;
+  createdBy?: string;
   exportType?: "RETAIL" | "WHOLESALE";
 }) {
   const cookieStore = await cookies();
@@ -260,6 +289,11 @@ export async function createDirectExport(data: {
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách xuất kho không được trống");
   }
+
+  const rawCreator = (data.createdBy || "").trim().toLowerCase();
+  const currentUserName = data.createdBy && rawCreator !== "system" && rawCreator !== "hệ thống"
+    ? data.createdBy
+    : await getCurrentUserName();
 
   const exportType = data.exportType || "RETAIL";
 
@@ -346,7 +380,7 @@ export async function createDirectExport(data: {
           unitCost: currentMac,
           totalCost: currentMac * actualQty,
           reason: finalReason,
-          createdBy: data.createdBy,
+          createdBy: currentUserName,
           branchId: targetBranchId,
         },
       });
@@ -371,7 +405,7 @@ export async function createManualAdjust(data: {
     actualStock: number;
     note?: string;
   }[];
-  createdBy: string;
+  createdBy?: string;
 }) {
   const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
@@ -382,6 +416,11 @@ export async function createManualAdjust(data: {
   if (!data.items || data.items.length === 0) {
     throw new Error("Danh sách kiểm kê không được trống");
   }
+
+  const rawCreator = (data.createdBy || "").trim().toLowerCase();
+  const currentUserName = data.createdBy && rawCreator !== "system" && rawCreator !== "hệ thống"
+    ? data.createdBy
+    : await getCurrentUserName();
 
   const results = await prisma.$transaction(
     async (tx) => {
@@ -450,7 +489,7 @@ export async function createManualAdjust(data: {
               quantity: Math.abs(diff),
               unitCost: unitCost,
               totalCost: unitCost * Math.abs(diff),
-              createdBy: data.createdBy,
+              createdBy: currentUserName,
               reason: item.note || `Kiểm kê lệch ${diff > 0 ? "+" : ""}${diff}`,
               branchId: targetBranchId,
             },
@@ -676,6 +715,7 @@ export async function exportStockForRO(data: {
       },
     });
 
+    const currentUserName = await getCurrentUserName();
     await tx.stockMovement.create({
       data: {
         productId: data.productId,
@@ -685,7 +725,7 @@ export async function exportStockForRO(data: {
         totalCost: currentMac * data.quantity,
         reason: "Xuất kho sửa chữa",
         relatedRoId: data.repairOrderId,
-        createdBy: "system",
+        createdBy: currentUserName,
         branchId: targetBranchId,
       },
     });

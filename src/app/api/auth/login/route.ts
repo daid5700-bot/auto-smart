@@ -137,6 +137,14 @@ export async function POST(req: NextRequest) {
       secure: isProd,
     });
 
+    response.cookies.set("user_name", encodeURIComponent(safeUser.name || user.name || ""), {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: false,
+      sameSite: "lax",
+      secure: isProd,
+    });
+
     response.cookies.set("allowed_branches", signedBranches, {
       path: "/",
       maxAge: 86400,

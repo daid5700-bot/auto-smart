@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
         vehicleId: true,
         createdBy: true,
         createdAt: true,
-        branch: { select: { name: true } },
+        branch: { select: { id: true, name: true, address: true, phone: true } },
         product: {
           select: {
             id: true,
@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
                 id: true,
                 name: true,
                 phone: true,
+                address: true,
               }
             }
           }

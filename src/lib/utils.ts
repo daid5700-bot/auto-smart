@@ -242,3 +242,63 @@ export async function fetchWithDedup(url: string) {
     delete activeRequests[url];
   }
 }
+
+const NUM_DIGITS = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];
+
+function readThreeDigits(threeDigits: number, showZeroHundred: boolean): string {
+  const hundreds = Math.floor(threeDigits / 100);
+  const remainder = threeDigits % 100;
+  const tens = Math.floor(remainder / 10);
+  const units = remainder % 10;
+  let res = "";
+
+  if (hundreds > 0 || showZeroHundred) {
+    res += NUM_DIGITS[hundreds] + " trăm ";
+  }
+
+  if (tens > 1) {
+    res += NUM_DIGITS[tens] + " mươi ";
+    if (units === 1) res += "mốt ";
+    else if (units === 4) res += "tư ";
+    else if (units === 5) res += "lăm ";
+    else if (units > 0) res += NUM_DIGITS[units] + " ";
+  } else if (tens === 1) {
+    res += "mười ";
+    if (units === 1) res += "một ";
+    else if (units === 4) res += "bốn ";
+    else if (units === 5) res += "lăm ";
+    else if (units > 0) res += NUM_DIGITS[units] + " ";
+  } else if (tens === 0 && units > 0) {
+    if (hundreds > 0 || showZeroHundred) res += "lẻ ";
+    res += NUM_DIGITS[units] + " ";
+  }
+
+  return res.trim();
+}
+
+export function readVietnameseNumber(num: number): string {
+  if (isNaN(num) || num === 0) return "Không đồng";
+  const absNum = Math.abs(Math.round(num));
+  const groups: number[] = [];
+  let temp = absNum;
+  while (temp > 0) {
+    groups.push(temp % 1000);
+    temp = Math.floor(temp / 1000);
+  }
+
+  const scales = ["", "nghìn", "triệu", "tỷ", "nghìn tỷ", "triệu tỷ"];
+  let result = "";
+
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i];
+    if (g > 0) {
+      const showZero = i < groups.length - 1;
+      const readG = readThreeDigits(g, showZero);
+      result += readG + " " + scales[i] + " ";
+    }
+  }
+
+  result = result.trim() + " đồng";
+  return result.charAt(0).toUpperCase() + result.slice(1);
+}
+

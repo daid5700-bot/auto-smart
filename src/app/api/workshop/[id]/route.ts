@@ -494,12 +494,18 @@ export async function DELETE(
         });
       }
 
+      let operatorName = "Quản trị viên";
+      if (guard.userId) {
+        const u = await prisma.user.findUnique({ where: { id: guard.userId }, select: { name: true } });
+        if (u?.name) operatorName = u.name;
+      }
+
       await restoreStockOnce(tx, {
         branchId: branchIdForStock,
         items: approvedReturnItems,
         reason: `Hoàn kho do hủy lệnh sửa chữa RO-${id}`,
         relatedRoId: id,
-        createdBy: "system",
+        createdBy: operatorName,
       });
 
       // 2. Revert customer debt and spent
