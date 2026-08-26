@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
                 name: true,
                 phone: true,
                 address: true,
+                totalDebt: true,
               }
             }
           }
@@ -105,6 +106,10 @@ export async function GET(req: NextRequest) {
         totalAmount: Number(mov.inventoryOrder.totalAmount),
         paidAmount: Number(mov.inventoryOrder.paidAmount),
         debtAmount: Number(mov.inventoryOrder.debtAmount),
+        customer: mov.inventoryOrder.customer ? {
+          ...mov.inventoryOrder.customer,
+          totalDebt: Number(mov.inventoryOrder.customer.totalDebt || 0)
+        } : null
       } : null
     }));
 

@@ -98,6 +98,7 @@ function InventoryHistoryContent() {
       customerName?: string;
       customerPhone?: string;
       customerAddress?: string;
+      customerTotalDebt?: number;
       paidAmount?: number;
       debtAmount?: number;
       reason: string;
@@ -117,7 +118,7 @@ function InventoryHistoryContent() {
         const timeWindow = Math.floor(dateVal / 3000);
         key = `${m.type}-${m.createdBy}-${timeWindow}`;
       }
-      
+
       if (!groups[key]) {
         groups[key] = {
           id: key,
@@ -130,6 +131,7 @@ function InventoryHistoryContent() {
           customerName: m.inventoryOrder?.customer?.name || "",
           customerPhone: m.inventoryOrder?.customer?.phone || "",
           customerAddress: m.inventoryOrder?.customer?.address || "",
+          customerTotalDebt: Number(m.inventoryOrder?.customer?.totalDebt || 0),
           paidAmount: Number(m.inventoryOrder?.paidAmount || 0),
           debtAmount: Number(m.inventoryOrder?.debtAmount || 0),
           reason: m.reason || "",
@@ -138,7 +140,7 @@ function InventoryHistoryContent() {
           inventoryOrder: m.inventoryOrder || null
         };
       }
-      
+
       // Merge properties if this movement has inventoryOrder info
       if (m.inventoryOrder) {
         if (!groups[key].inventoryOrder) {
@@ -149,6 +151,7 @@ function InventoryHistoryContent() {
           groups[key].customerName = m.inventoryOrder.customer.name || groups[key].customerName;
           groups[key].customerPhone = m.inventoryOrder.customer.phone || groups[key].customerPhone;
           groups[key].customerAddress = m.inventoryOrder.customer.address || groups[key].customerAddress;
+          groups[key].customerTotalDebt = Number(m.inventoryOrder.customer.totalDebt ?? groups[key].customerTotalDebt ?? 0);
         }
         groups[key].paidAmount = Number(m.inventoryOrder.paidAmount ?? groups[key].paidAmount ?? 0);
         groups[key].debtAmount = Number(m.inventoryOrder.debtAmount ?? groups[key].debtAmount ?? 0);
@@ -167,7 +170,7 @@ function InventoryHistoryContent() {
         groups[key].branchAddress = m.branch.address || groups[key].branchAddress;
         groups[key].branchPhone = m.branch.phone || groups[key].branchPhone;
       }
-      
+
       groups[key].items.push(m);
       groups[key].totalAmount += Number(m.totalCost || 0);
     });
@@ -302,29 +305,29 @@ function InventoryHistoryContent() {
     <div className="mx-auto space-y-6 stagger">
 
       <div className="flex overflow-x-auto no-scrollbar border-b border-border mb-4 mt-2">
-        <button 
+        <button
           onClick={() => {
             setActiveTab("ALL");
             setCurrentPage(1);
-          }} 
+          }}
           className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "ALL" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           Tất cả <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "ALL" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{allCount}</span>
         </button>
-        <button 
+        <button
           onClick={() => {
             setActiveTab("IMPORT");
             setCurrentPage(1);
-          }} 
+          }}
           className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "IMPORT" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           Phiếu Nhập <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "IMPORT" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{importCount}</span>
         </button>
-        <button 
+        <button
           onClick={() => {
             setActiveTab("EXPORT");
             setCurrentPage(1);
-          }} 
+          }}
           className={`px-5 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === "EXPORT" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           Phiếu Xuất <span className={`text-[10px] min-w-[20px] h-[20px] flex items-center justify-center px-1.5 rounded-full font-bold ${activeTab === "EXPORT" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{exportCount}</span>
@@ -365,9 +368,8 @@ function InventoryHistoryContent() {
           </div>
           {(["today", "week", "month"] as const).map((key) => (
             <button key={key} onClick={() => applyPreset(key)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
-                activePreset === key ? "border-primary bg-primary text-white" : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
-              }`}>
+              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${activePreset === key ? "border-primary bg-primary text-white" : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
+                }`}>
               {key === "today" ? "Hôm nay" : key === "week" ? "Tuần này" : "Tháng này"}
             </button>
           ))}
@@ -429,8 +431,8 @@ function InventoryHistoryContent() {
                     && !String(r.inventoryOrder.createdBy || "").startsWith("Hệ thống"),
                   );
                   return (
-                    <tr 
-                      key={r.id} 
+                    <tr
+                      key={r.id}
                       onClick={() => setSelectedReceipt(r)}
                       className="hover:bg-primary/[0.02] cursor-pointer transition-colors"
                     >
@@ -455,19 +457,18 @@ function InventoryHistoryContent() {
                         <div className="text-[10px]">{new Date(r.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 uppercase rounded-md border ${
-                          r.type === "IMPORT"
-                            ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400"
-                            : r.type === "EXPORT"
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 uppercase rounded-md border ${r.type === "IMPORT"
+                          ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400"
+                          : r.type === "EXPORT"
                             ? "bg-orange-500/10 text-orange-600 border-orange-500/20 dark:text-orange-400"
                             : r.type === "EXPORT_GIFT"
-                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400"
-                            : "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400"
-                        }`}>
-                          {r.type === "IMPORT" ? "Nhập kho" : 
-                           r.type === "EXPORT" ? "Xuất kho" : 
-                           r.type === "EXPORT_GIFT" ? "Xuất quà tặng" : 
-                           "Kiểm kê"}
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400"
+                              : "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400"
+                          }`}>
+                          {r.type === "IMPORT" ? "Nhập kho" :
+                            r.type === "EXPORT" ? "Xuất kho" :
+                              r.type === "EXPORT_GIFT" ? "Xuất quà tặng" :
+                                "Kiểm kê"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs font-medium">{formatCreatedBy(r.createdBy)}</td>
@@ -559,11 +560,10 @@ function InventoryHistoryContent() {
                     key={p}
                     type="button"
                     onClick={() => setCurrentPage(p)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold border ${
-                      p === currentPage
-                        ? "border-primary bg-primary text-white"
-                        : "border-border hover:bg-secondary/40"
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border ${p === currentPage
+                      ? "border-primary bg-primary text-white"
+                      : "border-border hover:bg-secondary/40"
+                      }`}
                   >
                     {p}
                   </button>
@@ -595,13 +595,13 @@ function InventoryHistoryContent() {
         <ModalPortal>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4 print:p-0">
             <div className="bg-card border border-border w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden print:border-none print:shadow-none print:w-full print:max-h-full print:rounded-none">
-              
+
               {/* Modal Header */}
               <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-secondary/10 print:hidden">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Chi tiết giao dịch</span>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedReceipt(null)}
                   className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
                 >
@@ -629,9 +629,9 @@ function InventoryHistoryContent() {
                   </div>
                   <div className="text-right">
                     <h2 className="text-lg font-black uppercase tracking-wider text-zinc-900">
-                      {selectedReceipt.type === "IMPORT" ? "PHIẾU NHẬP KHO" : 
-                       selectedReceipt.type === "EXPORT" ? "PHIẾU XUẤT KHO" : 
-                       selectedReceipt.type === "EXPORT_GIFT" ? "PHIẾU XUẤT QUÀ TẶNG" : "BIÊN BẢN KIỂM KÊ"}
+                      {selectedReceipt.type === "IMPORT" ? "PHIẾU NHẬP KHO" :
+                        selectedReceipt.type === "EXPORT" ? "PHIẾU XUẤT KHO" :
+                          selectedReceipt.type === "EXPORT_GIFT" ? "PHIẾU XUẤT QUÀ TẶNG" : "BIÊN BẢN KIỂM KÊ"}
                     </h2>
                     <p className="text-xs text-zinc-500 italic mt-0.5">
                       {formatReceiptFullDate(selectedReceipt.createdAt)}
@@ -677,7 +677,8 @@ function InventoryHistoryContent() {
                   <thead>
                     <tr className="border-b border-zinc-300 text-zinc-900 font-bold">
                       <th className="py-2 px-2 border-r border-zinc-300 text-center w-10">TT</th>
-                      <th className="py-2 px-2.5 border-r border-zinc-300">Sản phẩm hàng hóa</th>
+                      <th className="py-2 px-2.5 border-r border-zinc-300 w-32">Mã SKU</th>
+                      <th className="py-2 px-2.5 border-r border-zinc-300">Tên sản phẩm / phụ tùng</th>
                       <th className="py-2 px-2 border-r border-zinc-300 text-center w-14">ĐVT</th>
                       <th className="py-2 px-2 border-r border-zinc-300 text-center w-12">SL</th>
                       {(selectedReceipt.type === "IMPORT" || selectedReceipt.type === "EXPORT" || selectedReceipt.type === "EXPORT_GIFT") && (
@@ -692,11 +693,11 @@ function InventoryHistoryContent() {
                     {selectedReceipt.items.map((m: any, idx: number) => (
                       <tr key={m.id} className="text-zinc-800">
                         <td className="py-2 px-2 border-r border-zinc-300 text-center">{idx + 1}</td>
+                        <td className="py-2 px-2.5 border-r border-zinc-300 font-mono font-bold text-zinc-900 text-[11px]">
+                          {m.product?.sku || "—"}
+                        </td>
                         <td className="py-2 px-2.5 border-r border-zinc-300">
                           <span className="font-semibold text-zinc-900">{m.product?.name}</span>
-                          {m.product?.sku && (
-                            <span className="text-[10px] text-zinc-500 font-mono block">{m.product.sku}</span>
-                          )}
                         </td>
                         <td className="py-2 px-2 border-r border-zinc-300 text-center">{m.product?.unit || "Cái"}</td>
                         <td className="py-2 px-2 border-r border-zinc-300 text-center font-bold">{m.quantity}</td>
@@ -729,34 +730,48 @@ function InventoryHistoryContent() {
                     if (it.type === "EXPORT_GIFT" && selectedReceipt.type !== "EXPORT_GIFT") return sum;
                     return sum + Number(it.totalCost || 0);
                   }, 0);
-                  const paid = selectedReceipt.paidAmount || 0;
-                  const debt = selectedReceipt.debtAmount !== undefined && selectedReceipt.debtAmount > 0 
-                    ? selectedReceipt.debtAmount 
+                  const paid = Number(selectedReceipt.paidAmount || 0);
+                  const currentOrderDebt = selectedReceipt.debtAmount !== undefined && selectedReceipt.debtAmount > 0
+                    ? Number(selectedReceipt.debtAmount)
                     : (selectedReceipt.inventoryOrder && paid < total ? total - paid : 0);
+
+                  const customerTotalDebt = Number(selectedReceipt.customerTotalDebt || 0);
+                  // Tiền khách nợ cũ trước đơn này
+                  const oldDebt = Math.max(0, customerTotalDebt - currentOrderDebt);
+                  // Tổng tiền thanh toán = Tiền hàng + Tiền nợ cũ - Tiền đã trả ngay
+                  const totalPayment = total + oldDebt - paid;
 
                   return (
                     <div className="space-y-2.5 pt-2">
-                      <div className="flex flex-col items-end gap-1 text-xs text-zinc-800">
-                        <div className="flex justify-between w-72">
+                      <div className="flex flex-col items-end gap-1.5 text-xs text-zinc-800">
+                        {/* Dòng 1 : tiền hàng */}
+                        <div className="flex justify-between w-80">
                           <span className="font-semibold text-zinc-900">Cộng tiền hàng :</span>
-                          <span className="font-bold font-mono text-sm text-zinc-950">{formatCurrency(total)}</span>
+                          <span className="font-bold font-mono text-zinc-950">{formatCurrency(total)}</span>
                         </div>
-                        {selectedReceipt.inventoryOrder && paid > 0 && (
-                          <div className="flex justify-between w-72 text-zinc-600">
-                            <span>Đã thanh toán :</span>
-                            <span className="font-medium font-mono">{formatCurrency(paid)}</span>
+
+                        {/* Dòng 2 : Tiền khách nợ cũ */}
+                        <div className="flex justify-between w-80">
+                          <span className="font-semibold text-zinc-900">Tiền khách nợ cũ :</span>
+                          <span className="font-bold font-mono text-zinc-950">{formatCurrency(oldDebt)}</span>
+                        </div>
+
+                        {paid > 0 && (
+                          <div className="flex justify-between w-80 text-zinc-600 text-[11px]">
+                            <span>Đã trả ngay :</span>
+                            <span className="font-mono">{formatCurrency(paid)}</span>
                           </div>
                         )}
-                        {selectedReceipt.inventoryOrder && debt > 0 && (
-                          <div className="flex justify-between w-72 text-rose-600 font-bold">
-                            <span>Còn nợ lại :</span>
-                            <span className="font-mono">{formatCurrency(debt)}</span>
-                          </div>
-                        )}
+
+                        {/* Dòng 3 : tổng tiền thanh toán */}
+                        <div className="flex justify-between w-80">
+                          <span className="font-bold text-zinc-950 uppercase">Tổng tiền thanh toán :</span>
+                          <span className="font-bold font-mono text-sm text-zinc-950">{formatCurrency(totalPayment)}</span>
+                        </div>
                       </div>
 
-                      <div className="text-xs text-zinc-700 italic border-t border-zinc-200 pt-2">
-                        <span className="font-bold not-italic text-zinc-900">Bằng chữ:</span> {readVietnameseNumber(total)}
+                      <div className="text-xs text-zinc-700 italic pt-1">
+                        <span className="font-bold not-italic text-zinc-900">Bằng chữ:</span> {readVietnameseNumber(totalPayment > 0 ? totalPayment : total)}
                       </div>
                     </div>
                   );
@@ -783,13 +798,13 @@ function InventoryHistoryContent() {
               </div>
 
               <div className="bg-secondary/10 px-6 py-4 border-t border-border flex justify-end gap-3 print:hidden">
-                <button 
+                <button
                   onClick={() => setSelectedReceipt(null)}
                   className="px-4 py-2 border border-border rounded-lg text-sm font-semibold hover:bg-secondary transition-colors"
                 >
                   Đóng
                 </button>
-                <button 
+                <button
                   onClick={() => printHtmlElement("printable-receipt", `Phieu_${selectedReceipt.type || "KHO"}_${getReceiptCode(selectedReceipt.type, selectedReceipt.createdAt)}`)}
                   className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity flex items-center gap-1.5"
                 >
@@ -833,8 +848,8 @@ function InventoryHistoryContent() {
                     <label className="block text-xs font-semibold text-muted-foreground uppercase">
                       Nhập số tiền đã trả mới
                     </label>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setPaymentInput(selectedOrderForPayment.totalAmount?.toString() || "0")}
                       className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded hover:bg-emerald-500/20 transition-colors"
                     >

@@ -8,7 +8,7 @@ import { createInventoryOrderSchema } from "@/lib/validation/inventory";
 import { ensureCustomerBranch, getOrCreateCustomerForBranch } from "@/lib/customer-branch";
 
 const orderInclude = {
-  customer: { select: { id: true, name: true, phone: true, address: true } },
+  customer: { select: { id: true, name: true, phone: true, address: true, totalDebt: true } },
   movements: {
     where: { type: "EXPORT" },
     orderBy: { id: "asc" },

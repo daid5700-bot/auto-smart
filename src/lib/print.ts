@@ -55,7 +55,8 @@ export function printHtmlElement(elementId: string, docTitle: string = "Phiếu 
             color: #000000 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            font-family: Tahoma, Arial, "Noto Sans", sans-serif !important;
+            font-variant-numeric: tabular-nums;
           }
           .print-wrapper {
             padding: 8mm 10mm;
@@ -66,6 +67,14 @@ export function printHtmlElement(elementId: string, docTitle: string = "Phiếu 
           }
           .print\\:hidden, button {
             display: none !important;
+          }
+          .print-code {
+            font-family: "Courier New", Courier, monospace !important;
+            font-variant-numeric: tabular-nums;
+          }
+          .print-numeric {
+            font-family: Tahoma, Arial, "Noto Sans", sans-serif !important;
+            font-variant-numeric: tabular-nums;
           }
         </style>
       </head>
