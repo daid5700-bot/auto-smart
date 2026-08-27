@@ -77,11 +77,11 @@ export default function InvoicePage() {
             <p className="text-xs text-muted-foreground mt-0.5">
               {ro.branch?.name || "Chi nhánh"} • {ro.branch?.address || ""}
             </p>
-            <p className="text-xs text-muted-foreground">{ro.branch?.phone || ""}</p>
+            <p className="print-numeric text-xs text-muted-foreground">{ro.branch?.phone || ""}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-muted-foreground uppercase font-semibold">Phiếu dịch vụ sửa chữa</p>
-            <p className="text-xl font-bold mt-1">#{String(ro.id).padStart(6, "0")}</p>
+            <p className="print-code text-xl font-bold mt-1">#{String(ro.id).padStart(6, "0")}</p>
             <span className={`badge mt-1 ${ro.status === "DONE" || ro.status === "DELIVERED" ? "badge-success" : "badge-warning"}`}>
               {STATUS_LABELS[ro.status] || ro.status}
             </span>
@@ -93,14 +93,14 @@ export default function InvoicePage() {
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Thông tin khách hàng</p>
             <p className="font-bold text-lg">{ro.customer?.name}</p>
-            <p className="text-sm text-muted-foreground">{ro.customer?.phone}</p>
+            <p className="print-numeric text-sm text-muted-foreground">{ro.customer?.phone}</p>
             <p className="text-sm text-muted-foreground">{ro.customer?.address}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Thông tin xe</p>
             <p className="font-bold">{ro.vehicleModel || "—"}</p>
-            <p className="text-sm text-muted-foreground">Biển số: <span className="font-semibold text-foreground">{ro.plateNumber}</span></p>
-            <p className="text-sm text-muted-foreground">Km vào xưởng: {ro.kmIn?.toLocaleString() || 0} km</p>
+            <p className="text-sm text-muted-foreground">Biển số: <span className="print-code font-semibold text-foreground">{ro.plateNumber}</span></p>
+            <p className="text-sm text-muted-foreground">Km vào xưởng: <span className="print-numeric">{ro.kmIn?.toLocaleString() || 0} km</span></p>
             {ro.technician && (
               <p className="text-sm text-muted-foreground">KTV: {ro.technician.name}</p>
             )}
@@ -131,7 +131,7 @@ export default function InvoicePage() {
                       {parsed.services.map((srv: any, idx: number) => (
                         <tr key={idx} className="border-b border-border/30">
                           <td className="py-2">{srv.name}</td>
-                          <td className="py-2 text-right font-semibold">{formatCurrency(Number(srv.cost))}</td>
+                          <td className="print-numeric py-2 text-right font-semibold">{formatCurrency(Number(srv.cost))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -159,9 +159,9 @@ export default function InvoicePage() {
                 {ro.items.map((item: any) => (
                   <tr key={item.id} className="border-b border-border/30">
                     <td className="py-2">{item.product?.name}</td>
-                    <td className="py-2 text-right">{item.quantity} {item.product?.unit}</td>
-                    <td className="py-2 text-right">{formatCurrency(Number(item.unitPrice))}</td>
-                    <td className="py-2 text-right font-semibold">{formatCurrency(Number(item.totalPrice))}</td>
+                    <td className="print-numeric py-2 text-right">{item.quantity} {item.product?.unit}</td>
+                    <td className="print-numeric py-2 text-right">{formatCurrency(Number(item.unitPrice))}</td>
+                    <td className="print-numeric py-2 text-right font-semibold">{formatCurrency(Number(item.totalPrice))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -206,44 +206,44 @@ export default function InvoicePage() {
             <div className="space-y-2 border-t border-border pt-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Tiền công sửa chữa</span>
-                <span className="font-semibold">{formatCurrency(labor)}</span>
+                <span className="print-numeric font-semibold">{formatCurrency(labor)}</span>
               </div>
               {!hasDiscountSnapshot && hasServicesDiscount && (
                 <div className="flex justify-between text-xs text-destructive font-medium pl-4">
-                  <span>Giảm giá dịch vụ ({parsed.serviceDiscountPercent}%)</span>
-                  <span>-{formatCurrency(serviceDiscountAmount)}</span>
+                  <span>Giảm giá dịch vụ (<span className="print-numeric">{parsed.serviceDiscountPercent}%</span>)</span>
+                  <span className="print-numeric">-{formatCurrency(serviceDiscountAmount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Tiền phụ tùng</span>
-                <span className="font-semibold">{formatCurrency(parts)}</span>
+                <span className="print-numeric font-semibold">{formatCurrency(parts)}</span>
               </div>
               {!hasDiscountSnapshot && hasPartsDiscount && (
                 <div className="flex justify-between text-xs text-destructive font-medium pl-4">
-                  <span>Giảm giá phụ tùng ({parsed.partsDiscountPercent}%)</span>
-                  <span>-{formatCurrency(partsDiscountAmount)}</span>
+                  <span>Giảm giá phụ tùng (<span className="print-numeric">{parsed.partsDiscountPercent}%</span>)</span>
+                  <span className="print-numeric">-{formatCurrency(partsDiscountAmount)}</span>
                 </div>
               )}
               {hasDiscountSnapshot && recordedDiscount > 0 && (
                 <div className="flex justify-between gap-4 text-xs text-destructive font-medium pl-4">
                   <span>
-                    Mã {ro.appliedDiscountCode} — {ro.appliedDiscountName || "Giảm giá"}
-                    <span className="block text-[10px] text-muted-foreground">
+                    Mã <span className="print-code">{ro.appliedDiscountCode}</span> — {ro.appliedDiscountName || "Giảm giá"}
+                    <span className="print-numeric block text-[10px] text-muted-foreground">
                       {discountType}
                     </span>
                   </span>
-                  <span className="shrink-0">-{formatCurrency(recordedDiscount)}</span>
+                  <span className="print-numeric shrink-0">-{formatCurrency(recordedDiscount)}</span>
                 </div>
               )}
               {loyaltyDiscount >= 1000 && (
                 <div className="flex justify-between text-sm text-success font-medium">
                   <span>Giảm giá đổi điểm</span>
-                  <span>-{formatCurrency(loyaltyDiscount)}</span>
+                  <span className="print-numeric">-{formatCurrency(loyaltyDiscount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-lg font-bold border-t border-border pt-2 mt-2">
                 <span>TỔNG CỘNG</span>
-                <span className="text-primary">{formatCurrency(total)}</span>
+                <span className="print-numeric text-primary">{formatCurrency(total)}</span>
               </div>
             </div>
           );
@@ -251,9 +251,9 @@ export default function InvoicePage() {
 
         {/* Dates */}
         <div className="flex justify-between text-xs text-muted-foreground mt-8 pt-4 border-t border-border">
-          <span>Tiếp nhận: {new Date(ro.createdAt).toLocaleDateString("vi-VN")}</span>
+          <span>Tiếp nhận: <span className="print-numeric">{new Date(ro.createdAt).toLocaleDateString("vi-VN")}</span></span>
           {ro.completedAt && (
-            <span>Hoàn thành: {new Date(ro.completedAt).toLocaleDateString("vi-VN")}</span>
+            <span>Hoàn thành: <span className="print-numeric">{new Date(ro.completedAt).toLocaleDateString("vi-VN")}</span></span>
           )}
         </div>
 
@@ -273,6 +273,7 @@ export default function InvoicePage() {
             margin: 0mm !important;
           }
           body * { visibility: hidden; }
+          body { font-family: Tahoma, Arial, "Noto Sans", sans-serif !important; }
           .print\\:hidden { display: none !important; }
           .max-w-2xl { visibility: visible; position: fixed; top: 0; left: 0; width: 100%; }
           .max-w-2xl * { visibility: visible; }
