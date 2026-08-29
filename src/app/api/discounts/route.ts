@@ -124,7 +124,12 @@ export async function POST(req: NextRequest) {
       data: {
         ...body,
         target: body.scope === "SALES" ? "ORDER" : body.target,
-        maxDiscountAmount: body.maxDiscountAmount === "" ? null : body.maxDiscountAmount,
+        // Persist caps only for percentage discounts. This also cleans up the
+        // legacy value 0, whose intended meaning is "unlimited".
+        maxDiscountAmount:
+          body.discountType === "PERCENTAGE" && Number(body.maxDiscountAmount) > 0
+            ? body.maxDiscountAmount
+            : null,
         usageLimit: body.usageLimit === "" ? null : body.usageLimit,
         startsAt: parseDiscountDate(body.startsAt),
         endsAt: parseDiscountDate(body.endsAt, true),
