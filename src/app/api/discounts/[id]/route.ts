@@ -107,8 +107,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         discountType: nextData.discountType,
         target: managed.discount.scope === "SALES" ? "ORDER" : nextData.target,
         value: nextData.value,
+        // A cap is applicable only to percentage discounts; normalize legacy
+        // zero values to null so they cannot suppress the discount amount.
         maxDiscountAmount:
-          nextData.maxDiscountAmount === "" ? null : nextData.maxDiscountAmount,
+          nextData.discountType === "PERCENTAGE" && Number(nextData.maxDiscountAmount) > 0
+            ? nextData.maxDiscountAmount
+            : null,
         minOrderAmount: nextData.minOrderAmount,
         usageLimit: nextData.usageLimit === "" ? null : nextData.usageLimit,
         startsAt:

@@ -31,8 +31,13 @@ export function calculateDiscountPreview(
     discount.discountType === "PERCENTAGE"
       ? Math.round(base * discount.value / 100)
       : discount.value;
-  if (discount.maxDiscountAmount !== null) {
-    amount = Math.min(amount, discount.maxDiscountAmount);
+  // Keep the preview aligned with the server: zero is a legacy representation
+  // of no cap, and fixed-amount discounts do not use a maximum cap.
+  if (
+    discount.discountType === "PERCENTAGE" &&
+    Number(discount.maxDiscountAmount) > 0
+  ) {
+    amount = Math.min(amount, Number(discount.maxDiscountAmount));
   }
   return Math.max(0, Math.min(base, input.subtotal, Math.round(amount)));
 }

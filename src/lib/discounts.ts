@@ -56,8 +56,13 @@ export function calculateDiscountAmount(
       ? Math.round(baseAmount * (Math.max(0, discount.value) / 100))
       : Math.round(Math.max(0, discount.value));
 
-  if (discount.maxDiscountAmount !== null && discount.maxDiscountAmount !== undefined) {
-    amount = Math.min(amount, clampMoney(discount.maxDiscountAmount));
+  // A zero cap is legacy data for "unlimited". Only percentage discounts can
+  // have a meaningful positive maximum discount amount.
+  if (
+    discount.discountType === "PERCENTAGE" &&
+    Number(discount.maxDiscountAmount) > 0
+  ) {
+    amount = Math.min(amount, clampMoney(Number(discount.maxDiscountAmount)));
   }
 
   return Math.min(baseAmount, subtotal, Math.max(0, amount));
