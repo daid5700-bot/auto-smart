@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
 
     const exportWhere: any = {
       type: { in: ["EXPORT", "EXPORT_GIFT"] },
+      OR: [{ inventoryOrder: { is: null } }, { inventoryOrder: { status: { not: "CANCELLED" } } }],
       vehicleId: { not: null },
       ...(branchId ? { branchId } : {}),
     };
@@ -200,7 +201,9 @@ export async function GET(req: NextRequest) {
           ), 0)::float AS "totalGiftAmount"
         FROM "StockMovement" m
         LEFT JOIN RetailPrices p ON m."productId" = p."productId"
+        LEFT JOIN "InventoryOrder" io ON io.id = m."inventoryOrderId"
         WHERE (m.type LIKE 'IMPORT%' OR m.type LIKE 'EXPORT%')
+          AND io.status IS DISTINCT FROM 'CANCELLED'
           ${branchMovementCond}
           ${dateMovementCond}
       `

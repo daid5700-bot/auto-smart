@@ -11,6 +11,10 @@ import { ModalPortal } from "@/components/modal-portal";
 import { getAppDatePresetRange } from "@/lib/date-range";
 import { printHtmlElement } from "@/lib/print";
 import { useAuth } from "@/lib/store";
+import { CancelInventoryOrderButton } from "@/components/CancelInventoryOrderButton";
+import { isManualInventoryOrder } from "@/lib/inventory-order";
+import { InventoryCancellationNotice } from "@/components/InventoryCancellationNotice";
+import { formatInventoryCancellationTime, parseInventoryCancellation } from "@/lib/inventory-cancellation-display";
 
 function InventoryHistoryContent() {
   const { user } = useAuth();
@@ -112,7 +116,7 @@ function InventoryHistoryContent() {
       if (m.vehicleId) {
         key = `VEHICLE-${m.vehicleId}`;
       } else if (m.inventoryOrder) {
-        key = `ORDER-${m.inventoryOrder.id}`;
+        key = `ORDER-${m.inventoryOrder.id}-${m.type}`;
       } else {
         const dateVal = new Date(m.createdAt).getTime();
         const timeWindow = Math.floor(dateVal / 3000);
@@ -142,7 +146,7 @@ function InventoryHistoryContent() {
       }
 
       // Merge properties if this movement has inventoryOrder info
-      if (m.inventoryOrder) {
+      if (m.inventoryOrder && m.type === "EXPORT") {
         if (!groups[key].inventoryOrder) {
           groups[key].inventoryOrder = m.inventoryOrder;
           groups[key].type = "EXPORT";
@@ -250,11 +254,11 @@ function InventoryHistoryContent() {
           order?.customer?.name || "",
           order?.customer?.phone || "",
           receipt.createdBy || "",
-          String(order ? Number(order.totalAmount || 0) : Number(receipt.totalAmount || 0)),
-          String(order ? Number(order.paidAmount || 0) : 0),
-          String(order ? Number(order.debtAmount || 0) : 0),
+          String(order && receipt.type === "EXPORT" ? Number(order.totalAmount || 0) : Number(receipt.totalAmount || 0)),
+          String(order && receipt.type === "EXPORT" ? Number(order.paidAmount || 0) : 0),
+          String(order && receipt.type === "EXPORT" ? Number(order.debtAmount || 0) : 0),
           String(receipt.items?.length || 0),
-          receipt.reason || "",
+          order?.status === "CANCELLED" && receipt.type === "EXPORT" ? order.reason || "Đã hủy" : receipt.reason || "",
         ];
       }),
     );
@@ -272,7 +276,7 @@ function InventoryHistoryContent() {
       const res = await fetch(`/api/inventory/orders/${selectedOrderForPayment.id}/payment`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paidAmount: Number(paymentInput) }),
+        body: JSON.stringify({ amount: Number(paymentInput) }),
       });
       if (res.ok) {
         setPaymentModalOpen(false);
@@ -423,12 +427,17 @@ function InventoryHistoryContent() {
               ) : (
                 filteredReceipts.map((r: any) => {
                   const receiptCode = getReceiptCode(r.type, r.createdAt);
+                  const cancelled = r.type === "EXPORT" && r.inventoryOrder?.status === "CANCELLED";
+                  const cancellation = cancelled ? parseInventoryCancellation(r.inventoryOrder.reason) : null;
+                  const displayReason = cancellation ? cancellation.reason || "Đã hủy phiếu" : r.reason || "—";
+                  const reasonTooltip = cancellation
+                    ? [displayReason, cancellation.cancelledBy && `Người hủy: ${cancellation.cancelledBy}`, formatInventoryCancellationTime(cancellation.cancelledAt)].filter(Boolean).join(" · ")
+                    : displayReason;
                   const canEditReceipt = Boolean(
                     r.type === "EXPORT"
                     && r.inventoryOrder
-                    && !r.inventoryOrder.vehicleId
-                    && r.inventoryOrder.status !== "CANCELLED"
-                    && !String(r.inventoryOrder.createdBy || "").startsWith("Hệ thống"),
+                    && isManualInventoryOrder({ ...r.inventoryOrder, movements: r.items })
+                    && r.inventoryOrder.status !== "CANCELLED",
                   );
                   return (
                     <tr
@@ -457,7 +466,9 @@ function InventoryHistoryContent() {
                         <div className="text-[10px]">{new Date(r.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 uppercase rounded-md border ${r.type === "IMPORT"
+                        {cancelled ? (
+                          <span className="inline-flex rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive" title="Phiếu xuất kho đã hủy">Đã hủy</span>
+                        ) : <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 uppercase rounded-md border ${r.type === "IMPORT"
                           ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400"
                           : r.type === "EXPORT"
                             ? "bg-orange-500/10 text-orange-600 border-orange-500/20 dark:text-orange-400"
@@ -469,7 +480,7 @@ function InventoryHistoryContent() {
                             r.type === "EXPORT" ? "Xuất kho" :
                               r.type === "EXPORT_GIFT" ? "Xuất quà tặng" :
                                 "Kiểm kê"}
-                        </span>
+                        </span>}
                       </td>
                       <td className="px-4 py-3 text-xs font-medium">{formatCreatedBy(r.createdBy)}</td>
                       <td className="px-4 py-3 text-xs font-bold text-foreground">
@@ -478,25 +489,31 @@ function InventoryHistoryContent() {
                             <div className="text-zinc-400 font-normal">Giá bán: 0 đ</div>
                             <div className="text-emerald-600 text-[10px] font-mono">Giá vốn: {formatCurrency(r.totalAmount)}</div>
                           </div>
-                        ) : r.inventoryOrder ? (
+                        ) : r.inventoryOrder && r.type === "EXPORT" ? (
                           formatCurrency(r.inventoryOrder.totalAmount)
                         ) : (
                           formatCurrency(r.totalAmount)
                         )}
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        {r.type === "EXPORT_GIFT" ? (
+                        {cancelled ? (
+                          Number(r.inventoryOrder.paidAmount) > 0
+                            ? <span className="text-muted-foreground">Hoàn: {formatCurrency(Number(r.inventoryOrder.paidAmount))}</span>
+                            : <span className="text-muted-foreground">—</span>
+                        ) : r.type === "EXPORT_GIFT" ? (
                           <span className="text-emerald-600 font-bold">Q.tặng (0 đ)</span>
-                        ) : r.inventoryOrder ? (
+                        ) : r.inventoryOrder && r.type === "EXPORT" ? (
                           <div className="space-y-0.5">
-                            <div className="text-emerald-600 font-semibold">Đã trả: {formatCurrency(Number(r.inventoryOrder.paidAmount))}</div>
+                            <div className="text-emerald-600 font-semibold">{r.inventoryOrder.status === "CANCELLED" ? "Đã hoàn" : "Đã trả"}: {formatCurrency(Number(r.inventoryOrder.paidAmount))}</div>
                             <div className="text-rose-600 font-semibold">Còn nợ: {formatCurrency(Number(r.inventoryOrder.debtAmount))}</div>
                           </div>
                         ) : (
                           <span className="text-muted-foreground italic">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground truncate max-w-[150px]">{r.reason || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground truncate max-w-[150px]" title={reasonTooltip}>
+                        {displayReason}
+                      </td>
                       <td className="px-4 py-3 text-xs text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex items-center gap-1.5">
                           <button
@@ -514,6 +531,9 @@ function InventoryHistoryContent() {
                             >
                               <Edit3 size={14} />
                             </Link>
+                          )}
+                          {r.type === "EXPORT" && r.inventoryOrder && (
+                            <CancelInventoryOrderButton order={{ ...r.inventoryOrder, movements: r.items }} onCancelled={async () => { await fetchMovements(currentPage); }} />
                           )}
                         </div>
                       </td>
@@ -642,6 +662,10 @@ function InventoryHistoryContent() {
                   </div>
                 </div>
 
+                {selectedReceipt.type === "EXPORT" && selectedReceipt.inventoryOrder?.status === "CANCELLED" && (
+                  <InventoryCancellationNotice reason={selectedReceipt.inventoryOrder.reason} refundedAmount={Number(selectedReceipt.paidAmount || 0)} />
+                )}
+
                 {/* Customer & Receipt Metadata */}
                 <div className="text-xs text-zinc-800 space-y-1.5 pt-1">
                   <div className="flex justify-between items-center">
@@ -730,6 +754,21 @@ function InventoryHistoryContent() {
                     if (it.type === "EXPORT_GIFT" && selectedReceipt.type !== "EXPORT_GIFT") return sum;
                     return sum + Number(it.totalCost || 0);
                   }, 0);
+                  if (selectedReceipt.type === "EXPORT" && selectedReceipt.inventoryOrder?.status === "CANCELLED") {
+                    return (
+                      <div className="ml-auto w-full max-w-xs space-y-2.5 border-t border-zinc-200 pt-3 text-xs">
+                        <div className="flex justify-between gap-4 text-zinc-600">
+                          <span>Giá trị phiếu gốc</span><span className="font-medium tabular-nums text-zinc-900">{formatCurrency(total)}</span>
+                        </div>
+                        <div className="flex justify-between items-baseline gap-4">
+                          <span className="font-semibold text-zinc-900">Cần thanh toán</span><span className="text-base font-bold tabular-nums text-zinc-900">{formatCurrency(0)}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (selectedReceipt.type === "IMPORT") {
+                    return <div className="text-right text-sm font-semibold">Tổng giá trị nhập kho: {formatCurrency(total)}</div>;
+                  }
                   const paid = Number(selectedReceipt.paidAmount || 0);
                   const currentOrderDebt = selectedReceipt.debtAmount !== undefined && selectedReceipt.debtAmount > 0
                     ? Number(selectedReceipt.debtAmount)
@@ -798,6 +837,9 @@ function InventoryHistoryContent() {
               </div>
 
               <div className="bg-secondary/10 px-6 py-4 border-t border-border flex justify-end gap-3 print:hidden">
+                {selectedReceipt.type === "EXPORT" && selectedReceipt.inventoryOrder && (
+                  <CancelInventoryOrderButton order={{ ...selectedReceipt.inventoryOrder, movements: selectedReceipt.items }} onCancelled={async () => { setSelectedReceipt(null); await fetchMovements(currentPage); }} />
+                )}
                 <button
                   onClick={() => setSelectedReceipt(null)}
                   className="px-4 py-2 border border-border rounded-lg text-sm font-semibold hover:bg-secondary transition-colors"

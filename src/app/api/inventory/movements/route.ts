@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
         unitCost: true,
         totalCost: true,
         reason: true,
+        relatedRoId: true,
         vehicleId: true,
         createdBy: true,
         createdAt: true,
@@ -79,6 +80,7 @@ export async function GET(req: NextRequest) {
             debtAmount: true,
             type: true,
             status: true,
+            reason: true,
             vehicleId: true,
             createdBy: true,
             customer: {
@@ -131,7 +133,7 @@ export async function GET(req: NextRequest) {
         if (m.vehicleId) {
           key = `VEHICLE-${m.vehicleId}`;
         } else if (m.inventoryOrder) {
-          key = `ORDER-${m.inventoryOrder.id}`;
+          key = `ORDER-${m.inventoryOrder.id}-${m.type}`;
         } else {
           const dateVal = new Date(m.createdAt).getTime();
           const timeWindow = Math.floor(dateVal / 3000);

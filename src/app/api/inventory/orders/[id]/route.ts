@@ -6,6 +6,7 @@ import { getActiveBranchId } from "@/lib/branch";
 import { ApiError, handleApiError, parseJson } from "@/lib/api-response";
 import { createInventoryOrderSchema } from "@/lib/validation/inventory";
 import { ensureCustomerBranch, getOrCreateCustomerForBranch } from "@/lib/customer-branch";
+import { isManualInventoryOrder } from "@/lib/inventory-order";
 
 const orderInclude = {
   customer: { select: { id: true, name: true, phone: true, address: true, totalDebt: true } },
@@ -31,11 +32,11 @@ function serializeOrder(order: any) {
   };
 }
 
-function assertManualOrder(order: { vehicleId: number | null; status: string; createdBy: string }) {
+function assertManualOrder(order: { type: string; vehicleId: number | null; status: string; createdBy: string; movements: Array<{ relatedRoId: number | null }> }) {
   if (order.status === "CANCELLED") {
     throw new ApiError("Phiếu đã hủy nên không thể chỉnh sửa.", 409, "ORDER_CANCELLED");
   }
-  if (order.vehicleId || order.createdBy.startsWith("Hệ thống")) {
+  if (!isManualInventoryOrder(order)) {
     throw new ApiError(
       "Phiếu tự sinh từ bán xe hoặc xưởng dịch vụ phải được sửa tại hồ sơ nguồn.",
       409,

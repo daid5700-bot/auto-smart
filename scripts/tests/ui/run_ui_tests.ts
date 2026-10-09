@@ -23,6 +23,24 @@ assert.match(workshopHistory, /view=history/);
 assert.match(workshopHistory, /AbortController/);
 assert.match(workshopHistory, /openOrderDetail/);
 
+const inventoryHistory = source("src/app/(dashboard)/inventory/history/page.tsx");
+const inventoryMovements = source("src/app/api/inventory/movements/route.ts");
+// Return movements must remain a separate receipt, not be merged with the original export.
+for (const text of [inventoryHistory, inventoryMovements]) {
+  assert.ok(text.includes('key = `ORDER-${m.inventoryOrder.id}-${m.type}`'));
+}
+assert.match(inventoryHistory, /<CancelInventoryOrderButton/);
+assert.match(inventoryHistory, /<InventoryCancellationNotice/);
+assert.doesNotMatch(inventoryHistory, /PHIẾU ĐÃ HỦY — ĐÃ HOÀN KHO/);
+assert.match(source("src/app/(dashboard)/inventory/orders/page.tsx"), /<CancelInventoryOrderButton/);
+const cancelButton = source("src/components/CancelInventoryOrderButton.tsx");
+assert.match(cancelButton, /Dialog\.Title/);
+assert.match(cancelButton, /refundConfirmed/);
+assert.match(cancelButton, /expectedPaidAmount: paidAmount/);
+assert.match(cancelButton, /không tự chuyển tiền/);
+assert.match(source("src/app/api/inventory/orders/[id]/cancel/route.ts"), /requireAuth\(req, \["ADMIN", "WAREHOUSE"\]\)/);
+assert.match(source("src/app/api/inventory/orders/[id]/payment/route.ts"), /ORDER_CANCELLED/);
+
 const salesNew = source("src/app/(dashboard)/sales/documents/new/page.tsx");
 assert.ok(salesNew.includes('fetch("/api/sales/wholesale"'));
 assert.doesNotMatch(salesNew, /for \(const wv of wholesaleVehicles\)/);

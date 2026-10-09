@@ -14,6 +14,7 @@
     "postinstall": "prisma generate",
     "test:ui": "npx tsx scripts/tests/ui/run_ui_tests.ts",
     "test:api": "npx tsx scripts/tests/api/test_workshop_api.ts",
+    "test:inventory-cancellation": "tsx --test scripts/tests/api/test_inventory_cancellation.ts",
     "test:integration": "npx tsx scripts/tests/system_integration_test.ts"
   },
   "dependencies": {
