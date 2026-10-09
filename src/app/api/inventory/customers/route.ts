@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
       include: {
         inventoryOrders: {
           where: {
+            status: { not: "CANCELLED" },
             ...(branchId ? { branchId } : {})
           },
           orderBy: { createdAt: "desc" }

@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export const cancelInventoryOrderSchema = z.object({
+  reason: z.string().trim().min(1, "Vui lòng nhập lý do hủy phiếu").max(500),
+  refundConfirmed: z.boolean().default(false),
+  expectedPaidAmount: z.number().finite().min(0),
+  refundMethod: z.enum(["CASH", "BANK_TRANSFER"]).default("CASH"),
+}).strict();
+
 export const createInventoryOrderSchema = z.object({
   customerId: z.coerce.number().int().positive().optional().nullable(),
   phone: z.string().trim().regex(/^0[0-9]{9}$/).optional(),

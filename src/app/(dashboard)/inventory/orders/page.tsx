@@ -7,6 +7,8 @@ import { formatCurrency, formatDate, handleNumericInputChange } from "@/lib/util
 import { NumericInput } from "@/components/NumericInput";
 import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
+import { CancelInventoryOrderButton } from "@/components/CancelInventoryOrderButton";
+import { parseInventoryCancellation } from "@/lib/inventory-cancellation-display";
 
 
 export default function InventoryOrdersPage() {
@@ -158,20 +160,28 @@ export default function InventoryOrdersPage() {
                     </span>
                   </td>
                   <td>
-                    <div className="space-y-1 text-xs">
+                    {o.status === "CANCELLED" ? (
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <div>Giá trị gốc: {formatCurrency(Number(o.totalAmount))}</div>
+                        {Number(o.paidAmount) > 0 && <div>Hoàn: {formatCurrency(Number(o.paidAmount))}</div>}
+                      </div>
+                    ) : <div className="space-y-1 text-xs">
                       <div>Tổng: <span className="font-bold">{formatCurrency(Number(o.totalAmount))}</span></div>
                       <div>Đã trả: <span className="text-emerald-600 font-bold">{formatCurrency(Number(o.paidAmount))}</span></div>
                       <div>Còn nợ: <span className="text-rose-600 font-bold">{formatCurrency(Number(o.debtAmount))}</span></div>
-                    </div>
+                    </div>}
                   </td>
                   <td>
-                    {o.status === "PAID" ? (
+                    {o.status === "CANCELLED" ? (
+                      <span className="badge bg-destructive/10 text-destructive border border-destructive/20" title={parseInventoryCancellation(o.reason).reason}>Đã hủy</span>
+                    ) : o.status === "PAID" ? (
                       <span className="badge bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">Đã thanh toán</span>
                     ) : (
                       <span className="badge bg-rose-500/10 text-rose-600 border border-rose-500/20">Đang nợ</span>
                     )}
                   </td>
                   <td>
+                    <CancelInventoryOrderButton order={o} onCancelled={fetchOrders} />
                     {o.status === "DEBT" && (
                       <button
                         onClick={() => openPaymentModal(o)}
