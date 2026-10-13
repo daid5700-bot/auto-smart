@@ -165,7 +165,7 @@ function MovementsPageContent() {
     setItems(prev => prev.map((item, i) => {
       if (i === idx) {
         const selectedProd = selectedProduct;
-        const priceType = exportType === "WHOLESALE" ? "WHOLESALE" : "RETAIL";
+        const priceType = exportType === "WHOLESALE" ? "DEALER" : "RETAIL";
         const defaultPrice = selectedProd?.prices?.find((p: any) => p.type === priceType)?.amount || 0;
         return {
           ...item,

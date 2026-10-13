@@ -188,7 +188,7 @@ function NewInventoryOrderContent() {
   const handleItemProductChange = (index: number, pId: string) => {
     const selectedProd = productMap.get(pId);
     if (!selectedProd) return;
-    const priceType = type === "EXPORT_WHOLESALE" ? "WHOLESALE" : "RETAIL";
+    const priceType = type === "EXPORT_WHOLESALE" ? "DEALER" : "RETAIL";
     const defaultPrice = Number(selectedProd.prices?.find((p: any) => p.type === priceType)?.amount || 0);
 
     const updated = [...items];

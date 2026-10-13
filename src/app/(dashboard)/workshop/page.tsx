@@ -48,7 +48,7 @@ export default function WorkshopPage() {
     items: {
       productId: string;
       quantity: number | "";
-      priceType: "RETAIL" | "WHOLESALE" | "INSURANCE";
+      priceType: "RETAIL" | "DEALER" | "DISTRIBUTOR" | "TECHNICIAN" | "INSURANCE";
       customUnitPrice?: number | "";
       searchQuery: string;
       showDropdown: boolean;
@@ -1161,7 +1161,9 @@ export default function WorkshopPage() {
                             onChange={(val) => updateItem(idx, { priceType: val as any })}
                             options={[
                               { value: "RETAIL", label: "Giá lẻ" },
-                              { value: "WHOLESALE", label: "Giá sỉ" },
+                              { value: "DEALER", label: "Giá đại lý" },
+                              { value: "DISTRIBUTOR", label: "Giá phân phối" },
+                              { value: "TECHNICIAN", label: "Giá thợ" },
                               { value: "INSURANCE", label: "Giá bảo hiểm" },
                             ]}
                           />

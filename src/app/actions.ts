@@ -361,9 +361,12 @@ export async function createDirectExport(data: {
         data: { stockCount: newStock },
       });
 
-      // Find the price based on export type
+      // Find the price based on export type.
+      // "WHOLESALE" (bán buôn) now maps to the DEALER price type;
+      // the standalone WHOLESALE price no longer exists.
+      const priceType = exportType === "WHOLESALE" ? "DEALER" : exportType;
       const priceObj =
-        product.prices.find((p) => p.type === exportType) ||
+        product.prices.find((p) => p.type === priceType) ||
         product.prices.find((p) => p.type === "RETAIL");
       const unitPrice = priceObj ? Number(priceObj.amount) : 0;
 
@@ -639,7 +642,7 @@ export async function exportStockForRO(data: {
   repairOrderId: number;
   productId: number;
   quantity: number;
-  priceType: "RETAIL" | "WHOLESALE" | "INSURANCE";
+  priceType: "RETAIL" | "DEALER" | "DISTRIBUTOR" | "TECHNICIAN" | "INSURANCE";
 }) {
   const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
@@ -928,7 +931,7 @@ export async function createManualExport(data: {
   items: {
     productId: number;
     quantity: number;
-    priceType: "RETAIL" | "WHOLESALE" | "INSURANCE";
+    priceType: "RETAIL" | "DEALER" | "DISTRIBUTOR" | "TECHNICIAN" | "INSURANCE";
     customUnitPrice?: number;
   }[];
   exportType: "REPAIR" | "RETAIL";
@@ -1133,7 +1136,7 @@ export async function createPartsRequisition(data: {
   items: {
     productId: number;
     quantity: number;
-    priceType: "RETAIL" | "WHOLESALE" | "INSURANCE";
+    priceType: "RETAIL" | "DEALER" | "DISTRIBUTOR" | "TECHNICIAN" | "INSURANCE";
     customUnitPrice?: number;
   }[];
   reason?: string;
