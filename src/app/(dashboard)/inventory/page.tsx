@@ -7,6 +7,7 @@ import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
+import { findProductPrice } from "@/lib/product-pricing";
 
 
 import { useSearchParams } from "next/navigation";
@@ -114,7 +115,9 @@ function InventoryContent() {
     stockMin: number | "";
     stockMax: number | "";
     retailPrice: number | "";
-    wholesalePrice: number | "";
+    dealerPrice: number | "";
+    distributorPrice: number | "";
+    technicianPrice: number | "";
     insurancePrice: number | "";
     parentId: string;
     branchId: string;
@@ -128,7 +131,9 @@ function InventoryContent() {
     stockMin: "",
     stockMax: "",
     retailPrice: "",
-    wholesalePrice: "",
+    dealerPrice: "",
+    distributorPrice: "",
+    technicianPrice: "",
     insurancePrice: "",
     parentId: "",
     branchId: "",
@@ -245,7 +250,9 @@ function InventoryContent() {
       stockMin: 5,
       stockMax: 100,
       retailPrice: "",
-      wholesalePrice: "",
+      dealerPrice: "",
+      distributorPrice: "",
+      technicianPrice: "",
       insurancePrice: "",
       parentId: "",
       branchId: "",
@@ -259,8 +266,10 @@ function InventoryContent() {
     setIsCreatingVehicleModel(false);
     setNewVehicleModel("");
     const retail = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
-    const wholesale = p.prices?.find((pr: any) => pr.type === "WHOLESALE")?.amount || 0;
-    const insurance = p.prices?.find((pr: any) => pr.type === "INSURANCE")?.amount || 0;
+    const dealer = findProductPrice(p, "DEALER", false);
+    const distributor = findProductPrice(p, "DISTRIBUTOR", false);
+    const technician = findProductPrice(p, "TECHNICIAN", false);
+    const insurance = findProductPrice(p, "INSURANCE", false);
     setFormData({
       sku: p.sku,
       name: p.name,
@@ -271,8 +280,10 @@ function InventoryContent() {
       stockMin: p.stockMin,
       stockMax: p.stockMax,
       retailPrice: Number(retail),
-      wholesalePrice: Number(wholesale),
-      insurancePrice: Number(insurance),
+      dealerPrice: dealer ? Number(dealer.amount) : "",
+      distributorPrice: distributor ? Number(distributor.amount) : "",
+      technicianPrice: technician ? Number(technician.amount) : "",
+      insurancePrice: insurance ? Number(insurance.amount) : "",
       parentId: p.parentId?.toString() || "",
       branchId: p.branchId?.toString() || "",
     });
@@ -335,9 +346,11 @@ function InventoryContent() {
         parentId: formData.parentId ? parseInt(formData.parentId) : null,
         prices: [
           { type: "RETAIL", amount: Number(formData.retailPrice) },
-          { type: "WHOLESALE", amount: Number(formData.wholesalePrice) },
-          { type: "INSURANCE", amount: Number(formData.insurancePrice) },
-        ],
+          { type: "DEALER", amount: formData.dealerPrice },
+          { type: "DISTRIBUTOR", amount: formData.distributorPrice },
+          { type: "TECHNICIAN", amount: formData.technicianPrice },
+          { type: "INSURANCE", amount: formData.insurancePrice },
+        ].filter((price) => price.amount !== "").map((price) => ({ ...price, amount: Number(price.amount) })),
       };
 
       const res = await fetch(url, {
@@ -383,15 +396,19 @@ function InventoryContent() {
       "Tồn tối thiểu",
       "Tồn tối đa",
       "Giá Lẻ (VND)",
-      "Giá Sỉ (VND)",
+      "Giá Đại lý (VND)",
+      "Giá Phân phối (VND)",
+      "Giá Thợ (VND)",
       "Giá Bảo hiểm (VND)",
       "Trạng thái",
     ];
 
     const rows = products.map((p: any) => {
       const retail = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
-      const wholesale = p.prices?.find((pr: any) => pr.type === "WHOLESALE")?.amount || 0;
-      const insurance = p.prices?.find((pr: any) => pr.type === "INSURANCE")?.amount || 0;
+      const dealer = findProductPrice(p, "DEALER", false)?.amount ?? "";
+      const distributor = findProductPrice(p, "DISTRIBUTOR", false)?.amount ?? "";
+      const technician = findProductPrice(p, "TECHNICIAN", false)?.amount ?? "";
+      const insurance = findProductPrice(p, "INSURANCE", false)?.amount ?? "";
       return [
         p.sku,
         p.name,
@@ -402,8 +419,10 @@ function InventoryContent() {
         p.stockMin.toString(),
         p.stockMax.toString(),
         retail.toString(),
-        wholesale.toString(),
-        insurance.toString(),
+        String(dealer),
+        String(distributor),
+        String(technician),
+        String(insurance),
         statusText(p.status),
       ];
     });
@@ -616,7 +635,9 @@ function InventoryContent() {
                 <th>ĐVT</th>
                 <th>Tồn kho</th>
                 <th>Giá Lẻ</th>
-                <th>Giá Sỉ</th>
+                <th>Giá Đại lý</th>
+                <th>Giá PP</th>
+                <th>Giá Thợ</th>
                 <th>Giá BH</th>
                 <th>Trạng thái</th>
                 {(scope === "current" || user?.role === "ADMIN") && <th>Thao tác</th>}
@@ -625,7 +646,9 @@ function InventoryContent() {
             <tbody>
               {products.map((p: any) => {
                 const retail = p.prices?.find((pr: any) => pr.type === "RETAIL");
-                const wholesale = p.prices?.find((pr: any) => pr.type === "WHOLESALE");
+                const dealer = findProductPrice(p, "DEALER", false);
+                const distributor = p.prices?.find((pr: any) => pr.type === "DISTRIBUTOR");
+                const technician = p.prices?.find((pr: any) => pr.type === "TECHNICIAN");
                 const insurance = p.prices?.find((pr: any) => pr.type === "INSURANCE");
                 const isSlowMoving = checkSlowMoving(p) === "SLOW_MOVING";
                 return (
@@ -655,7 +678,9 @@ function InventoryContent() {
                     <td className="text-muted-foreground">{p.unit}{p.conversionUnit && <span className="text-xs block">1 {p.conversionUnit} = {p.conversionFactor} {p.unit}</span>}</td>
                     <td><span className={`font-semibold ${Number(p.stockCount) <= Number(p.stockMin) ? "text-destructive" : ""}`}>{formatNumber(p.stockCount)}</span></td>
                     <td>{retail ? formatCurrency(Number(retail.amount)) : "—"}</td>
-                    <td>{wholesale ? formatCurrency(Number(wholesale.amount)) : "—"}</td>
+                    <td>{dealer ? formatCurrency(Number(dealer.amount)) : "—"}</td>
+                    <td>{distributor ? formatCurrency(Number(distributor.amount)) : "—"}</td>
+                    <td>{technician ? formatCurrency(Number(technician.amount)) : "—"}</td>
                     <td>{insurance ? formatCurrency(Number(insurance.amount)) : "—"}</td>
                     <td><span className={`badge ${statusBadge(p.status)}`}>{statusText(p.status)}</span></td>
                     {(scope === "current" || user?.role === "ADMIN") && (
@@ -905,7 +930,7 @@ function InventoryContent() {
 
                 {/* Price Controls */}
                 <div className="pt-2 border-t border-border/40">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá bán lẻ (đ)</label>
                       <NumericInput
@@ -916,24 +941,39 @@ function InventoryContent() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá bán sỉ (đ)</label>
+                      <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá đại lý (đ)</label>
                       <NumericInput
-                        required
-                        value={formData.wholesalePrice}
-                        onChange={(val: any) => setFormData({ ...formData, wholesalePrice: val })}
+                        value={formData.dealerPrice}
+                        onChange={(val: any) => setFormData({ ...formData, dealerPrice: val })}
+                        className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá phân phối (đ)</label>
+                      <NumericInput
+                        value={formData.distributorPrice}
+                        onChange={(val: any) => setFormData({ ...formData, distributorPrice: val })}
+                        className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá thợ (đ)</label>
+                      <NumericInput
+                        value={formData.technicianPrice}
+                        onChange={(val: any) => setFormData({ ...formData, technicianPrice: val })}
                         className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       />
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá bảo hiểm (đ)</label>
                       <NumericInput
-                        required
                         value={formData.insurancePrice}
                         onChange={(val: any) => setFormData({ ...formData, insurancePrice: val })}
                         className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       />
                     </div>
                   </div>
+                  <p className="mt-3 text-xs text-muted-foreground">Chưa cấu hình loại giá riêng thì dùng giá bán lẻ. Để trống khi sửa sẽ giữ giá hiện có; nhập 0 nếu muốn áp dụng giá 0 đ.</p>
                 </div>
 
                 {/* Modal Footer */}

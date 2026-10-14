@@ -82,7 +82,10 @@ async function main() {
       prices: {
         create: [
           { type: "RETAIL", amount: 180000 },
-          { type: "WHOLESALE", amount: 155000 },
+          { type: "DEALER", amount: 155000 },
+          { type: "DISTRIBUTOR", amount: 140000 },
+          { type: "TECHNICIAN", amount: 145000 },
+          { type: "INSURANCE", amount: 170000 },
         ],
       },
       productBranches: {

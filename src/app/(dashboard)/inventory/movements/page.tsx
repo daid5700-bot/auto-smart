@@ -1,4 +1,5 @@
 "use client";
+import { findProductPrice } from "@/lib/product-pricing";
 
 import { Suspense, useEffect, useState, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -165,8 +166,9 @@ function MovementsPageContent() {
     setItems(prev => prev.map((item, i) => {
       if (i === idx) {
         const selectedProd = selectedProduct;
-        const priceType = exportType === "WHOLESALE" ? "WHOLESALE" : "RETAIL";
-        const defaultPrice = selectedProd?.prices?.find((p: any) => p.type === priceType)?.amount || 0;
+        const priceType = exportType === "WHOLESALE" ? "DEALER" : "RETAIL";
+        const selectedPrice = selectedProd ? findProductPrice(selectedProd, priceType) : undefined;
+        const defaultPrice = selectedPrice ? Number(selectedPrice.amount) : "";
         return {
           ...item,
           productId,
@@ -275,6 +277,15 @@ function MovementsPageContent() {
       await modal.alert({
         title: "Thiếu thông tin",
         message: "Vui lòng thêm ít nhất 1 dòng!",
+        type: "warning",
+      });
+      return;
+    }
+
+    if (activeTab === "EXPORT" && items.some((item) => item.unitCost === "")) {
+      await modal.alert({
+        title: "Thiếu đơn giá",
+        message: "Vui lòng nhập đơn giá cho từng phụ tùng. Nhập 0 nếu xuất miễn phí.",
         type: "warning",
       });
       return;
