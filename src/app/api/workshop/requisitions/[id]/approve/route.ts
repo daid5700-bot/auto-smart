@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
 import { calculateSnapshotDiscount } from "@/lib/discounts";
 import { requireAuth } from "@/lib/guard";
+import { resolveRequisitionUnitPrice } from "@/lib/product-pricing";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAuth(req, ["ADMIN", "WAREHOUSE"]);
@@ -99,12 +100,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Use the price quoted on the repair order. Fall back to retail only
         // for old requisitions that do not have a pricing snapshot.
-        const retailPrice = Number(product.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
         const itemMeta = itemsMeta.find((meta) => Number(meta.productId) === product.id);
-        const quotedPrice = itemMeta?.unitPrice ?? itemMeta?.customUnitPrice;
-        const unitPrice = Number.isFinite(Number(quotedPrice)) && Number(quotedPrice) >= 0
-          ? Math.round(Number(quotedPrice))
-          : retailPrice;
+        const unitPrice = resolveRequisitionUnitPrice(product, itemMeta);
         const totalPrice = unitPrice * itemQty;
 
         // Nếu là đơn sửa chữa thì ghi nhận vào hóa đơn
@@ -120,12 +117,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
           if (existingOrderItem) {
             const newQty = Number(existingOrderItem.quantity) + itemQty;
+            const newTotalPrice = Number(existingOrderItem.totalPrice) + totalPrice;
             await tx.orderItem.update({
               where: { id: existingOrderItem.id },
               data: {
                 quantity: newQty,
-                unitPrice: unitPrice,
-                totalPrice: unitPrice * newQty,
+                // One row per product: keep previous charges and show a weighted
+                // price when a later requisition uses a different price tier.
+                unitPrice: newTotalPrice / newQty,
+                totalPrice: newTotalPrice,
               }
             });
           } else {

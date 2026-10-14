@@ -10,6 +10,8 @@ import {
 } from "@/lib/customer-branch";
 import { getBranchConfigValue } from "@/lib/branch-config";
 import { isVinFastBranchId } from "@/lib/branch-identity";
+import { normalizePartPriceType, resolvePartUnitPrice, type CompatiblePartPriceType } from "@/lib/product-pricing";
+import { requisitionPricingItemsSchema } from "@/lib/validation/inventory";
 
 async function getCurrentUserName(): Promise<string> {
   try {
@@ -361,14 +363,8 @@ export async function createDirectExport(data: {
         data: { stockCount: newStock },
       });
 
-      // Find the price based on export type.
-      // "WHOLESALE" (bán buôn) now maps to the DEALER price type;
-      // the standalone WHOLESALE price no longer exists.
-      const priceType = exportType === "WHOLESALE" ? "DEALER" : exportType;
-      const priceObj =
-        product.prices.find((p) => p.type === priceType) ||
-        product.prices.find((p) => p.type === "RETAIL");
-      const unitPrice = priceObj ? Number(priceObj.amount) : 0;
+      // Legacy WHOLESALE requests resolve to the dealer price.
+      const unitPrice = resolvePartUnitPrice(product, exportType);
 
       const exportTypeLabel = exportType === "RETAIL" ? "Bán lẻ" : "Bán buôn";
       const finalReason = item.note
@@ -642,7 +638,7 @@ export async function exportStockForRO(data: {
   repairOrderId: number;
   productId: number;
   quantity: number;
-  priceType: "RETAIL" | "DEALER" | "DISTRIBUTOR" | "TECHNICIAN" | "INSURANCE";
+  priceType: CompatiblePartPriceType;
 }) {
   const cookieStore = await cookies();
   const userRole = await verifyRole(cookieStore.get("user_role")?.value);
@@ -666,11 +662,7 @@ export async function exportStockForRO(data: {
     throw new Error("Lệnh sửa chữa không thuộc chi nhánh hiện tại");
   }
 
-  const selectedPrice = product.prices.find((p) => p.type === data.priceType);
-  if (!selectedPrice)
-    throw new Error(`Không tìm thấy bảng giá ${data.priceType}`);
-
-  const unitPrice = Number(selectedPrice.amount);
+  const unitPrice = resolvePartUnitPrice(product, data.priceType);
   const totalPrice = unitPrice * data.quantity;
 
   const item = await prisma.$transaction(async (tx) => {
@@ -931,7 +923,7 @@ export async function createManualExport(data: {
   items: {
     productId: number;
     quantity: number;
-    priceType: "RETAIL" | "DEALER" | "DISTRIBUTOR" | "TECHNICIAN" | "INSURANCE";
+    priceType: CompatiblePartPriceType;
     customUnitPrice?: number;
   }[];
   exportType: "REPAIR" | "RETAIL";
@@ -1009,22 +1001,7 @@ export async function createManualExport(data: {
         }
 
         // Determine selling price
-        let unitPrice = 0;
-        if (
-          item.customUnitPrice !== undefined &&
-          item.customUnitPrice !== null
-        ) {
-          unitPrice = item.customUnitPrice;
-        } else {
-          const selectedPrice = product.prices.find(
-            (p) => p.type === item.priceType,
-          );
-          if (!selectedPrice)
-            throw new Error(
-              `Không tìm thấy bảng giá ${item.priceType} cho sản phẩm ${product.name}`,
-            );
-          unitPrice = Number(selectedPrice.amount);
-        }
+        const unitPrice = resolvePartUnitPrice(product, item.priceType, item.customUnitPrice);
 
         const totalPrice = unitPrice * item.quantity;
 
@@ -1136,7 +1113,7 @@ export async function createPartsRequisition(data: {
   items: {
     productId: number;
     quantity: number;
-    priceType: "RETAIL" | "DEALER" | "DISTRIBUTOR" | "TECHNICIAN" | "INSURANCE";
+    priceType: CompatiblePartPriceType;
     customUnitPrice?: number;
   }[];
   reason?: string;
@@ -1170,11 +1147,27 @@ export async function createPartsRequisition(data: {
 
   // 2. Transaction to process everything atomically
   const result = await prisma.$transaction(async (tx) => {
-    const itemsMeta = data.items.map((i) => ({
-      productId: i.productId,
-      priceType: i.priceType,
-      customUnitPrice: i.customUnitPrice,
-    }));
+    const items = requisitionPricingItemsSchema.parse(data.items);
+    const products = await tx.product.findMany({
+      where: {
+        id: { in: items.map((item) => item.productId) },
+        isDeleted: false,
+        status: "ACTIVE",
+        productBranches: { some: { branchId: activeBranchId } },
+      },
+      include: { prices: true },
+    });
+    const productMap = new Map(products.map((product) => [product.id, product]));
+    const itemsMeta = items.map((item) => {
+      const product = productMap.get(item.productId);
+      if (!product) throw new Error(`Phụ tùng #${item.productId} không tồn tại hoặc không thuộc chi nhánh hiện tại`);
+      return {
+        productId: item.productId,
+        priceType: normalizePartPriceType(item.priceType),
+        customUnitPrice: item.customUnitPrice,
+        unitPrice: resolvePartUnitPrice(product, item.priceType, item.customUnitPrice),
+      };
+    });
 
     // A. Create the PartsRequisition record
     const requisition = await tx.partsRequisition.create({
@@ -1197,11 +1190,8 @@ export async function createPartsRequisition(data: {
     const orderItemsCreated: any[] = [];
 
     // B. Process each item
-    for (const item of data.items) {
-      const product = await tx.product.findUnique({
-        where: { id: item.productId },
-        include: { prices: true },
-      });
+    for (const item of items) {
+      const product = productMap.get(item.productId);
 
       if (!product) {
         throw new Error(`Sản phẩm với ID ${item.productId} không tồn tại`);

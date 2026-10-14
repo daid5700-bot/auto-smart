@@ -1,4 +1,48 @@
 import { z } from "zod";
+import { PART_PRICE_TYPES } from "@/lib/product-pricing";
+
+const productPricesSchema = z.array(z.object({
+  type: z.enum([...PART_PRICE_TYPES, "WHOLESALE"]),
+  amount: z.union([z.number(), z.string().trim().min(1)])
+    .pipe(z.coerce.number().finite().min(0).max(10_000_000_000)),
+}).strict()).max(6).superRefine((prices, context) => {
+  const seen = new Set<string>();
+  prices.forEach((price, index) => {
+    if (seen.has(price.type)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: [index, "type"], message: "Loại giá bị trùng" });
+    }
+    seen.add(price.type);
+  });
+});
+
+export function parseProductPrices(value: unknown) {
+  if (value === undefined) return undefined;
+  const prices = productPricesSchema.parse(value);
+  const dealer = prices.find((price) => price.type === "DEALER")
+    ?? prices.find((price) => price.type === "WHOLESALE");
+  const currentPrices = prices.filter((price) => price.type !== "WHOLESALE" && price.type !== "DEALER");
+  // Keep the old key in sync while older clients/rollback releases still use it.
+  if (dealer) currentPrices.push(
+    { type: "DEALER", amount: dealer.amount },
+    { type: "WHOLESALE", amount: dealer.amount },
+  );
+  return currentPrices;
+}
+
+export const requisitionPricingItemsSchema = z.array(z.object({
+  productId: z.number().int().positive(),
+  quantity: z.number().finite().positive().max(1_000_000),
+  priceType: z.enum([...PART_PRICE_TYPES, "WHOLESALE"]),
+  customUnitPrice: z.number().finite().min(0).max(10_000_000_000).optional(),
+})).min(1).max(500).superRefine((items, context) => {
+  const seen = new Set<number>();
+  items.forEach((item, index) => {
+    if (seen.has(item.productId)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: [index, "productId"], message: "Mỗi phụ tùng chỉ được xuất hiện một lần trong yêu cầu" });
+    }
+    seen.add(item.productId);
+  });
+});
 
 export const cancelInventoryOrderSchema = z.object({
   reason: z.string().trim().min(1, "Vui lòng nhập lý do hủy phiếu").max(500),
@@ -18,7 +62,8 @@ export const createInventoryOrderSchema = z.object({
   items: z.array(z.object({
     productId: z.coerce.number().int().positive(),
     quantity: z.coerce.number().finite().positive().max(1_000_000),
-    unitPrice: z.coerce.number().finite().min(0).max(10_000_000_000),
+    unitPrice: z.union([z.number(), z.string().trim().min(1, "Vui lòng nhập đơn giá")])
+      .pipe(z.coerce.number().finite().min(0).max(10_000_000_000)),
   }).strict()).min(1).max(500),
 }).strict().superRefine((value, context) => {
   if (value.type !== "INTERNAL" && !value.customerId && (!value.phone || !value.customerName)) {

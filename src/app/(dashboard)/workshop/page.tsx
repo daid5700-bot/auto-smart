@@ -15,6 +15,7 @@ import {
 } from "@/components/discounts/DiscountPicker";
 import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
 import { printHtmlElement } from "@/lib/print";
+import { findProductPrice } from "@/lib/product-pricing";
 
 
 const RO_COLS = [
@@ -128,8 +129,8 @@ export default function WorkshopPage() {
       if (targetProductId) {
         const prod = branchProducts.find((p) => p.id.toString() === targetProductId);
         if (prod) {
-          const price = prod.prices.find((p: any) => p.type === targetPriceType)?.amount || 0;
-          newItems[idx].customUnitPrice = Number(price);
+          const price = findProductPrice(prod, targetPriceType);
+          newItems[idx].customUnitPrice = price ? Number(price.amount) : "";
         }
       }
     }
@@ -168,7 +169,9 @@ export default function WorkshopPage() {
       if (!item.productId) return sum;
       const prod = branchProducts.find((p) => p.id.toString() === item.productId);
       if (!prod) return sum;
-      const unitPrice = item.customUnitPrice ?? Number(prod.prices.find((p: any) => p.type === item.priceType)?.amount || 0);
+      const unitPrice = item.customUnitPrice === "" || item.customUnitPrice === undefined
+        ? Number(findProductPrice(prod, item.priceType)?.amount ?? 0)
+        : item.customUnitPrice;
       return sum + ((Number(unitPrice) || 0) * (Number(item.quantity) || 0));
     }, 0);
   };
@@ -202,7 +205,9 @@ export default function WorkshopPage() {
           productId: parseInt(i.productId),
           quantity: Number(i.quantity) || 0,
           priceType: i.priceType,
-          customUnitPrice: Number(i.customUnitPrice) || 0
+          customUnitPrice: i.customUnitPrice === "" || i.customUnitPrice === undefined
+            ? undefined
+            : Number(i.customUnitPrice)
         }))
       };
 
@@ -1102,7 +1107,7 @@ export default function WorkshopPage() {
                             {item.showDropdown && (
                               <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
                                 {getFilteredProducts(item.searchQuery).map((p) => {
-                                  const matchingPrice = p.prices.find((pr: any) => pr.type === item.priceType)?.amount || 0;
+                                  const matchingPrice = findProductPrice(p, item.priceType)?.amount;
                                   return (
                                     <div
                                       key={p.id}
@@ -1111,7 +1116,7 @@ export default function WorkshopPage() {
                                           productId: p.id.toString(),
                                           searchQuery: p.name,
                                           showDropdown: false,
-                                          customUnitPrice: Number(matchingPrice)
+                                          customUnitPrice: matchingPrice === undefined ? "" : Number(matchingPrice)
                                         });
                                       }}
                                       className="px-4 py-2 hover:bg-secondary/40 cursor-pointer text-xs border-b border-border/40 last:border-b-0 flex justify-between items-center"
@@ -1121,7 +1126,7 @@ export default function WorkshopPage() {
                                         <p className="text-[10px] text-muted-foreground">Đơn vị: {p.unit} | Danh mục: {p.category}</p>
                                       </div>
                                       <div className="text-right">
-                                        <p className="font-bold">{formatCurrency(Number(matchingPrice))}</p>
+                                        <p className="font-bold">{matchingPrice === undefined ? "Chưa có giá" : formatCurrency(Number(matchingPrice))}</p>
                                         <p className={`text-[10px] ${p.stockCount > 0 ? "text-emerald-500 font-semibold" : "text-rose-500 font-semibold"}`}>Tồn: {p.stockCount}</p>
                                       </div>
                                     </div>

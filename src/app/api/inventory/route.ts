@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
-import { parseOptionalVehicleModels } from "@/lib/validation/inventory";
+import { parseOptionalVehicleModels, parseProductPrices } from "@/lib/validation/inventory";
 import { requireAuth } from "@/lib/guard";
 
 
@@ -329,6 +329,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+    const prices = parseProductPrices(body.prices);
     const vehicleModels = parseOptionalVehicleModels(
       Object.prototype.hasOwnProperty.call(body, "vehicleModels")
         ? body.vehicleModels
@@ -395,7 +396,7 @@ export async function POST(req: NextRequest) {
           }]
         },
         prices: {
-          create: body.prices || [],
+          create: prices || [],
         },
       },
       include: { prices: true, productBranches: true },

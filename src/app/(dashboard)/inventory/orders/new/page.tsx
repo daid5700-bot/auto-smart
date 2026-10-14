@@ -1,4 +1,5 @@
 "use client";
+import { findProductPrice } from "@/lib/product-pricing";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
@@ -189,7 +190,8 @@ function NewInventoryOrderContent() {
     const selectedProd = productMap.get(pId);
     if (!selectedProd) return;
     const priceType = type === "EXPORT_WHOLESALE" ? "DEALER" : "RETAIL";
-    const defaultPrice = Number(selectedProd.prices?.find((p: any) => p.type === priceType)?.amount || 0);
+    const selectedPrice = findProductPrice(selectedProd, priceType);
+    const defaultPrice = selectedPrice ? Number(selectedPrice.amount) : "";
 
     const updated = [...items];
     updated[index].productId = pId;
@@ -220,6 +222,10 @@ function NewInventoryOrderContent() {
     e.preventDefault();
     if (items.length === 0) {
       setErrorMsg("Vui lòng chọn ít nhất 1 phụ tùng.");
+      return;
+    }
+    if (items.some((item) => item.unitPrice === "")) {
+      setErrorMsg("Vui lòng nhập đơn giá cho từng phụ tùng. Nhập 0 nếu xuất miễn phí.");
       return;
     }
 

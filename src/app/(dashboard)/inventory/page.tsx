@@ -7,6 +7,7 @@ import { useModal } from "@/components/ModalProvider";
 import { ModalPortal } from "@/components/modal-portal";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CheckboxMultiSelect } from "@/components/CheckboxMultiSelect";
+import { findProductPrice } from "@/lib/product-pricing";
 
 
 import { useSearchParams } from "next/navigation";
@@ -265,10 +266,10 @@ function InventoryContent() {
     setIsCreatingVehicleModel(false);
     setNewVehicleModel("");
     const retail = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
-    const dealer = p.prices?.find((pr: any) => pr.type === "DEALER")?.amount || 0;
-    const distributor = p.prices?.find((pr: any) => pr.type === "DISTRIBUTOR")?.amount || 0;
-    const technician = p.prices?.find((pr: any) => pr.type === "TECHNICIAN")?.amount || 0;
-    const insurance = p.prices?.find((pr: any) => pr.type === "INSURANCE")?.amount || 0;
+    const dealer = findProductPrice(p, "DEALER", false);
+    const distributor = findProductPrice(p, "DISTRIBUTOR", false);
+    const technician = findProductPrice(p, "TECHNICIAN", false);
+    const insurance = findProductPrice(p, "INSURANCE", false);
     setFormData({
       sku: p.sku,
       name: p.name,
@@ -279,10 +280,10 @@ function InventoryContent() {
       stockMin: p.stockMin,
       stockMax: p.stockMax,
       retailPrice: Number(retail),
-      dealerPrice: Number(dealer),
-      distributorPrice: Number(distributor),
-      technicianPrice: Number(technician),
-      insurancePrice: Number(insurance),
+      dealerPrice: dealer ? Number(dealer.amount) : "",
+      distributorPrice: distributor ? Number(distributor.amount) : "",
+      technicianPrice: technician ? Number(technician.amount) : "",
+      insurancePrice: insurance ? Number(insurance.amount) : "",
       parentId: p.parentId?.toString() || "",
       branchId: p.branchId?.toString() || "",
     });
@@ -345,11 +346,11 @@ function InventoryContent() {
         parentId: formData.parentId ? parseInt(formData.parentId) : null,
         prices: [
           { type: "RETAIL", amount: Number(formData.retailPrice) },
-          { type: "DEALER", amount: Number(formData.dealerPrice) },
-          { type: "DISTRIBUTOR", amount: Number(formData.distributorPrice) },
-          { type: "TECHNICIAN", amount: Number(formData.technicianPrice) },
-          { type: "INSURANCE", amount: Number(formData.insurancePrice) },
-        ],
+          { type: "DEALER", amount: formData.dealerPrice },
+          { type: "DISTRIBUTOR", amount: formData.distributorPrice },
+          { type: "TECHNICIAN", amount: formData.technicianPrice },
+          { type: "INSURANCE", amount: formData.insurancePrice },
+        ].filter((price) => price.amount !== "").map((price) => ({ ...price, amount: Number(price.amount) })),
       };
 
       const res = await fetch(url, {
@@ -404,10 +405,10 @@ function InventoryContent() {
 
     const rows = products.map((p: any) => {
       const retail = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
-      const dealer = p.prices?.find((pr: any) => pr.type === "DEALER")?.amount || 0;
-      const distributor = p.prices?.find((pr: any) => pr.type === "DISTRIBUTOR")?.amount || 0;
-      const technician = p.prices?.find((pr: any) => pr.type === "TECHNICIAN")?.amount || 0;
-      const insurance = p.prices?.find((pr: any) => pr.type === "INSURANCE")?.amount || 0;
+      const dealer = findProductPrice(p, "DEALER", false)?.amount ?? "";
+      const distributor = findProductPrice(p, "DISTRIBUTOR", false)?.amount ?? "";
+      const technician = findProductPrice(p, "TECHNICIAN", false)?.amount ?? "";
+      const insurance = findProductPrice(p, "INSURANCE", false)?.amount ?? "";
       return [
         p.sku,
         p.name,
@@ -418,10 +419,10 @@ function InventoryContent() {
         p.stockMin.toString(),
         p.stockMax.toString(),
         retail.toString(),
-        dealer.toString(),
-        distributor.toString(),
-        technician.toString(),
-        insurance.toString(),
+        String(dealer),
+        String(distributor),
+        String(technician),
+        String(insurance),
         statusText(p.status),
       ];
     });
@@ -645,7 +646,7 @@ function InventoryContent() {
             <tbody>
               {products.map((p: any) => {
                 const retail = p.prices?.find((pr: any) => pr.type === "RETAIL");
-                const dealer = p.prices?.find((pr: any) => pr.type === "DEALER");
+                const dealer = findProductPrice(p, "DEALER", false);
                 const distributor = p.prices?.find((pr: any) => pr.type === "DISTRIBUTOR");
                 const technician = p.prices?.find((pr: any) => pr.type === "TECHNICIAN");
                 const insurance = p.prices?.find((pr: any) => pr.type === "INSURANCE");
@@ -942,7 +943,6 @@ function InventoryContent() {
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá đại lý (đ)</label>
                       <NumericInput
-                        required
                         value={formData.dealerPrice}
                         onChange={(val: any) => setFormData({ ...formData, dealerPrice: val })}
                         className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
@@ -951,7 +951,6 @@ function InventoryContent() {
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá phân phối (đ)</label>
                       <NumericInput
-                        required
                         value={formData.distributorPrice}
                         onChange={(val: any) => setFormData({ ...formData, distributorPrice: val })}
                         className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
@@ -960,7 +959,6 @@ function InventoryContent() {
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá thợ (đ)</label>
                       <NumericInput
-                        required
                         value={formData.technicianPrice}
                         onChange={(val: any) => setFormData({ ...formData, technicianPrice: val })}
                         className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
@@ -969,13 +967,13 @@ function InventoryContent() {
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1 uppercase tracking-wider">Giá bảo hiểm (đ)</label>
                       <NumericInput
-                        required
                         value={formData.insurancePrice}
                         onChange={(val: any) => setFormData({ ...formData, insurancePrice: val })}
                         className="w-full px-3.5 py-2.5 bg-secondary/20 border border-border rounded-xl text-xs font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       />
                     </div>
                   </div>
+                  <p className="mt-3 text-xs text-muted-foreground">Chưa cấu hình loại giá riêng thì dùng giá bán lẻ. Để trống khi sửa sẽ giữ giá hiện có; nhập 0 nếu muốn áp dụng giá 0 đ.</p>
                 </div>
 
                 {/* Modal Footer */}

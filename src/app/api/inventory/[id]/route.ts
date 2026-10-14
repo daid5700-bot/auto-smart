@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
-import { parseOptionalVehicleModels } from "@/lib/validation/inventory";
+import { parseOptionalVehicleModels, parseProductPrices } from "@/lib/validation/inventory";
 import { requireAuth } from "@/lib/guard";
 
 // PATCH /api/inventory/[id] — update product details & prices
@@ -12,6 +12,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const id = parseInt((await params).id);
     const body = await req.json();
+    const prices = parseProductPrices(body.prices);
     const branchId = await getActiveBranchId();
     const hasVehicleModels =
       Object.prototype.hasOwnProperty.call(body, "vehicleModels") ||
@@ -67,57 +68,58 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    // Update product 
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
-        sku: body.sku,
-        name: body.name,
-        ...(vehicleModels
-          ? {
-              vehicleModel: vehicleModels.length > 0 ? vehicleModels.join(", ") : null,
-              vehicleModels,
-            }
-          : {}),
-        category: body.category,
-        unit: body.unit,
-        conversionUnit: body.conversionUnit,
-        conversionFactor: body.conversionFactor,
-        parentId: body.parentId ? parseInt(body.parentId) : null,
-      },
-    });
-
-    // Update product branch
-    const targetBranchId = branchId;
-    if (targetBranchId && (body.stockCount !== undefined || body.stockMin !== undefined || body.stockMax !== undefined)) {
-      await prisma.productBranch.upsert({
-        where: { productId_branchId: { productId: id, branchId: targetBranchId } },
-        update: {
-          ...(body.stockCount !== undefined ? { stockCount: body.stockCount } : {}),
-          ...(body.stockMin !== undefined ? { stockMin: body.stockMin } : {}),
-          ...(body.stockMax !== undefined ? { stockMax: body.stockMax } : {}),
+    // Product details, branch stock and both price keys must commit together.
+    const product = await prisma.$transaction(async (tx) => {
+      const updatedProduct = await tx.product.update({
+        where: { id },
+        data: {
+          sku: body.sku,
+          name: body.name,
+          ...(vehicleModels
+            ? {
+                vehicleModel: vehicleModels.length > 0 ? vehicleModels.join(", ") : null,
+                vehicleModels,
+              }
+            : {}),
+          category: body.category,
+          unit: body.unit,
+          conversionUnit: body.conversionUnit,
+          conversionFactor: body.conversionFactor,
+          parentId: body.parentId ? parseInt(body.parentId) : null,
         },
-        create: {
-          productId: id,
-          branchId: targetBranchId,
-          stockCount: body.stockCount || 0,
-          stockMin: body.stockMin || 0,
-          stockMax: body.stockMax || 100,
-        }
-      })
-    }
+      });
 
-    if (body.prices && Array.isArray(body.prices)) {
-      for (const p of body.prices) {
-        await prisma.price.upsert({
-          where: {
-            productId_type: { productId: id, type: p.type },
+      const targetBranchId = branchId;
+      if (targetBranchId && (body.stockCount !== undefined || body.stockMin !== undefined || body.stockMax !== undefined)) {
+        await tx.productBranch.upsert({
+          where: { productId_branchId: { productId: id, branchId: targetBranchId } },
+          update: {
+            ...(body.stockCount !== undefined ? { stockCount: body.stockCount } : {}),
+            ...(body.stockMin !== undefined ? { stockMin: body.stockMin } : {}),
+            ...(body.stockMax !== undefined ? { stockMax: body.stockMax } : {}),
           },
-          update: { amount: p.amount },
-          create: { productId: id, type: p.type, amount: p.amount },
+          create: {
+            productId: id,
+            branchId: targetBranchId,
+            stockCount: body.stockCount || 0,
+            stockMin: body.stockMin || 0,
+            stockMax: body.stockMax || 100,
+          },
         });
       }
-    }
+
+      if (prices) {
+        for (const price of prices) {
+          await tx.price.upsert({
+            where: { productId_type: { productId: id, type: price.type } },
+            update: { amount: price.amount },
+            create: { productId: id, type: price.type, amount: price.amount },
+          });
+        }
+      }
+
+      return updatedProduct;
+    });
 
     return NextResponse.json(product);
   } catch (error: any) {

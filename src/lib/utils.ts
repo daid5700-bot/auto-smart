@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { findProductPrice } from "@/lib/product-pricing";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -80,7 +81,7 @@ export function statusBadge(s: string) { return STATUS_MAP[s]?.badge ?? "badge-p
 export function getPriceForCustomer(product: any, customerType: string) {
   const prices = product.prices || [];
   if (customerType === "Đại lý") {
-    const dealer = prices.find((p: any) => p.type === "DEALER");
+    const dealer = findProductPrice(product, "DEALER");
     if (dealer) return Number(dealer.amount);
   }
   const retail = prices.find((p: any) => p.type === "RETAIL");

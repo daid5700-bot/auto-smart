@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "db:generate": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
     "db:studio": "prisma studio",
@@ -15,6 +16,8 @@
     "test:ui": "npx tsx scripts/tests/ui/run_ui_tests.ts",
     "test:api": "npx tsx scripts/tests/api/test_workshop_api.ts",
     "test:inventory-cancellation": "tsx --test scripts/tests/api/test_inventory_cancellation.ts",
+    "test:parts-pricing": "tsx --test scripts/tests/api/test_parts_pricing.ts",
+    "test:parts-pricing:http": "tsx scripts/tests/api/test_parts_pricing_http.ts",
     "test:integration": "npx tsx scripts/tests/system_integration_test.ts"
   },
   "dependencies": {
