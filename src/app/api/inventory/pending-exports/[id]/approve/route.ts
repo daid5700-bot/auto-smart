@@ -89,15 +89,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const quantity = Number(item.quantity);
 
         const pb = pbMap.get(productId);
-        const retailPrice = Number(pb?.product?.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
+        // Ưu tiên đơn giá đã chốt trên hồ sơ xe (item.price) để khớp với
+        // InventoryOrder.totalAmount; chỉ tra lại giá lẻ khi dòng cũ không có
+        // giá hoặc giá không phải số hợp lệ (tránh ghi nhầm thành 0).
+        const rawItemPrice = item?.price;
+        const parsedItemPrice = Number(rawItemPrice);
+        const hasItemPrice =
+          rawItemPrice !== undefined &&
+          rawItemPrice !== null &&
+          rawItemPrice !== "" &&
+          Number.isFinite(parsedItemPrice);
+        const unitCost = hasItemPrice
+          ? parsedItemPrice
+          : Number(pb?.product?.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
 
         await tx.stockMovement.create({
           data: {
             productId,
             type: "EXPORT",
             quantity,
-            unitCost: retailPrice,
-            totalCost: retailPrice * quantity,
+            unitCost: unitCost,
+            totalCost: unitCost * quantity,
             reason: `Duyệt lệnh xuất theo hồ sơ xe ${vehicle.vin}`,
             inventoryOrderId: orderId,
             vehicleId: vehicle.id,

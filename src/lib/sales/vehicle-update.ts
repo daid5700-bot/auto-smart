@@ -1,4 +1,5 @@
 import { Prisma, Vehicle } from "@prisma/client";
+import { resolveAccessoryPriceType } from "@/lib/product-pricing";
 
 type Tx = Prisma.TransactionClient;
 
@@ -168,6 +169,7 @@ export async function syncAccessoryExportOrder(options: {
         code: `PKX-${date}-${random}`,
         customerId: vehicle.customerId,
         type: "EXPORT_RETAIL",
+        priceType: resolveAccessoryPriceType(accessories),
         totalAmount: accessoriesCost,
         paidAmount: accessoriesCost,
         debtAmount: 0,
@@ -186,6 +188,7 @@ export async function syncAccessoryExportOrder(options: {
     where: { id: existing.id },
     data: {
       status: "PENDING",
+      priceType: resolveAccessoryPriceType(accessories),
       totalAmount: accessoriesCost,
       paidAmount: accessoriesCost,
       customerId: vehicle.customerId,

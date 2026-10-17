@@ -15,7 +15,11 @@ import {
 } from "@/components/discounts/DiscountPicker";
 import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
 import { printHtmlElement } from "@/lib/print";
-import { findProductPrice } from "@/lib/product-pricing";
+import {
+  findProductPrice,
+  PART_PRICE_TYPE_OPTIONS,
+  type PartPriceType,
+} from "@/lib/product-pricing";
 
 
 const RO_COLS = [
@@ -46,18 +50,22 @@ export default function WorkshopPage() {
   const [reqFormData, setReqFormData] = useState<{
     repairOrderId: string;
     reason: string;
+    // Loại giá dùng chung cho cả phiếu. Từng dòng có thể bị "ghim" giá riêng.
+    priceType: PartPriceType;
     items: {
       productId: string;
       quantity: number | "";
-      priceType: "RETAIL" | "DEALER" | "DISTRIBUTOR" | "TECHNICIAN" | "INSURANCE";
       customUnitPrice?: number | "";
+      // true khi nhân viên tự sửa đơn giá của riêng dòng này.
+      priceOverridden?: boolean;
       searchQuery: string;
       showDropdown: boolean;
     }[];
   }>({
     repairOrderId: "",
     reason: "",
-    items: [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }],
+    priceType: "RETAIL",
+    items: [{ productId: "", quantity: 1, searchQuery: "", showDropdown: false }],
   });
   const activeProductSearch =
     reqFormData.items.find((item) => item.showDropdown && !item.productId)?.searchQuery || "";
@@ -121,27 +129,39 @@ export default function WorkshopPage() {
   const updateItem = (idx: number, fields: Partial<typeof reqFormData.items[0]>) => {
     const newItems = [...reqFormData.items];
     newItems[idx] = { ...newItems[idx], ...fields };
-    
-    if (fields.priceType !== undefined || fields.productId !== undefined) {
-      const targetProductId = fields.productId ?? newItems[idx].productId;
-      const targetPriceType = fields.priceType ?? newItems[idx].priceType;
-      
+
+    // Chỉ tra lại giá khi đổi sản phẩm; giá gõ tay được giữ nguyên và đánh dấu.
+    if (fields.productId !== undefined) {
+      newItems[idx].priceOverridden = false;
+      const targetProductId = newItems[idx].productId;
       if (targetProductId) {
         const prod = branchProducts.find((p) => p.id.toString() === targetProductId);
-        if (prod) {
-          const price = findProductPrice(prod, targetPriceType);
-          newItems[idx].customUnitPrice = price ? Number(price.amount) : "";
-        }
+        const price = prod ? findProductPrice(prod, reqFormData.priceType) : undefined;
+        newItems[idx].customUnitPrice = price ? Number(price.amount) : "";
       }
     }
-    
+
     setReqFormData({ ...reqFormData, items: newItems });
+  };
+
+  /**
+   * Đổi loại giá chung cho cả phiếu: tra lại đơn giá cho mọi dòng đã chọn
+   * sản phẩm, trừ những dòng đã được sửa giá tay.
+   */
+  const setRequisitionPriceType = (priceType: PartPriceType) => {
+    const items = reqFormData.items.map((item): (typeof reqFormData.items)[number] => {
+      if (!item.productId || item.priceOverridden) return item;
+      const prod = branchProducts.find((p) => p.id.toString() === item.productId);
+      const price = prod ? findProductPrice(prod, priceType) : undefined;
+      return { ...item, customUnitPrice: price ? Number(price.amount) : "" };
+    });
+    setReqFormData({ ...reqFormData, priceType, items });
   };
 
   const addItemRow = () => {
     setReqFormData({
       ...reqFormData,
-      items: [...reqFormData.items, { productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }],
+      items: [...reqFormData.items, { productId: "", quantity: 1, searchQuery: "", showDropdown: false }],
     });
   };
 
@@ -149,7 +169,7 @@ export default function WorkshopPage() {
     const newItems = reqFormData.items.filter((_, i) => i !== idx);
     setReqFormData({
       ...reqFormData,
-      items: newItems.length > 0 ? newItems : [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }]
+      items: newItems.length > 0 ? newItems : [{ productId: "", quantity: 1, searchQuery: "", showDropdown: false }]
     });
   };
 
@@ -170,7 +190,7 @@ export default function WorkshopPage() {
       const prod = branchProducts.find((p) => p.id.toString() === item.productId);
       if (!prod) return sum;
       const unitPrice = item.customUnitPrice === "" || item.customUnitPrice === undefined
-        ? Number(findProductPrice(prod, item.priceType)?.amount ?? 0)
+        ? Number(findProductPrice(prod, reqFormData.priceType)?.amount ?? 0)
         : item.customUnitPrice;
       return sum + ((Number(unitPrice) || 0) * (Number(item.quantity) || 0));
     }, 0);
@@ -204,7 +224,7 @@ export default function WorkshopPage() {
         items: reqFormData.items.map((i) => ({
           productId: parseInt(i.productId),
           quantity: Number(i.quantity) || 0,
-          priceType: i.priceType,
+          priceType: reqFormData.priceType,
           customUnitPrice: i.customUnitPrice === "" || i.customUnitPrice === undefined
             ? undefined
             : Number(i.customUnitPrice)
@@ -455,7 +475,7 @@ export default function WorkshopPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h2 className="text-2xl font-bold">Xưởng dịch vụ</h2></div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => { setReqFormData({ repairOrderId: "", reason: "", items: [{ productId: "", quantity: 1, priceType: "RETAIL", searchQuery: "", showDropdown: false }] }); setReqModalOpen(true); }} className="bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
+          <button onClick={() => { setReqFormData({ repairOrderId: "", reason: "", priceType: "RETAIL", items: [{ productId: "", quantity: 1, searchQuery: "", showDropdown: false }] }); setReqModalOpen(true); }} className="bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit">
             <ClipboardList size={16} /> Xin phụ tùng
           </button>
           <button onClick={() => router.push("/workshop/new")} className="gradient-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:opacity-90 w-fit"><Plus size={16} />Tạo lệnh sửa chữa (RO)</button>
@@ -1060,15 +1080,28 @@ export default function WorkshopPage() {
               </div>
 
               <div className="border-t border-border/60 pt-4">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <h4 className="text-xs font-bold text-muted-foreground uppercase">Danh sách phụ tùng yêu cầu</h4>
-                  <button
-                    type="button"
-                    onClick={addItemRow}
-                    className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
-                  >
-                    <Plus size={14} /> Thêm dòng
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase whitespace-nowrap">Loại giá</label>
+                      <div className="w-40">
+                        <CustomSelect
+                          value={reqFormData.priceType}
+                          onChange={(val) => setRequisitionPriceType(val as PartPriceType)}
+                          options={PART_PRICE_TYPE_OPTIONS}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addItemRow}
+                      className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
+                    >
+                      <Plus size={14} /> Thêm dòng
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -1107,7 +1140,7 @@ export default function WorkshopPage() {
                             {item.showDropdown && (
                               <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
                                 {getFilteredProducts(item.searchQuery).map((p) => {
-                                  const matchingPrice = findProductPrice(p, item.priceType)?.amount;
+                                  const matchingPrice = findProductPrice(p, reqFormData.priceType)?.amount;
                                   return (
                                     <div
                                       key={p.id}
@@ -1159,27 +1192,12 @@ export default function WorkshopPage() {
                           />
                         </div>
 
-                        {/* Price Type Selector */}
-                        <div className="w-full md:w-36">
-                          <CustomSelect
-                            value={item.priceType}
-                            onChange={(val) => updateItem(idx, { priceType: val as any })}
-                            options={[
-                              { value: "RETAIL", label: "Giá lẻ" },
-                              { value: "DEALER", label: "Giá đại lý" },
-                              { value: "DISTRIBUTOR", label: "Giá phân phối" },
-                              { value: "TECHNICIAN", label: "Giá thợ" },
-                              { value: "INSURANCE", label: "Giá bảo hiểm" },
-                            ]}
-                          />
-                        </div>
-
                         {/* Custom Unit Price */}
                         <div className="w-full md:w-36">
                           <NumericInput
                             placeholder="Đơn giá"
                             value={item.customUnitPrice === undefined ? "" : item.customUnitPrice}
-                            onChange={(c) => updateItem(idx, { customUnitPrice: c === "" ? "" : parseInt(c, 10) })}
+                            onChange={(c) => updateItem(idx, { customUnitPrice: c === "" ? "" : parseInt(c, 10), priceOverridden: true })}
                             className="w-full px-3 py-2 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none text-right font-semibold text-primary"
                           />
                         </div>

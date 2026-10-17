@@ -8,6 +8,7 @@ import { getOrCreateCustomerForBranch } from "@/lib/customer-branch";
 import { handleApiError, parseJson } from "@/lib/api-response";
 import { createVehicleSchema } from "@/lib/validation/sales";
 import { parseItemArray } from "@/lib/sales/vehicle-update";
+import { resolveAccessoryPriceType } from "@/lib/product-pricing";
 import { Prisma } from "@prisma/client";
 import { parseAppDateRange } from "@/lib/date-range";
 
@@ -427,6 +428,7 @@ export async function POST(req: NextRequest) {
             code: orderCode,
             customerId: customerId,
             type: "EXPORT_RETAIL",
+            priceType: resolveAccessoryPriceType(accessories),
             totalAmount: accCost,
             paidAmount: accCost,
             debtAmount: 0,

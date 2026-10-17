@@ -15,11 +15,18 @@ import {
   type DiscountOption,
 } from "@/components/discounts/DiscountPicker";
 import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
+import {
+  findProductPrice,
+  PART_PRICE_TYPE_OPTIONS,
+  type PartPriceType,
+} from "@/lib/product-pricing";
 
 interface RequisitionItemInput {
   productId: string;
   quantity: number | "";
   unitPrice: number | "";
+  // true khi nhân viên tự sửa đơn giá của riêng dòng này.
+  priceOverridden?: boolean;
   product?: any;
 }
 
@@ -66,6 +73,8 @@ export default function NewRepairOrderPage() {
 
   // Requisition items state
   const [items, setItems] = useState<RequisitionItemInput[]>([]);
+  // Loại giá dùng chung cho cả lệnh — chỉ để gợi ý đơn giá, không lưu vào DB.
+  const [priceType, setPriceType] = useState<PartPriceType>("RETAIL");
 
   // Combobox search states
   const [openDropdownIdx, setOpenDropdownIdx] = useState<number | null>(null);
@@ -124,13 +133,13 @@ export default function NewRepairOrderPage() {
         );
 
         let existingItems = (existingRo.items || []).map((item: any) => ({
-          productId: String(item.productId), quantity: Number(item.quantity), unitPrice: Number(item.unitPrice), product: item.product,
+          productId: String(item.productId), quantity: Number(item.quantity), unitPrice: Number(item.unitPrice), priceOverridden: false, product: item.product,
         }));
         if (existingItems.length === 0 && existingRo.status === "WAITING_PARTS") {
           const reqResponse = await fetch("/api/workshop/requisitions").then((r) => r.json());
           const pendingReq = (reqResponse.requisitions || []).find((req: any) => req.repairOrderId === existingRo.id && req.status === "PENDING");
           existingItems = (pendingReq?.items || []).map((item: any) => ({
-            productId: String(item.productId), quantity: Number(item.quantity), unitPrice: Number(item.unitPrice ?? 0), product: item.product,
+            productId: String(item.productId), quantity: Number(item.quantity), unitPrice: Number(item.unitPrice ?? 0), priceOverridden: false, product: item.product,
           }));
         }
         setItems(existingItems);
@@ -264,13 +273,31 @@ export default function NewRepairOrderPage() {
   const handleItemProductChange = (index: number, pId: string) => {
     const selectedProd = productMap.get(pId);
     if (!selectedProd) return;
-    const retailPrice = Number(selectedProd.prices?.find((p: any) => p.type === "RETAIL")?.amount || 0);
+    const tierPrice = findProductPrice(selectedProd, priceType);
 
     const updated = [...items];
     updated[index].productId = pId;
-    updated[index].unitPrice = retailPrice;
+    updated[index].unitPrice = tierPrice ? Number(tierPrice.amount) : "";
+    updated[index].priceOverridden = false;
     updated[index].product = selectedProd;
     setItems(updated);
+  };
+
+  /**
+   * Đổi loại giá chung: tra lại đơn giá cho mọi dòng đã chọn sản phẩm,
+   * trừ những dòng đã được sửa giá tay.
+   */
+  const setOrderPriceType = (tier: PartPriceType) => {
+    setPriceType(tier);
+    setItems((current) =>
+      current.map((item) => {
+        if (!item.productId || item.priceOverridden) return item;
+        const prod = productMap.get(item.productId) || item.product;
+        if (!prod) return item;
+        const tierPrice = findProductPrice(prod, tier);
+        return { ...item, unitPrice: tierPrice ? Number(tierPrice.amount) : "" };
+      })
+    );
   };
 
   const handleItemQuantityChange = (index: number, val: number | "") => {
@@ -282,6 +309,8 @@ export default function NewRepairOrderPage() {
   const handleItemPriceChange = (index: number, val: number | "") => {
     const updated = [...items];
     updated[index].unitPrice = val === "" ? "" : Math.max(0, val);
+    // Đánh dấu dòng bị sửa giá tay để không bị ghi đè khi đổi loại giá chung.
+    updated[index].priceOverridden = true;
     setItems(updated);
   };
 
@@ -732,20 +761,40 @@ export default function NewRepairOrderPage() {
 
           {/* Requisition items list */}
           <div className="glass-card rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-border/40 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 pb-2">
               <h3 className="text-sm font-bold uppercase text-muted-foreground tracking-wider">
                 Yêu cầu phụ tùng cần xuất
               </h3>
-              {!editId && (
-                <button
-                  type="button"
-                  onClick={handleAddItem}
-                  className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                >
-                  <Plus size={13} /> Thêm phụ tùng
-                </button>
-              )}
+              <div className="flex flex-wrap items-center gap-3">
+                {!editId && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-semibold text-muted-foreground uppercase whitespace-nowrap">Loại giá</label>
+                    <div className="w-36">
+                      <CustomSelect
+                        value={priceType}
+                        onChange={(val) => setOrderPriceType(val as PartPriceType)}
+                        options={PART_PRICE_TYPE_OPTIONS}
+                        size="sm"
+                      />
+                    </div>
+                  </div>
+                )}
+                {!editId && (
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Plus size={13} /> Thêm phụ tùng
+                  </button>
+                )}
+              </div>
             </div>
+            {!editId && (
+              <p className="text-[11px] text-muted-foreground -mt-2">
+                Loại giá chỉ dùng để gợi ý đơn giá cho các dòng chưa sửa giá tay. Dòng đã sửa đơn giá sẽ giữ nguyên.
+              </p>
+            )}
             {editId && (
               <div className="bg-primary/10 border border-primary/20 p-3 rounded-xl text-[11px] text-primary/80 font-medium flex items-center gap-2">
                 <AlertCircle size={14} />
