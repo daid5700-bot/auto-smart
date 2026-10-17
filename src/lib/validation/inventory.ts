@@ -57,6 +57,7 @@ export const createInventoryOrderSchema = z.object({
   customerName: z.string().trim().min(1).max(120).optional(),
   address: z.string().trim().max(500).optional().nullable(),
   type: z.enum(["EXPORT_RETAIL", "EXPORT_WHOLESALE", "INTERNAL"]).default("EXPORT_RETAIL"),
+  priceType: z.enum([...PART_PRICE_TYPES, "WHOLESALE"]).optional(),
   reason: z.string().trim().max(2_000).optional().nullable(),
   paidAmount: z.coerce.number().finite().min(0).max(10_000_000_000).default(0),
   items: z.array(z.object({

@@ -1,5 +1,6 @@
 "use client";
 import { findProductPrice } from "@/lib/product-pricing";
+import type { PartPriceType } from "@/lib/product-pricing";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
@@ -36,6 +37,7 @@ function NewInventoryOrderContent() {
   const [editingLoading, setEditingLoading] = useState(editId > 0);
   
   const [type, setType] = useState("EXPORT_RETAIL");
+  const [priceType, setPriceType] = useState<PartPriceType>("RETAIL");
   const [reason, setReason] = useState("");
   const [paidAmount, setPaidAmount] = useState<number | "">("");
 
@@ -87,6 +89,7 @@ function NewInventoryOrderContent() {
         setCustomerId(data.customer?.id ? String(data.customer.id) : "");
         setOriginalCustomerId(data.customer?.id ? String(data.customer.id) : "");
         setType(data.type || "EXPORT_RETAIL");
+        setPriceType(data.priceType ?? "RETAIL");
         setReason(data.reason || "");
         setPaidAmount(Number(data.paidAmount || 0));
         setOriginalOrderDebt(Number(data.debtAmount || 0));
@@ -189,7 +192,6 @@ function NewInventoryOrderContent() {
   const handleItemProductChange = (index: number, pId: string) => {
     const selectedProd = productMap.get(pId);
     if (!selectedProd) return;
-    const priceType = type === "EXPORT_WHOLESALE" ? "DEALER" : "RETAIL";
     const selectedPrice = findProductPrice(selectedProd, priceType);
     const defaultPrice = selectedPrice ? Number(selectedPrice.amount) : "";
 
@@ -238,6 +240,7 @@ function NewInventoryOrderContent() {
         phone: phone.trim(),
         customerName: customerName.trim(),
         type,
+        priceType,
         reason,
         paidAmount: Number(paidAmount || 0),
         items: items.map((i) => ({
@@ -353,7 +356,7 @@ function NewInventoryOrderContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Loại đơn</label>
                 <CustomSelect
@@ -363,6 +366,22 @@ function NewInventoryOrderContent() {
                     { value: "EXPORT_RETAIL", label: "Bán Lẻ" },
                     { value: "EXPORT_WHOLESALE", label: "Bán Buôn" },
                     { value: "INTERNAL", label: "Xuất Nội Bộ" },
+                  ]}
+                  size="sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase">Áp giá theo</label>
+                <CustomSelect
+                  value={priceType}
+                  onChange={(val) => setPriceType(val as PartPriceType)}
+                  options={[
+                    { value: "RETAIL",      label: "Giá bán lẻ" },
+                    { value: "DEALER",      label: "Giá đại lý" },
+                    { value: "DISTRIBUTOR", label: "Giá phân phối" },
+                    { value: "TECHNICIAN",  label: "Giá thợ" },
+                    { value: "INSURANCE",   label: "Giá bảo hiểm" },
                   ]}
                   size="sm"
                 />

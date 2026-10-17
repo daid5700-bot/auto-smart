@@ -1,5 +1,6 @@
 "use client";
 import { findProductPrice } from "@/lib/product-pricing";
+import type { PartPriceType } from "@/lib/product-pricing";
 
 import { Suspense, useEffect, useState, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import { createManualImport, createDirectExport } from "@/app/actions";
 import { useModal } from "@/components/ModalProvider";
+import { CustomSelect } from "@/components/CustomSelect";
 
 
 type TabType = "IMPORT" | "EXPORT";
@@ -38,6 +40,7 @@ function MovementsPageContent() {
 
   const [activeTab, setActiveTab] = useState<TabType>("IMPORT");
   const [exportType, setExportType] = useState<"RETAIL" | "WHOLESALE">("RETAIL");
+  const [priceType, setPriceType] = useState<PartPriceType>("RETAIL");
   const [submitLoading, setSubmitLoading] = useState(false);
 
   // Customer states
@@ -113,6 +116,7 @@ function MovementsPageContent() {
 
         setActiveTab("EXPORT");
         setExportType(data.type === "EXPORT_WHOLESALE" ? "WHOLESALE" : "RETAIL");
+        setPriceType(data.priceType ?? "RETAIL");
         setPhone(data.customer?.phone || "");
         setCustomerName(data.customer?.name || "");
         setCustomerId(data.customer?.id ? String(data.customer.id) : "");
@@ -166,7 +170,6 @@ function MovementsPageContent() {
     setItems(prev => prev.map((item, i) => {
       if (i === idx) {
         const selectedProd = selectedProduct;
-        const priceType = exportType === "WHOLESALE" ? "DEALER" : "RETAIL";
         const selectedPrice = selectedProd ? findProductPrice(selectedProd, priceType) : undefined;
         const defaultPrice = selectedPrice ? Number(selectedPrice.amount) : "";
         return {
@@ -310,6 +313,7 @@ function MovementsPageContent() {
           phone: phone.trim(),
           customerName: customerName.trim(),
           type: exportType === "WHOLESALE" ? "EXPORT_WHOLESALE" : "EXPORT_RETAIL",
+          priceType,
           reason: items[0]?.note || "Bán xuất kho",
           address: address.trim(),
           paidAmount: editId ? originalPaidAmount : 0,
@@ -401,7 +405,7 @@ function MovementsPageContent() {
 
         {activeTab === "EXPORT" && (
           <div className="p-4 bg-secondary/5 border-b border-border space-y-4">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Hình thức xuất:</span>
               <div className="flex bg-card border border-border rounded-lg p-0.5 shadow-sm">
                 <button
@@ -425,6 +429,20 @@ function MovementsPageContent() {
                   Bán buôn (Wholesale)
                 </button>
               </div>
+
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Áp giá theo:</span>
+              <CustomSelect
+                value={priceType}
+                onChange={(val) => setPriceType(val as PartPriceType)}
+                options={[
+                  { value: "RETAIL",      label: "Giá bán lẻ" },
+                  { value: "DEALER",      label: "Giá đại lý" },
+                  { value: "DISTRIBUTOR", label: "Giá phân phối" },
+                  { value: "TECHNICIAN",  label: "Giá thợ" },
+                  { value: "INSURANCE",   label: "Giá bảo hiểm" },
+                ]}
+                size="sm"
+              />
             </div>
 
             {/* Customer Section */}
