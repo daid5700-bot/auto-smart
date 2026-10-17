@@ -257,6 +257,7 @@ export async function PATCH(
         data: {
           customerId,
           type: body.type,
+          priceType: body.priceType,
           totalAmount,
           debtAmount,
           status: debtAmount > 0 ? "DEBT" : "PAID",

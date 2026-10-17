@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
           code,
           customerId: finalCustomerId,
           type: type || "EXPORT_RETAIL",
+          priceType: body.priceType,
           totalAmount,
           paidAmount,
           debtAmount,

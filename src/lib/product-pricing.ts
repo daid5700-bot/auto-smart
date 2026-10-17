@@ -2,6 +2,23 @@ export const PART_PRICE_TYPES = ["RETAIL", "DEALER", "DISTRIBUTOR", "TECHNICIAN"
 export type PartPriceType = typeof PART_PRICE_TYPES[number];
 export type CompatiblePartPriceType = PartPriceType | "WHOLESALE";
 
+export function resolveAccessoryPriceType(accessories: unknown): PartPriceType {
+  const list = Array.isArray(accessories) ? accessories : [];
+  const found = list
+    .map((a: any) => a?.priceType)
+    .find((t: any) => typeof t === "string" && (PART_PRICE_TYPES as readonly string[]).includes(t));
+  return (found as PartPriceType) || "RETAIL";
+}
+
+// Bộ nhãn dùng chung cho mọi dropdown "loại giá" ở phía client.
+export const PART_PRICE_TYPE_OPTIONS: { value: PartPriceType; label: string }[] = [
+  { value: "RETAIL", label: "Giá lẻ" },
+  { value: "DEALER", label: "Giá đại lý" },
+  { value: "DISTRIBUTOR", label: "Giá phân phối" },
+  { value: "TECHNICIAN", label: "Giá thợ" },
+  { value: "INSURANCE", label: "Giá bảo hiểm" },
+];
+
 type PricedProduct = {
   name?: string;
   prices?: { type: string; amount: unknown }[];

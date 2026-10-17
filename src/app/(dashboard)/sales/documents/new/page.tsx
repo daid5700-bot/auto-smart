@@ -16,6 +16,11 @@ import {
   type DiscountOption,
 } from "@/components/discounts/DiscountPicker";
 import { useInventoryProductSearch } from "@/hooks/useInventoryProductSearch";
+import {
+  findProductPrice,
+  PART_PRICE_TYPE_OPTIONS,
+  type PartPriceType,
+} from "@/lib/product-pricing";
 
 
 interface Accessory {
@@ -25,6 +30,8 @@ interface Accessory {
   price: number;
   quantity: number | "";
   stockCount?: number;
+  // Loại giá đã dùng để tra đơn giá của phụ kiện này.
+  priceType?: string;
 }
 
 export default function NewDocumentPage() {
@@ -90,6 +97,8 @@ export default function NewDocumentPage() {
 
   // Metadata: Accessories
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
+  // Loại giá dùng chung cho phụ kiện mua kèm (dùng để tra đơn giá).
+  const [accessoryPriceType, setAccessoryPriceType] = useState<PartPriceType>("RETAIL");
   const [giftItems, setGiftItems] = useState<Accessory[]>([]);
   const [rawNotes, setRawNotes] = useState("");
   const [showServices, setShowServices] = useState(false);
@@ -109,6 +118,7 @@ export default function NewDocumentPage() {
 
   const {
     results: accessoryProductResults,
+    products: accessoryProducts,
     loading: accessoriesLoading,
     error: accessoriesError,
   } = useInventoryProductSearch({
@@ -213,10 +223,10 @@ export default function NewDocumentPage() {
         selectedAccessories.map(a => a.id === p.id ? { ...a, quantity: Math.min(stock, (Number(a.quantity) || 0) + 1), stockCount: stock } : a)
       );
     } else {
-      const retailPrice = p.prices?.find((pr: any) => pr.type === "RETAIL")?.amount || 0;
+      const tierPrice = findProductPrice(p, accessoryPriceType)?.amount || 0;
       setSelectedAccessories([
         ...selectedAccessories,
-        { id: p.id, name: p.name, sku: p.sku, price: Number(retailPrice), quantity: 1, stockCount: stock }
+        { id: p.id, name: p.name, sku: p.sku, price: Number(tierPrice), quantity: 1, stockCount: stock, priceType: accessoryPriceType }
       ]);
     }
   };
@@ -411,6 +421,64 @@ export default function NewDocumentPage() {
       return hasStockB - hasStockA;
     });
   }, [accessoryProductResults]);
+
+  /**
+   * Đổi loại giá chung cho phụ kiện mua kèm: tra lại giá cho toàn bộ danh sách.
+   * Phụ kiện không có ô nhập giá tay nên không cần cờ ghi đè.
+   *
+   * Lưu ý: kết quả tìm kiếm (`results`) bị xoá mỗi lần đổi từ khoá, nên phụ
+   * kiện đã chọn có thể không còn trong danh sách. Phải tra trong cache tích
+   * luỹ của hook rồi bổ sung theo ID; nếu vẫn không tra được thì giữ nguyên cả
+   * giá lẫn nhãn để không tạo ra dòng lệch giá/nhãn.
+   */
+  const handleAccessoryPriceTypeChange = async (tier: PartPriceType) => {
+    setAccessoryPriceType(tier);
+
+    const lookup = new Map<number, any>(
+      accessoryProducts.map((p) => [p.id, p]),
+    );
+    accessoryProductResults.forEach((p) => lookup.set(p.id, p));
+
+    const fetched = new Map<number, any>();
+    const missingIds = Array.from(
+      new Set(
+        selectedAccessories
+          .filter((a) => !lookup.has(a.id))
+          .map((a) => a.id),
+      ),
+    );
+    if (missingIds.length > 0) {
+      const branchQuery =
+        typeof productBranchId === "number"
+          ? `&branchFilter=${productBranchId}`
+          : "";
+      await Promise.all(
+        missingIds.map(async (id) => {
+          try {
+            const res = await fetch(
+              `/api/inventory?view=selector&page=1&limit=5&search=${id}${branchQuery}`,
+            );
+            if (!res.ok) return;
+            const data = await res.json();
+            const prod = (data.products || []).find((p: any) => p.id === id);
+            if (prod) fetched.set(id, prod);
+          } catch {
+            // Không tra được thì giữ nguyên đơn giá cũ của dòng đó.
+          }
+        }),
+      );
+    }
+
+    setSelectedAccessories((current) =>
+      current.map((a) => {
+        const prod = lookup.get(a.id) || fetched.get(a.id);
+        // Không tra được giá → giữ nguyên cả đơn giá lẫn nhãn để tránh lệch.
+        if (!prod) return a;
+        const tierPrice = findProductPrice(prod, tier)?.amount || 0;
+        return { ...a, price: Number(tierPrice), priceType: tier };
+      })
+    );
+  };
 
   const filteredCustomers = useMemo(() => {
     if (customerSearchQuery.trim().length > 1) {
@@ -1061,7 +1129,20 @@ export default function NewDocumentPage() {
             </div>
 
             <div className="space-y-2 mt-4">
-              <label className="text-xs font-bold text-muted-foreground block">Chọn Phụ tùng mua kèm (Tính tiền chung)</label>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="text-xs font-bold text-muted-foreground block">Chọn Phụ tùng mua kèm (Tính tiền chung)</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase whitespace-nowrap">Loại giá</label>
+                  <div className="w-40">
+                    <CustomSelect
+                      value={accessoryPriceType}
+                      onChange={(val) => handleAccessoryPriceTypeChange(val as PartPriceType)}
+                      options={PART_PRICE_TYPE_OPTIONS}
+                      size="sm"
+                    />
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="border border-border rounded-xl p-3 space-y-2 bg-secondary/5">
                   <div className="relative">
@@ -1071,7 +1152,7 @@ export default function NewDocumentPage() {
                   </div>
                   <div className="max-h-[190px] overflow-y-auto space-y-1 divide-y divide-border/60 pr-2.5">
                     {filteredAccessories.map((p)=>{
-                      const price=p.prices?.find((pr:any)=>pr.type==="RETAIL")?.amount||0;
+                      const price=Number(findProductPrice(p, accessoryPriceType)?.amount||0);
                       const isOut = (p.stockCount || 0) <= 0;
                       return (
                         <div key={p.id} className={`flex items-center justify-between pt-1.5 text-xs ${isOut ? "opacity-60" : ""}`}>

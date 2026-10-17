@@ -162,6 +162,7 @@ model InventoryOrder {
   customerId  Int?
   customer    Customer?       @relation(fields: [customerId], references: [id])
   type        String // EXPORT_RETAIL, EXPORT_WHOLESALE, INTERNAL
+  priceType   String @default("RETAIL") // RETAIL, DEALER, DISTRIBUTOR, TECHNICIAN, INSURANCE
   totalAmount Decimal         @default(0)
   paidAmount  Decimal         @default(0)
   debtAmount  Decimal         @default(0)

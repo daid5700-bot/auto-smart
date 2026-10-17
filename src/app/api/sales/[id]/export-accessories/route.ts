@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBranchId } from "@/lib/branch";
 import { notifyRequisitionCountChanged } from "@/lib/requisition-events";
+import { resolveAccessoryPriceType } from "@/lib/product-pricing";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         code,
         customerId: vehicle.customerId,
         type: "EXPORT_RETAIL",
+        priceType: resolveAccessoryPriceType(accessories),
         totalAmount,
         paidAmount: totalAmount,
         debtAmount: 0,
